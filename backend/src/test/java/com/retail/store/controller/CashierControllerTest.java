@@ -1,6 +1,11 @@
 package com.retail.store.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.retail.store.dto.cashier.request.CashierLoginRequest;
+import com.retail.store.dto.cashier.request.CloseShiftRequest;
+import com.retail.store.dto.cashier.request.OpenShiftRequest;
+import com.retail.store.dto.cashier.request.PosCartItemRequest;
+import com.retail.store.dto.cashier.request.PosWalkInRequest;
 import com.retail.store.entity.Order;
 import com.retail.store.entity.enums.CustomerType;
 import com.retail.store.entity.enums.OrderChannel;
@@ -31,7 +36,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.retail.store.mapper.cashier.CashierMapper;
+import org.springframework.context.annotation.Import;
+
 @WebMvcTest(CashierController.class)
+@Import(CashierMapper.class)
 @AutoConfigureMockMvc(addFilters = false) // focus on controller endpoints & serialization
 class CashierControllerTest {
 
@@ -64,7 +73,7 @@ class CashierControllerTest {
 
         when(cashierService.login("cashier@retailstore.com", "cashier123")).thenReturn(authResponse);
 
-        CashierController.CashierLoginRequest request = new CashierController.CashierLoginRequest(
+        CashierLoginRequest request = new CashierLoginRequest(
                 "cashier@retailstore.com", "cashier123"
         );
 
@@ -97,10 +106,10 @@ class CashierControllerTest {
 
         when(cashierService.checkoutWalkIn(any(), any(), any(), any(), any())).thenReturn(result);
 
-        CashierController.PosWalkInRequest request = new CashierController.PosWalkInRequest(
+        PosWalkInRequest request = new PosWalkInRequest(
                 10L,
                 null,
-                List.of(new CashierService.PosCartItemDto(100L, 2)),
+                List.of(new PosCartItemRequest(100L, 2)),
                 new BigDecimal("50.00"),
                 PaymentMethod.CASH
         );
@@ -154,7 +163,7 @@ class CashierControllerTest {
 
         when(cashierService.openShift(eq(10L), any(), any())).thenReturn(shiftDto);
 
-        CashierController.OpenShiftRequest request = new CashierController.OpenShiftRequest(
+        OpenShiftRequest request = new OpenShiftRequest(
                 10L, new BigDecimal("100.00"), "Morning"
         );
 
@@ -166,6 +175,50 @@ class CashierControllerTest {
                 .andExpect(jsonPath("$.id").value(1))
                 .andExpect(jsonPath("$.status").value("OPEN"))
                 .andExpect(jsonPath("$.openingFloat").value(100.00));
+    }
+
+    @Test
+    @DisplayName("POST /pos/shift/close: Closes cashier shift and returns reconciliation")
+    void testCloseShiftEndpoint() throws Exception {
+        CashierService.PosShiftDto shiftDto = new CashierService.PosShiftDto(
+                1L, 10L, "Jane Doe", LocalDateTime.now().minusHours(8), LocalDateTime.now(),
+                new BigDecimal("100.00"), new BigDecimal("350.00"), new BigDecimal("350.00"), BigDecimal.ZERO, 15,
+                PosShiftStatus.CLOSED, "Shift closed smoothly"
+        );
+
+        when(cashierService.closeShift(eq(10L), any(), any())).thenReturn(shiftDto);
+
+        CloseShiftRequest request = new CloseShiftRequest(
+                10L, new BigDecimal("350.00"), "Shift closed smoothly"
+        );
+
+        mockMvc.perform(post("/pos/shift/close")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.status").value("CLOSED"))
+                .andExpect(jsonPath("$.closingCash").value(350.00))
+                .andExpect(jsonPath("$.cashVariance").value(0));
+    }
+
+    @Test
+    @DisplayName("GET /pos/shift/current: Retrieves active shift details")
+    void testGetCurrentShiftEndpoint() throws Exception {
+        CashierService.PosShiftDto shiftDto = new CashierService.PosShiftDto(
+                1L, 10L, "Jane Doe", LocalDateTime.now().minusHours(2), null,
+                new BigDecimal("100.00"), null, new BigDecimal("250.00"), null, 8,
+                PosShiftStatus.OPEN, "Active"
+        );
+
+        when(cashierService.getCurrentShift(10L)).thenReturn(shiftDto);
+
+        mockMvc.perform(get("/pos/shift/current").param("cashierId", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.cashierName").value("Jane Doe"))
+                .andExpect(jsonPath("$.totalTransactions").value(8));
     }
 
     @Test

@@ -1,0 +1,965 @@
+import React, { useState, useEffect } from 'react';
+import { PosProductScan, PosShift, ThermalReceipt } from '../../types/schema';
+import { posService, DEFAULT_POS_PRODUCTS, PosCartItem } from '../../services/posService';
+import { ThermalReceiptModal } from './ThermalReceiptModal';
+import { ShiftManagementModal } from './ShiftManagementModal';
+import {
+  Barcode,
+  Search,
+  ShoppingCart,
+  Plus,
+  Minus,
+  Trash2,
+  DollarSign,
+  Receipt,
+  CreditCard,
+  Banknote,
+  RotateCcw,
+  Lock,
+  AlertCircle
+} from 'lucide-react';
+
+export const CashierPosTerminal: React.FC = () => {
+  const [products] = useState<PosProductScan[]>(DEFAULT_POS_PRODUCTS);
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [barcodeInput, setBarcodeInput] = useState<string>('');
+  const [cart, setCart] = useState<PosCartItem[]>([]);
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'CARD' | 'BANK_TRANSFER'>('CASH');
+  const [amountTendered, setAmountTendered] = useState<string>('');
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Shift & Receipt State
+  const [activeShift, setActiveShift] = useState<PosShift | null>(null);
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState<boolean>(false);
+  const [receiptData, setReceiptData] = useState<ThermalReceipt | null>(null);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Initial active shift check
+    posService.getCurrentShift().then((shift) => {
+      if (shift) setActiveShift(shift);
+      else {
+        // Default simulated open shift for responsive testing
+        setActiveShift({
+          id: 1,
+          cashierId: 10,
+          cashierName: 'Jane Doe (Lead Cashier)',
+          openedAt: new Date().toISOString(),
+          closedAt: null,
+          openingFloat: 100.0,
+          systemCashTotal: 142.5,
+          cashVariance: null,
+          totalTransactions: 6,
+          status: 'OPEN',
+          notes: 'Terminal 01 Morning Float'
+        });
+      }
+    });
+  }, []);
+
+  // Cart calculations
+  const subtotal = Math.round(cart.reduce((acc, it) => acc + it.subtotal, 0) * 100) / 100;
+  const taxAmount = Math.round(subtotal * 0.07 * 100) / 100; // 7% VAT standard
+  const grandTotal = Math.round((subtotal + taxAmount) * 100) / 100;
+  const numericTendered = parseFloat(amountTendered) || 0;
+  const changeDue = Math.max(0, Math.round((numericTendered - grandTotal) * 100) / 100);
+  const isCashInsufficient = paymentMethod === 'CASH' && numericTendered < grandTotal && grandTotal > 0;
+
+  // Add product to cart
+  const handleAddToCart = (product: PosProductScan) => {
+    setErrorMessage(null);
+    setCart((prev) => {
+      const existing = prev.find((it) => it.productId === product.id);
+      if (existing) {
+        if (existing.quantity >= product.availableStock) {
+          setErrorMessage(`Cannot exceed available stock of ${product.availableStock} for ${product.name}`);
+          return prev;
+        }
+        return prev.map((it) =>
+          it.productId === product.id
+            ? {
+                ...it,
+                quantity: it.quantity + 1,
+                subtotal: Math.round((it.quantity + 1) * it.retailPrice * 100) / 100
+              }
+            : it
+        );
+      }
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          name: product.name,
+          sku: product.sku,
+          retailPrice: product.retailPrice,
+          quantity: 1,
+          subtotal: product.retailPrice
+        }
+      ];
+    });
+  };
+
+  const handleUpdateQuantity = (productId: number, delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((it) => {
+          if (it.productId === productId) {
+            const nextQty = it.quantity + delta;
+            return nextQty > 0
+              ? { ...it, quantity: nextQty, subtotal: Math.round(nextQty * it.retailPrice * 100) / 100 }
+              : null;
+          }
+          return it;
+        })
+        .filter(Boolean) as PosCartItem[]
+    );
+  };
+
+  const handleRemoveItem = (productId: number) => {
+    setCart((prev) => prev.filter((it) => it.productId !== productId));
+  };
+
+  const handleBarcodeScan = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!barcodeInput.trim()) return;
+    setErrorMessage(null);
+    try {
+      const scanned = await posService.scanProduct(barcodeInput.trim());
+      handleAddToCart(scanned);
+      setBarcodeInput('');
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Product SKU not found');
+    }
+  };
+
+  const handlePresetTender = (amount: number) => {
+    setAmountTendered(amount.toFixed(2));
+  };
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) {
+      setErrorMessage('POS cart is empty. Add items to proceed.');
+      return;
+    }
+    if (paymentMethod === 'CASH' && numericTendered < grandTotal) {
+      setErrorMessage(`Insufficient cash tendered. Total is $${grandTotal.toFixed(2)}, received $${numericTendered.toFixed(2)}.`);
+      return;
+    }
+
+    setIsProcessing(true);
+    setErrorMessage(null);
+
+    try {
+      const itemsPayload = cart.map((it) => ({ productId: it.productId, quantity: it.quantity }));
+      const result = await posService.checkoutWalkIn(itemsPayload, numericTendered, paymentMethod);
+
+      // Construct thermal receipt payload
+      const receipt: ThermalReceipt = {
+        storeName: 'ONLINE RETAIL POS - STORE #01',
+        terminalId: 'POS-TERM-01',
+        cashierName: activeShift?.cashierName || 'Jane Doe (ID #10)',
+        orderNumber: result.order.orderNumber,
+        dateTime: new Date().toLocaleString(),
+        items: cart.map((it) => ({
+          productName: it.name,
+          quantity: it.quantity,
+          unitPrice: it.retailPrice,
+          subtotal: it.subtotal
+        })),
+        subtotal: result.order.subtotal,
+        taxAmount: result.order.taxAmount,
+        grandTotal: result.order.totalAmount,
+        amountTendered: numericTendered || result.order.totalAmount,
+        changeDue: result.changeDue,
+        barcodeData: `RCP*${result.order.orderNumber}*V1`
+      };
+
+      // Update active shift drawer stats
+      if (activeShift && activeShift.status === 'OPEN') {
+        setActiveShift({
+          ...activeShift,
+          totalTransactions: activeShift.totalTransactions + 1,
+          systemCashTotal:
+            paymentMethod === 'CASH'
+              ? Math.round((activeShift.systemCashTotal + result.order.totalAmount) * 100) / 100
+              : activeShift.systemCashTotal
+        });
+      }
+
+      setReceiptData(receipt);
+      setIsReceiptModalOpen(true);
+      setCart([]);
+      setAmountTendered('');
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Checkout failed.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleOpenShift = async (floatAmount: number, notes: string) => {
+    const shift = await posService.openShift(floatAmount, notes);
+    setActiveShift(shift);
+  };
+
+  const handleCloseShift = async (closingCash: number, notes: string) => {
+    const shift = await posService.closeShift(closingCash, notes);
+    setActiveShift(shift);
+  };
+
+  // Filtered catalog
+  const filteredProducts = products.filter((p) => {
+    const matchesCategory =
+      selectedCategory === 'All' ||
+      (selectedCategory === 'Beverages' && (p.name.includes('Coffee') || p.name.includes('Water') || p.name.includes('Milk') || p.name.includes('Latte'))) ||
+      (selectedCategory === 'Snacks' && (p.name.includes('Bar') || p.name.includes('Crisps') || p.name.includes('Chocolate'))) ||
+      (selectedCategory === 'Nutrition' && (p.name.includes('Protein') || p.name.includes('Matcha') || p.name.includes('Energy')));
+    const matchesSearch =
+      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.sku.toLowerCase().includes(searchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+      {/* Top POS Header & Shift Status Bar */}
+      <div
+        className="ios-glass-panel"
+        style={{
+          padding: '16px 24px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div
+            style={{
+              width: '42px',
+              height: '42px',
+              borderRadius: '12px',
+              backgroundColor: '#FFFFFF',
+              color: '#000000',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 800
+            }}
+          >
+            <Barcode size={22} />
+          </div>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>POS Touchscreen Terminal</h2>
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '9999px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  color: '#FFFFFF'
+                }}
+              >
+                STORE #01 • TERM-POS-01
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '2px', fontSize: '12px', color: 'var(--ios-text-muted)' }}>
+              <span>Staff: {activeShift?.cashierName || 'Jane Doe (ID #10)'}</span>
+              <span>•</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10B981' }}>
+                <Lock size={12} /> Strict Retail Pricing Locked
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Shift Drawer HUD & Quick Modal Trigger */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div
+            style={{
+              padding: '6px 14px',
+              borderRadius: '12px',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              fontSize: '12px'
+            }}
+          >
+            <div
+              style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: activeShift?.status === 'OPEN' ? '#10B981' : '#F59E0B',
+                boxShadow: activeShift?.status === 'OPEN' ? '0 0 8px #10B981' : 'none'
+              }}
+            />
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '11px', color: '#FFFFFF' }}>
+                {activeShift?.status === 'OPEN' ? 'SHIFT ACTIVE' : 'SHIFT CLOSED'}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
+                Float: ${activeShift?.openingFloat.toFixed(2) || '0.00'} | Drawer Sales: ${activeShift?.systemCashTotal.toFixed(2) || '0.00'}
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setIsShiftModalOpen(true)}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: activeShift?.status === 'OPEN' ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
+              color: activeShift?.status === 'OPEN' ? '#FFFFFF' : '#000000',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '9999px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            {activeShift?.status === 'OPEN' ? 'Reconcile Drawer' : 'Open Shift Float'}
+          </button>
+        </div>
+      </div>
+
+      {/* Error banner if present */}
+      {errorMessage && (
+        <div
+          style={{
+            padding: '12px 18px',
+            borderRadius: '14px',
+            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.35)',
+            color: '#FCA5A5',
+            fontSize: '13px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+        >
+          <AlertCircle size={16} />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
+      {/* Main POS Split Layout */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
+        {/* Left Column: Fast Product Catalog & Barcode Scanner */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* Barcode & Search Bar */}
+          <div
+            className="ios-glass-panel"
+            style={{
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}
+          >
+            <form onSubmit={handleBarcodeScan} style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Barcode
+                  size={18}
+                  style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#71717A' }}
+                />
+                <input
+                  type="text"
+                  placeholder="Scan barcode or enter SKU (e.g. SKU-ENERGY-BAR) + [Enter]..."
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px 12px 38px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              <button
+                type="submit"
+                style={{
+                  padding: '0 20px',
+                  backgroundColor: '#FFFFFF',
+                  color: '#000000',
+                  border: 'none',
+                  borderRadius: '12px',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Scan SKU
+              </button>
+            </form>
+
+            {/* Live Search and Category Filter Row */}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ position: 'relative', flex: 1, minWidth: '180px' }}>
+                <Search
+                  size={14}
+                  style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#71717A' }}
+                />
+                <input
+                  type="text"
+                  placeholder="Search products by title..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px 8px 30px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    color: '#FFFFFF',
+                    fontSize: '12px',
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '6px' }}>
+                {(['All', 'Beverages', 'Snacks', 'Nutrition'] as const).map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      border: 'none',
+                      cursor: 'pointer',
+                      backgroundColor: selectedCategory === cat ? '#FFFFFF' : 'rgba(255, 255, 255, 0.08)',
+                      color: selectedCategory === cat ? '#000000' : 'rgba(255, 255, 255, 0.7)',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick Demo Scan Pills */}
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>Quick Scan Demo:</span>
+              {DEFAULT_POS_PRODUCTS.slice(0, 4).map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleAddToCart(p)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    color: '#FFFFFF',
+                    fontSize: '11px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  +{p.name.split(' ')[0]} (${p.retailPrice.toFixed(2)})
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Product Grid */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+              gap: '12px',
+              maxHeight: '620px',
+              overflowY: 'auto',
+              paddingRight: '4px'
+            }}
+          >
+            {filteredProducts.map((product) => (
+              <div
+                key={product.id}
+                onClick={() => handleAddToCart(product)}
+                className="ios-glass-panel ios-glow-hover"
+                style={{
+                  padding: '16px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  gap: '12px',
+                  backgroundColor: 'rgba(24, 24, 27, 0.65)'
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <span
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: '6px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        color: 'var(--ios-text-muted)'
+                      }}
+                    >
+                      {product.sku}
+                    </span>
+                    {product.isPerishable && (
+                      <span
+                        style={{
+                          fontSize: '9px',
+                          fontWeight: 700,
+                          padding: '2px 6px',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                          color: '#F59E0B'
+                        }}
+                      >
+                        FEFO
+                      </span>
+                    )}
+                  </div>
+                  <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 4px', color: '#FFFFFF', lineHeight: 1.3 }}>
+                    {product.name}
+                  </h3>
+                  <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
+                    {product.availableStock} in stock
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#FFFFFF' }}>
+                    ${product.retailPrice.toFixed(2)}
+                  </div>
+                  <div
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#FFFFFF'
+                    }}
+                  >
+                    <Plus size={16} />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right Column: Walk-In Cart & Tender Drawer */}
+        <div
+          className="ios-glass-panel"
+          style={{
+            padding: '20px',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            gap: '16px',
+            height: 'fit-content'
+          }}
+        >
+          {/* Cart Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <ShoppingCart size={18} />
+              <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Current Order</h3>
+              <span
+                style={{
+                  fontSize: '11px',
+                  padding: '2px 8px',
+                  borderRadius: '9999px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  color: '#FFFFFF'
+                }}
+              >
+                {cart.length} items
+              </span>
+            </div>
+            {cart.length > 0 && (
+              <button
+                onClick={() => setCart([])}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--ios-text-muted)',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <RotateCcw size={12} /> Clear
+              </button>
+            )}
+          </div>
+
+          {/* Cart Items List */}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              maxHeight: '260px',
+              overflowY: 'auto',
+              paddingRight: '4px'
+            }}
+          >
+            {cart.length === 0 ? (
+              <div
+                style={{
+                  padding: '40px 20px',
+                  textAlign: 'center',
+                  color: 'var(--ios-text-muted)',
+                  fontSize: '13px'
+                }}
+              >
+                <Barcode size={32} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
+                Scan product barcode or tap items from the catalog grid to build the walk-in order.
+              </div>
+            ) : (
+              cart.map((item) => (
+                <div
+                  key={item.productId}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 12px',
+                    borderRadius: '12px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)'
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0, paddingRight: '10px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {item.name}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
+                      ${item.retailPrice.toFixed(2)} each
+                    </div>
+                  </div>
+
+                  {/* Quantity Stepper */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button
+                      onClick={() => handleUpdateQuantity(item.productId, -1)}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '6px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        border: 'none',
+                        color: '#FFFFFF',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Minus size={12} />
+                    </button>
+                    <span style={{ fontSize: '13px', fontWeight: 700, minWidth: '16px', textAlign: 'center' }}>
+                      {item.quantity}
+                    </span>
+                    <button
+                      onClick={() => handleUpdateQuantity(item.productId, 1)}
+                      style={{
+                        width: '24px',
+                        height: '24px',
+                        borderRadius: '6px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                        border: 'none',
+                        color: '#FFFFFF',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Plus size={12} />
+                    </button>
+                  </div>
+
+                  <div style={{ fontSize: '13px', fontWeight: 700, minWidth: '55px', textAlign: 'right' }}>
+                    ${item.subtotal.toFixed(2)}
+                  </div>
+
+                  <button
+                    onClick={() => handleRemoveItem(item.productId)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--ios-text-muted)',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      marginLeft: '6px'
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Pricing Totals Box */}
+          <div
+            style={{
+              padding: '14px 16px',
+              borderRadius: '16px',
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '6px',
+              fontSize: '13px'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--ios-text-muted)' }}>
+              <span>Subtotal:</span>
+              <span>${subtotal.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--ios-text-muted)' }}>
+              <span>7% VAT Tax:</span>
+              <span>${taxAmount.toFixed(2)}</span>
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', margin: '4px 0' }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 800 }}>
+              <span>Grand Total:</span>
+              <span>${grandTotal.toFixed(2)}</span>
+            </div>
+          </div>
+
+          {/* Payment Method Tabs */}
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ios-text-muted)', marginBottom: '8px' }}>
+              PAYMENT METHOD
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+              {(['CASH', 'CARD', 'BANK_TRANSFER'] as const).map((method) => (
+                <button
+                  key={method}
+                  onClick={() => setPaymentMethod(method)}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: '10px',
+                    border: '1px solid',
+                    borderColor: paymentMethod === method ? '#FFFFFF' : 'rgba(255, 255, 255, 0.1)',
+                    backgroundColor: paymentMethod === method ? '#FFFFFF' : 'rgba(255, 255, 255, 0.05)',
+                    color: paymentMethod === method ? '#000000' : '#FFFFFF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  {method === 'CASH' && <Banknote size={14} />}
+                  {method === 'CARD' && <CreditCard size={14} />}
+                  {method === 'BANK_TRANSFER' && <DollarSign size={14} />}
+                  {method === 'BANK_TRANSFER' ? 'TRANSFER' : method}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Cash Tender Presets & Change Due Calculator */}
+          {paymentMethod === 'CASH' && (
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: '14px',
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '10px'
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ios-text-muted)' }}>
+                  QUICK CASH TENDER
+                </span>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    onClick={() => handlePresetTender(grandTotal)}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      border: 'none',
+                      color: '#FFFFFF',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Exact
+                  </button>
+                  <button
+                    onClick={() => handlePresetTender(20)}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      border: 'none',
+                      color: '#FFFFFF',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    $20
+                  </button>
+                  <button
+                    onClick={() => handlePresetTender(50)}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      border: 'none',
+                      color: '#FFFFFF',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    $50
+                  </button>
+                  <button
+                    onClick={() => handlePresetTender(100)}
+                    style={{
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      border: 'none',
+                      color: '#FFFFFF',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    $100
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ position: 'relative' }}>
+                <DollarSign
+                  size={16}
+                  style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#71717A' }}
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="0.00"
+                  value={amountTendered}
+                  onChange={(e) => setAmountTendered(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px 10px 34px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    border: `1px solid ${isCashInsufficient ? '#EF4444' : 'rgba(255, 255, 255, 0.2)'}`,
+                    color: '#FFFFFF',
+                    fontSize: '15px',
+                    fontWeight: 700,
+                    outline: 'none',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {/* Live Change Due HUD */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '13px',
+                  fontWeight: 700
+                }}
+              >
+                <span style={{ color: isCashInsufficient ? '#EF4444' : '#10B981' }}>
+                  {isCashInsufficient
+                    ? `Short: -$${Math.abs(numericTendered - grandTotal).toFixed(2)}`
+                    : 'Change Due:'}
+                </span>
+                <span style={{ fontSize: '16px', color: isCashInsufficient ? '#EF4444' : '#10B981' }}>
+                  ${changeDue.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Action Checkout Button */}
+          <button
+            onClick={handleCheckout}
+            disabled={isProcessing || cart.length === 0}
+            style={{
+              padding: '16px',
+              backgroundColor: cart.length === 0 ? 'rgba(255, 255, 255, 0.2)' : '#FFFFFF',
+              color: cart.length === 0 ? 'rgba(0, 0, 0, 0.4)' : '#000000',
+              border: 'none',
+              borderRadius: '9999px',
+              fontSize: '14px',
+              fontWeight: 800,
+              cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              boxShadow: cart.length > 0 ? '0 10px 25px rgba(255, 255, 255, 0.2)' : 'none',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Receipt size={18} />
+            {isProcessing ? 'Processing Transaction...' : `Charge $${grandTotal.toFixed(2)} & Print Receipt`}
+          </button>
+        </div>
+      </div>
+
+      {/* 80mm ESC/POS Monochromatic Thermal Receipt Modal */}
+      <ThermalReceiptModal
+        receipt={receiptData}
+        isOpen={isReceiptModalOpen}
+        onClose={() => setIsReceiptModalOpen(false)}
+        onNewSale={() => {
+          setIsReceiptModalOpen(false);
+          setCart([]);
+          setAmountTendered('');
+        }}
+      />
+
+      {/* Shift Float & Drawer Reconciliation Modal */}
+      <ShiftManagementModal
+        isOpen={isShiftModalOpen}
+        activeShift={activeShift}
+        onClose={() => setIsShiftModalOpen(false)}
+        onOpenShift={handleOpenShift}
+        onCloseShift={handleCloseShift}
+      />
+    </div>
+  );
+};
+export default CashierPosTerminal;

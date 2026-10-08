@@ -133,3 +133,49 @@ export interface InventoryTransaction {
   reason?: string;
   createdAt: string;
 }
+
+export interface PosShift {
+  id: number;
+  cashierId: number;
+  cashierName: string;
+  openedAt: string;
+  closedAt?: string | null;
+  openingFloat: number;
+  closingCash?: number | null;
+  systemCashTotal: number;
+  cashVariance?: number | null;
+  totalTransactions: number;
+  status: 'OPEN' | 'CLOSED';
+  notes?: string;
+}
+
+export interface PosProductScan {
+  id: number;
+  sku: string;
+  name: string;
+  retailPrice: number;
+  availableStock: number;
+  isPerishable: boolean;
+}
+
+export interface ReceiptItem {
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface ThermalReceipt {
+  storeName: string;
+  terminalId: string;
+  cashierName: string;
+  orderNumber: string;
+  dateTime: string;
+  items: ReceiptItem[];
+  subtotal: number;
+  taxAmount: number;
+  grandTotal: number;
+  amountTendered: number;
+  changeDue: number;
+  barcodeData: string;
+}

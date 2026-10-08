@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { DynamicIsland } from './components/layout/DynamicIsland';
 import { IosCardGlass } from './components/ui/IosCardGlass';
 import { IosButton } from './components/ui/IosButton';
+import { CashierPosTerminal } from './components/pos/CashierPosTerminal';
 
 export const App: React.FC = () => {
   const [activeRole, setActiveRole] = useState<'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN'>('USER');
@@ -65,21 +66,7 @@ export const App: React.FC = () => {
       )}
 
       {activeRole === 'CASHIER' && (
-        <IosCardGlass glow>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 700 }}>📟 Person 2: Cashier POS Touchscreen Terminal (`/pos`)</h2>
-            <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '9999px', background: 'rgba(255,255,255,0.1)' }}>
-              STRICT RETAIL PRICING
-            </span>
-          </div>
-          <p style={{ color: 'var(--ios-text-muted)', marginBottom: '20px', lineHeight: 1.6 }}>
-            High-speed in-store point of sale terminal. Barcode scanning, rapid tap-to-add product grid, cash change calculator, and 80mm monochromatic thermal receipt printing.
-          </p>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <IosButton variant="primary">Launch POS Terminal</IosButton>
-            <IosButton variant="glass">Open Shift Float</IosButton>
-          </div>
-        </IosCardGlass>
+        <CashierPosTerminal />
       )}
 
       {activeRole === 'STOCK_CONTROLLER' && (
