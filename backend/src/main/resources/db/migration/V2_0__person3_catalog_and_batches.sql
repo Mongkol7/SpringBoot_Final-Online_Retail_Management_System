@@ -55,6 +55,6 @@ CREATE TABLE IF NOT EXISTS inventory_transactions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_products_sku ON products(sku);
-CREATE INDEX idx_batches_product_status ON product_batches(product_id, is_expired, current_quantity);
-CREATE INDEX idx_batches_expiry ON product_batches(expiry_date);
+CREATE INDEX IF NOT EXISTS idx_products_sku ON products(sku);
+CREATE INDEX IF NOT EXISTS idx_batches_product_status ON product_batches(product_id, is_expired, current_quantity);
+CREATE INDEX IF NOT EXISTS idx_batches_expiry ON product_batches(expiry_date);
