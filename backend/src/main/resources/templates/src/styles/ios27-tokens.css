@@ -1,0 +1,57 @@
+/* iOS 27 Vision Glass — Ultra-Minimalist Black & White Design System */
+
+:root {
+  /* Surfaces */
+  --ios-bg-base: #000000;
+  --ios-surface-glass-1: rgba(18, 18, 20, 0.75);
+  --ios-surface-glass-2: rgba(28, 28, 32, 0.60);
+  --ios-surface-glass-hover: rgba(45, 45, 52, 0.75);
+  --ios-surface-active: rgba(255, 255, 255, 0.12);
+
+  /* Glass Borders & Highlights */
+  --ios-glass-border: rgba(255, 255, 255, 0.12);
+  --ios-glass-border-bright: rgba(255, 255, 255, 0.25);
+  --ios-glass-glow: 0 0 30px rgba(255, 255, 255, 0.10);
+  --ios-card-shadow: 0 20px 40px rgba(0, 0, 0, 0.8), 0 0 1px 1px rgba(255, 255, 255, 0.1);
+
+  /* Typography */
+  --ios-text-white: #FFFFFF;
+  --ios-text-muted: #A1A1AA;
+  --ios-text-subtle: #71717A;
+  --ios-text-inverse: #000000;
+
+  /* Glass Filters & Corners */
+  --ios-blur-deep: blur(28px) saturate(190%);
+  --ios-blur-subtle: blur(16px);
+  --ios-radius-capsule: 9999px;
+  --ios-radius-card: 24px;
+  --ios-radius-button: 16px;
+  --ios-radius-input: 14px;
+}
+
+/* Glass Utility Classes */
+.ios-glass-panel {
+  background: var(--ios-surface-glass-1);
+  backdrop-filter: var(--ios-blur-deep);
+  -webkit-backdrop-filter: var(--ios-blur-deep);
+  border: 1px solid var(--ios-glass-border);
+  box-shadow: var(--ios-card-shadow);
+  border-radius: var(--ios-radius-card);
+}
+
+.ios-glass-capsule {
+  background: var(--ios-surface-glass-2);
+  backdrop-filter: var(--ios-blur-deep);
+  -webkit-backdrop-filter: var(--ios-blur-deep);
+  border: 1px solid var(--ios-glass-border);
+  border-radius: var(--ios-radius-capsule);
+}
+
+.ios-glow-hover {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.ios-glow-hover:hover {
+  border-color: var(--ios-glass-border-bright);
+  box-shadow: var(--ios-glass-glow);
+}
