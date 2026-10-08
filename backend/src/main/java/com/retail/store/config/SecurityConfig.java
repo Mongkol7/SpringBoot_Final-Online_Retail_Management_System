@@ -56,13 +56,13 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Public Endpoints: Auth, Static Resources, Catalog Browsing
-                .requestMatchers("/auth/**", "/api/v1/auth/**").permitAll()
+                .requestMatchers("/auth/**", "/api/v1/auth/**", "/pos/login", "/api/v1/pos/login", "/cashier/login", "/api/v1/cashier/login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/products/**", "/api/v1/products/**", "/categories/**", "/api/v1/categories/**").permitAll()
                 .requestMatchers("/", "/index.html", "/static/**", "/assets/**", "/templates/**", "/favicon.ico").permitAll()
 
                 // Role-Specific Access Controls
                 .requestMatchers("/customer/**", "/api/v1/customer/**", "/cart/**", "/api/v1/cart/**").hasRole("USER")
-                .requestMatchers("/pos/**", "/api/v1/pos/**", "/cashier/**", "/api/v1/cashier/**").hasRole("CASHIER")
+                .requestMatchers("/pos/**", "/api/v1/pos/**", "/cashier/**", "/api/v1/cashier/**").hasAnyRole("CASHIER", "ADMIN")
                 .requestMatchers("/inventory/**", "/api/v1/inventory/**", "/batches/**", "/api/v1/batches/**").hasRole("STOCK_CONTROLLER")
                 .requestMatchers("/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
 
