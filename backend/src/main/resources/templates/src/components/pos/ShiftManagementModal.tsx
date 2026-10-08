@@ -21,6 +21,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const [closingCash, setClosingCash] = useState<string>('250.00');
   const [notes, setNotes] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
@@ -34,9 +35,12 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const handleOpenSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
     try {
       await onOpenShift(parseFloat(openingFloat) || 0, notes);
       onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to open shift');
     } finally {
       setIsSubmitting(false);
     }
@@ -45,9 +49,12 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const handleCloseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
     try {
       await onCloseShift(parseFloat(closingCash) || 0, notes);
       onClose();
+    } catch (err: any) {
+      setError(err.message || 'Failed to close/reconcile shift');
     } finally {
       setIsSubmitting(false);
     }
@@ -119,6 +126,27 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
             <X size={20} />
           </button>
         </div>
+
+        {/* Error Alert Banner */}
+        {error && (
+          <div
+            style={{
+              marginBottom: '16px',
+              padding: '12px 14px',
+              borderRadius: '12px',
+              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.4)',
+              color: '#FCA5A5',
+              fontSize: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+          >
+            <AlertTriangle size={16} color="#EF4444" />
+            <span>{error}</span>
+          </div>
+        )}
 
         {/* Content based on shift state */}
         {!isShiftOpen ? (

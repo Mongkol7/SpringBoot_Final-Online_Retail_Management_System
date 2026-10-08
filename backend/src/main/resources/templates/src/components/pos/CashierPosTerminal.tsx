@@ -37,26 +37,14 @@ export const CashierPosTerminal: React.FC = () => {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
 
   useEffect(() => {
-    // Initial active shift check
-    posService.getCurrentShift().then((shift) => {
-      if (shift) setActiveShift(shift);
-      else {
-        // Default simulated open shift for responsive testing
-        setActiveShift({
-          id: 1,
-          cashierId: 10,
-          cashierName: 'Jane Doe (Lead Cashier)',
-          openedAt: new Date().toISOString(),
-          closedAt: null,
-          openingFloat: 100.0,
-          systemCashTotal: 142.5,
-          cashVariance: null,
-          totalTransactions: 6,
-          status: 'OPEN',
-          notes: 'Terminal 01 Morning Float'
-        });
-      }
-    });
+    // Initial active shift check against PostgreSQL backend
+    posService.getCurrentShift()
+      .then((shift) => {
+        setActiveShift(shift);
+      })
+      .catch(() => {
+        setActiveShift(null);
+      });
   }, []);
 
   // Cart calculations
