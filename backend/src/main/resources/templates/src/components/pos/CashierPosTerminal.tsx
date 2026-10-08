@@ -306,7 +306,7 @@ export const CashierPosTerminal: React.FC = () => {
                 {activeShift?.status === 'OPEN' ? 'SHIFT ACTIVE' : 'SHIFT CLOSED'}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
-                Float: ${activeShift?.openingFloat.toFixed(2) || '0.00'} | Drawer Sales: ${activeShift?.systemCashTotal.toFixed(2) || '0.00'}
+                Float: ${Number(activeShift?.openingFloat ?? 0).toFixed(2)} | Drawer Sales: ${Number(activeShift?.systemCashTotal ?? 0).toFixed(2)}
               </div>
             </div>
           </div>
