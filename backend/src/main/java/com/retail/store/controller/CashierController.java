@@ -131,6 +131,20 @@ public class CashierController {
         return ResponseEntity.ok(products.stream().map(cashierMapper::toProductScanResponse).toList());
     }
 
+    /**
+     * Cashier POS Sales History
+     * Returns transactions with breakdown for specific cashier / time period (TODAY, SHIFT, YESTERDAY, ALL)
+     */
+    @GetMapping("/sales")
+    public ResponseEntity<List<PosSaleSummaryResponse>> getSalesHistory(
+            @AuthenticationPrincipal UserDetailsImpl cashier,
+            @RequestParam(required = false) Long cashierId,
+            @RequestParam(required = false, defaultValue = "TODAY") String period) {
+        Long targetCashierId = cashier != null ? cashier.getId() : cashierId;
+        var history = cashierService.getSalesHistory(targetCashierId, period);
+        return ResponseEntity.ok(history.stream().map(cashierMapper::toSaleSummaryResponse).toList());
+    }
+
     private Long resolveCashierId(UserDetailsImpl cashier, Long explicitId) {
         if (cashier != null && cashier.getId() != null) {
             return cashier.getId();

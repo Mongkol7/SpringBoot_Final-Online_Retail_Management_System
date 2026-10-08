@@ -203,4 +203,36 @@ public class CashierMapper {
                 product.getIsPerishable()
         );
     }
+
+    public PosSaleSummaryResponse toSaleSummaryResponse(CashierService.PosSaleSummaryDto dto) {
+        if (dto == null) {
+            return null;
+        }
+        List<PosSaleSummaryResponse.PosSaleItemResponse> items = dto.items() == null ? List.of() :
+                dto.items().stream()
+                        .map(it -> new PosSaleSummaryResponse.PosSaleItemResponse(
+                                it.productName(),
+                                it.quantity(),
+                                it.unitPrice(),
+                                it.subtotal()
+                        ))
+                        .toList();
+
+        return new PosSaleSummaryResponse(
+                dto.id(),
+                dto.orderNumber(),
+                dto.cashierId(),
+                dto.cashierName(),
+                dto.customerName(),
+                dto.channel(),
+                dto.paymentMethod(),
+                dto.totalItemsCount(),
+                dto.subtotal(),
+                dto.taxAmount(),
+                dto.totalAmount(),
+                dto.status(),
+                dto.createdAt(),
+                items
+        );
+    }
 }

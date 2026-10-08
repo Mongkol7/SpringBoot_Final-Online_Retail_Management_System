@@ -32,10 +32,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -385,6 +387,79 @@ public class CashierServiceImpl implements CashierService {
                         Boolean.TRUE.equals(product.getIsPerishable())
                 ))
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PosSaleSummaryDto> getSalesHistory(Long cashierId, String period) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start;
+        LocalDateTime end = now.plusDays(1);
+
+        String periodUpper = period != null ? period.toUpperCase() : "TODAY";
+        switch (periodUpper) {
+            case "TODAY" -> start = LocalDate.now().atStartOfDay();
+            case "YESTERDAY" -> {
+                start = LocalDate.now().minusDays(1).atStartOfDay();
+                end = LocalDate.now().atStartOfDay();
+            }
+            case "WEEK" -> start = LocalDate.now().minusDays(7).atStartOfDay();
+            case "MONTH" -> start = LocalDate.now().minusDays(30).atStartOfDay();
+            case "ALL" -> start = LocalDateTime.of(2000, 1, 1, 0, 0);
+            case "SHIFT" -> {
+                Optional<PosShift> shiftOpt = cashierId != null
+                        ? posShiftRepository.findTopByCashier_IdOrderByOpenedAtDesc(cashierId)
+                        : Optional.empty();
+                start = shiftOpt.map(PosShift::getOpenedAt).orElse(LocalDate.now().atStartOfDay());
+            }
+            default -> start = LocalDate.now().atStartOfDay();
+        }
+
+        List<Order> orders;
+        if (cashierId != null) {
+            orders = orderRepository.findByCashier_IdAndCreatedAtBetweenOrderByCreatedAtDesc(cashierId, start, end);
+        } else {
+            orders = orderRepository.findByChannelAndCreatedAtBetweenOrderByCreatedAtDesc(OrderChannel.POS, start, end);
+        }
+
+        return orders.stream()
+                .map(this::toSaleSummaryDto)
+                .toList();
+    }
+
+    private PosSaleSummaryDto toSaleSummaryDto(Order order) {
+        String cashierName = order.getCashier() != null ? order.getCashier().getFullName() : "POS Staff";
+        String customerName = order.getUser() != null ? order.getUser().getFullName() : "Walk-in Customer";
+        int totalItemsCount = order.getItems() != null
+                ? order.getItems().stream().mapToInt(OrderItem::getQuantity).sum()
+                : 0;
+
+        List<PosSaleItemDto> itemDtos = order.getItems() == null ? List.of() :
+                order.getItems().stream()
+                        .map(i -> new PosSaleItemDto(
+                                i.getProduct() != null ? i.getProduct().getName() : "Unknown Item",
+                                i.getQuantity(),
+                                i.getUnitPrice(),
+                                i.getSubtotal()
+                        ))
+                        .toList();
+
+        return new PosSaleSummaryDto(
+                order.getId(),
+                order.getOrderNumber(),
+                order.getCashier() != null ? order.getCashier().getId() : null,
+                cashierName,
+                customerName,
+                order.getChannel() != null ? order.getChannel().name() : "POS",
+                order.getPaymentMethod(),
+                totalItemsCount,
+                order.getSubtotal(),
+                order.getTaxAmount(),
+                order.getTotalAmount(),
+                order.getStatus() != null ? order.getStatus().name() : "PAID",
+                order.getCreatedAt(),
+                itemDtos
+        );
     }
 
     private PosShiftDto toShiftDto(PosShift shift) {

@@ -180,3 +180,28 @@ export interface ThermalReceipt {
   changeDue: number;
   barcodeData: string;
 }
+
+export interface PosSaleItem {
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface PosSaleSummary {
+  id: number;
+  orderNumber: string;
+  cashierId: number | null;
+  cashierName: string;
+  customerName: string;
+  channel: string;
+  paymentMethod: PaymentMethod;
+  totalItemsCount: number;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+  items: PosSaleItem[];
+}
+

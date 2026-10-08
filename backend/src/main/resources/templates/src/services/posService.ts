@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { PosProductScan, PosShift, ThermalReceipt } from '../types/schema';
+import { PosProductScan, PosShift, ThermalReceipt, PosSaleSummary } from '../types/schema';
 
 const API_BASE = '/api/v1/pos';
 
@@ -255,6 +255,23 @@ export const posService = {
         changeDue: 0,
         barcodeData: `RCP*${orderNumber}*V1`
       };
+    }
+  },
+
+  async getSalesHistory(period: string = 'TODAY', cashierIdParam?: number): Promise<PosSaleSummary[]> {
+    try {
+      const { headers, cashierId } = await getAuthHeaders();
+      const res = await axios.get<PosSaleSummary[]>(`${API_BASE}/sales`, {
+        params: {
+          period,
+          cashierId: cashierIdParam || cashierId
+        },
+        headers
+      });
+      return res.data;
+    } catch (err: any) {
+      console.warn('Failed to fetch sales history:', err);
+      return [];
     }
   }
 };

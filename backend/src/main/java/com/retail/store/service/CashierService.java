@@ -30,6 +30,32 @@ public interface CashierService {
 
     List<PosProductScanDto> getAllProducts();
 
+    List<PosSaleSummaryDto> getSalesHistory(Long cashierId, String period);
+
+    record PosSaleItemDto(
+            String productName,
+            int quantity,
+            BigDecimal unitPrice,
+            BigDecimal subtotal
+    ) {}
+
+    record PosSaleSummaryDto(
+            Long id,
+            String orderNumber,
+            Long cashierId,
+            String cashierName,
+            String customerName,
+            String channel,
+            PaymentMethod paymentMethod,
+            int totalItemsCount,
+            BigDecimal subtotal,
+            BigDecimal taxAmount,
+            BigDecimal totalAmount,
+            String status,
+            LocalDateTime createdAt,
+            List<PosSaleItemDto> items
+    ) {}
+
     record PosCartItemDto(Long productId, int quantity) {}
 
     record PosCheckoutResult(

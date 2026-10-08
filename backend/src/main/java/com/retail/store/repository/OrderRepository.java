@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -29,4 +30,12 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     long countByChannel(OrderChannel channel);
 
     long countByCreatedAtAfter(LocalDateTime since);
+
+    List<Order> findByChannelOrderByCreatedAtDesc(OrderChannel channel);
+
+    List<Order> findByCashier_IdOrderByCreatedAtDesc(Long cashierId);
+
+    List<Order> findByChannelAndCreatedAtBetweenOrderByCreatedAtDesc(OrderChannel channel, LocalDateTime start, LocalDateTime end);
+
+    List<Order> findByCashier_IdAndCreatedAtBetweenOrderByCreatedAtDesc(Long cashierId, LocalDateTime start, LocalDateTime end);
 }
