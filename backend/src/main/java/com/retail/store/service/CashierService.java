@@ -28,6 +28,8 @@ public interface CashierService {
 
     PosProductScanDto scanProduct(String sku);
 
+    List<PosProductScanDto> getAllProducts();
+
     record PosCartItemDto(Long productId, int quantity) {}
 
     record PosCheckoutResult(
@@ -77,6 +79,7 @@ public interface CashierService {
             Long id,
             String sku,
             String name,
+            String imageUrl,
             BigDecimal retailPrice,
             int availableStock,
             boolean isPerishable

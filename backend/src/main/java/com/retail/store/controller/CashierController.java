@@ -122,6 +122,15 @@ public class CashierController {
         return ResponseEntity.ok(cashierMapper.toProductScanResponse(cashierService.scanProduct(sku)));
     }
 
+    /**
+     * Complete POS Product Catalog with live FIFO available stock and image URLs
+     */
+    @GetMapping("/products")
+    public ResponseEntity<List<PosProductScanResponse>> getAllProducts() {
+        var products = cashierService.getAllProducts();
+        return ResponseEntity.ok(products.stream().map(cashierMapper::toProductScanResponse).toList());
+    }
+
     private Long resolveCashierId(UserDetailsImpl cashier, Long explicitId) {
         if (cashier != null && cashier.getId() != null) {
             return cashier.getId();

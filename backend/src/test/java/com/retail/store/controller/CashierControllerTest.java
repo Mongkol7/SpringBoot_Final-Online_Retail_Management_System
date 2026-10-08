@@ -225,7 +225,7 @@ class CashierControllerTest {
     @DisplayName("GET /pos/products/scan/{sku}: Scans product SKU and returns live stock")
     void testScanProductEndpoint() throws Exception {
         CashierService.PosProductScanDto scan = new CashierService.PosProductScanDto(
-                100L, "SKU-ENERGY-BAR", "Energy Bar", new BigDecimal("20.00"), 35, true
+                100L, "SKU-ENERGY-BAR", "Energy Bar", "https://example.com/bar.jpg", new BigDecimal("20.00"), 35, true
         );
 
         when(cashierService.scanProduct("SKU-ENERGY-BAR")).thenReturn(scan);
@@ -233,7 +233,24 @@ class CashierControllerTest {
         mockMvc.perform(get("/pos/products/scan/SKU-ENERGY-BAR"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.sku").value("SKU-ENERGY-BAR"))
+                .andExpect(jsonPath("$.imageUrl").value("https://example.com/bar.jpg"))
                 .andExpect(jsonPath("$.availableStock").value(35))
                 .andExpect(jsonPath("$.retailPrice").value(20.00));
+    }
+
+    @Test
+    @DisplayName("GET /pos/products: Returns all products with live stock and image URLs")
+    void testGetAllProductsEndpoint() throws Exception {
+        CashierService.PosProductScanDto prod = new CashierService.PosProductScanDto(
+                100L, "SKU-ENERGY-BAR", "Energy Bar", "https://example.com/bar.jpg", new BigDecimal("20.00"), 35, true
+        );
+
+        when(cashierService.getAllProducts()).thenReturn(List.of(prod));
+
+        mockMvc.perform(get("/pos/products"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].sku").value("SKU-ENERGY-BAR"))
+                .andExpect(jsonPath("$[0].imageUrl").value("https://example.com/bar.jpg"))
+                .andExpect(jsonPath("$[0].availableStock").value(35));
     }
 }

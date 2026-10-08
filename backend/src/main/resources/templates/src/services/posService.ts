@@ -27,16 +27,80 @@ export interface CheckoutResponse {
   changeDue: number;
 }
 
-// Pre-seeded products for instant POS interaction
+// Pre-seeded products with high-resolution imagery for instant POS interaction
 export const DEFAULT_POS_PRODUCTS: PosProductScan[] = [
-  { id: 1, sku: 'SKU-ENERGY-BAR', name: 'Organic Energy Bar (Almond & Honey)', retailPrice: 3.50, availableStock: 48, isPerishable: true },
-  { id: 2, sku: 'SKU-COLD-BREW', name: 'Artisan Cold Brew Coffee 330ml', retailPrice: 4.75, availableStock: 35, isPerishable: true },
-  { id: 3, sku: 'SKU-SPARKLING-H2O', name: 'Sparkling Mineral Water 500ml', retailPrice: 2.25, availableStock: 80, isPerishable: false },
-  { id: 4, sku: 'SKU-CHIP-TRUFFLE', name: 'Handcrafted Truffle Potato Crisps', retailPrice: 5.50, availableStock: 24, isPerishable: false },
-  { id: 5, sku: 'SKU-OAT-MILK', name: 'Barista Organic Oat Milk 1L', retailPrice: 4.20, availableStock: 18, isPerishable: true },
-  { id: 6, sku: 'SKU-DARK-CHOC', name: 'Single Origin 85% Dark Chocolate', retailPrice: 6.00, availableStock: 40, isPerishable: false },
-  { id: 7, sku: 'SKU-PROTEIN-WHEY', name: 'Vanilla Whey Protein Concentrate 1kg', retailPrice: 38.00, availableStock: 12, isPerishable: false },
-  { id: 8, sku: 'SKU-MATCHA-LATTE', name: 'Ceremonial Grade Matcha Can 250ml', retailPrice: 5.00, availableStock: 30, isPerishable: true }
+  {
+    id: 1,
+    sku: 'SKU-ENERGY-BAR',
+    name: 'Organic Energy Bar (Almond & Honey)',
+    imageUrl: 'https://images.unsplash.com/photo-1622484212850-eb596d769edc?auto=format&fit=crop&w=400&q=80',
+    retailPrice: 3.50,
+    availableStock: 60,
+    isPerishable: true
+  },
+  {
+    id: 2,
+    sku: 'SKU-COLD-BREW',
+    name: 'Artisan Cold Brew Coffee 330ml',
+    imageUrl: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=400&q=80',
+    retailPrice: 4.75,
+    availableStock: 50,
+    isPerishable: true
+  },
+  {
+    id: 3,
+    sku: 'SKU-SPARKLING-H2O',
+    name: 'Sparkling Mineral Water 500ml',
+    imageUrl: 'https://images.unsplash.com/photo-1560023907-5f339617ea30?auto=format&fit=crop&w=400&q=80',
+    retailPrice: 2.25,
+    availableStock: 120,
+    isPerishable: false
+  },
+  {
+    id: 4,
+    sku: 'SKU-CHIP-TRUFFLE',
+    name: 'Handcrafted Truffle Potato Crisps',
+    imageUrl: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80',
+    retailPrice: 5.50,
+    availableStock: 40,
+    isPerishable: false
+  },
+  {
+    id: 5,
+    sku: 'SKU-OAT-MILK',
+    name: 'Barista Organic Oat Milk 1L',
+    imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80',
+    retailPrice: 4.20,
+    availableStock: 35,
+    isPerishable: true
+  },
+  {
+    id: 6,
+    sku: 'SKU-DARK-CHOC',
+    name: 'Single Origin 85% Dark Chocolate',
+    imageUrl: 'https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=400&q=80',
+    retailPrice: 6.00,
+    availableStock: 75,
+    isPerishable: false
+  },
+  {
+    id: 7,
+    sku: 'SKU-PROTEIN-WHEY',
+    name: 'Vanilla Whey Protein Concentrate 1kg',
+    imageUrl: 'https://images.unsplash.com/photo-1579722821273-0f6c7d44362f?auto=format&fit=crop&w=400&q=80',
+    retailPrice: 38.00,
+    availableStock: 25,
+    isPerishable: false
+  },
+  {
+    id: 8,
+    sku: 'SKU-MATCHA-LATTE',
+    name: 'Ceremonial Grade Matcha Can 250ml',
+    imageUrl: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=400&q=80',
+    retailPrice: 5.00,
+    availableStock: 45,
+    isPerishable: true
+  }
 ];
 
 // Helper to extract clean error message from backend response
@@ -73,6 +137,19 @@ async function getAuthHeaders(): Promise<{ headers: Record<string, string>; cash
 }
 
 export const posService = {
+  async getProducts(): Promise<PosProductScan[]> {
+    try {
+      const { headers } = await getAuthHeaders();
+      const res = await axios.get<PosProductScan[]>(`${API_BASE}/products`, { headers });
+      if (res.data && res.data.length > 0) {
+        return res.data;
+      }
+      return DEFAULT_POS_PRODUCTS;
+    } catch {
+      return DEFAULT_POS_PRODUCTS;
+    }
+  },
+
   async scanProduct(sku: string): Promise<PosProductScan> {
     try {
       const { headers } = await getAuthHeaders();

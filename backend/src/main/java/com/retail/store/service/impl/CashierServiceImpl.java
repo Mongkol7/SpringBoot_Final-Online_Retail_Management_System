@@ -143,6 +143,10 @@ public class CashierServiceImpl implements CashierService {
             throw new BadRequestException("Cart items cannot be empty for POS checkout.");
         }
 
+        // CRITICAL BUSINESS RULE: Cashier must have an active OPEN shift to process transactions
+        PosShift activeShift = posShiftRepository.findTopByCashier_IdAndStatusOrderByOpenedAtDesc(cashierUserId, PosShiftStatus.OPEN)
+                .orElseThrow(() -> new BadRequestException("Cannot process POS checkout: No active shift is open. Please open a shift float first."));
+
         final PaymentMethod method = paymentMethod != null ? paymentMethod : PaymentMethod.CASH;
 
         User cashierUser = userRepository.findById(cashierUserId)
@@ -240,15 +244,12 @@ public class CashierServiceImpl implements CashierService {
 
         savedOrder.setItems(savedItems);
 
-        // Update active cashier shift if one exists
-        posShiftRepository.findTopByCashier_IdAndStatusOrderByOpenedAtDesc(cashierUserId, PosShiftStatus.OPEN)
-                .ifPresent(shift -> {
-                    shift.setTotalTransactions(shift.getTotalTransactions() + 1);
-                    if (method == PaymentMethod.CASH) {
-                        shift.setSystemCashTotal(shift.getSystemCashTotal().add(grandTotal));
-                    }
-                    posShiftRepository.save(shift);
-                });
+        // Update active cashier shift drawer stats
+        activeShift.setTotalTransactions(activeShift.getTotalTransactions() + 1);
+        if (method == PaymentMethod.CASH) {
+            activeShift.setSystemCashTotal(activeShift.getSystemCashTotal().add(grandTotal));
+        }
+        posShiftRepository.save(activeShift);
 
         return new PosCheckoutResult(savedOrder, finalAmountTendered, changeDue);
     }
@@ -363,10 +364,27 @@ public class CashierServiceImpl implements CashierService {
                 product.getId(),
                 product.getSku(),
                 product.getName(),
+                product.getImageUrl(),
                 product.getRetailPrice(),
                 availableStock,
                 Boolean.TRUE.equals(product.getIsPerishable())
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PosProductScanDto> getAllProducts() {
+        return productRepository.findByIsDeletedFalseOrderByNameAsc().stream()
+                .map(product -> new PosProductScanDto(
+                        product.getId(),
+                        product.getSku(),
+                        product.getName(),
+                        product.getImageUrl(),
+                        product.getRetailPrice(),
+                        batchAllocationService.getAvailableStock(product.getId()),
+                        Boolean.TRUE.equals(product.getIsPerishable())
+                ))
+                .toList();
     }
 
     private PosShiftDto toShiftDto(PosShift shift) {
@@ -380,7 +398,7 @@ public class CashierServiceImpl implements CashierService {
                 shift.getClosingCash(),
                 shift.getSystemCashTotal(),
                 shift.getCashVariance(),
-                shift.getTotalTransactions() != null ? shift.getTotalTransactions().intValue() : 0,
+                shift.getTotalTransactions() != null ? shift.getTotalTransactions() : 0,
                 shift.getStatus(),
                 shift.getNotes()
         );

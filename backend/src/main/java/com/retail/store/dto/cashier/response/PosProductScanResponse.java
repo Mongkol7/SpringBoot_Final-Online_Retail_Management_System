@@ -8,6 +8,7 @@ public record PosProductScanResponse(
         Long id,
         String sku,
         String name,
+        String imageUrl,
         BigDecimal retailPrice,
         int availableStock,
         boolean isPerishable
@@ -18,6 +19,7 @@ public record PosProductScanResponse(
                 dto.id(),
                 dto.sku(),
                 dto.name(),
+                dto.imageUrl(),
                 dto.retailPrice(),
                 dto.availableStock(),
                 dto.isPerishable()

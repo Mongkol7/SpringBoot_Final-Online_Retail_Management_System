@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export const CashierPosTerminal: React.FC = () => {
-  const [products] = useState<PosProductScan[]>(DEFAULT_POS_PRODUCTS);
+  const [products, setProducts] = useState<PosProductScan[]>(DEFAULT_POS_PRODUCTS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [barcodeInput, setBarcodeInput] = useState<string>('');
@@ -36,6 +36,18 @@ export const CashierPosTerminal: React.FC = () => {
   const [receiptData, setReceiptData] = useState<ThermalReceipt | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
 
+  const isShiftOpen = activeShift && activeShift.status === 'OPEN';
+
+  // Load products from live backend
+  const fetchProducts = async () => {
+    try {
+      const liveProducts = await posService.getProducts();
+      setProducts(liveProducts);
+    } catch (err) {
+      console.warn('Fallback to default products:', err);
+    }
+  };
+
   useEffect(() => {
     // Initial active shift check against PostgreSQL backend
     posService.getCurrentShift()
@@ -45,6 +57,8 @@ export const CashierPosTerminal: React.FC = () => {
       .catch(() => {
         setActiveShift(null);
       });
+
+    fetchProducts();
   }, []);
 
   // Cart calculations
@@ -55,9 +69,22 @@ export const CashierPosTerminal: React.FC = () => {
   const changeDue = Math.max(0, Math.round((numericTendered - grandTotal) * 100) / 100);
   const isCashInsufficient = paymentMethod === 'CASH' && numericTendered < grandTotal && grandTotal > 0;
 
-  // Add product to cart
+  // Add product to cart with strict shift check
   const handleAddToCart = (product: PosProductScan) => {
     setErrorMessage(null);
+
+    // CRITICAL REQUIREMENT: Shift must be open before adding products
+    if (!isShiftOpen) {
+      setErrorMessage('Cannot add products to order: Shift is closed. Please open a shift float first.');
+      setIsShiftModalOpen(true);
+      return;
+    }
+
+    if (product.availableStock <= 0) {
+      setErrorMessage(`'${product.name}' is currently OUT OF STOCK.`);
+      return;
+    }
+
     setCart((prev) => {
       const existing = prev.find((it) => it.productId === product.id);
       if (existing) {
@@ -94,7 +121,12 @@ export const CashierPosTerminal: React.FC = () => {
       prev
         .map((it) => {
           if (it.productId === productId) {
+            const product = products.find((p) => p.id === productId);
             const nextQty = it.quantity + delta;
+            if (product && nextQty > product.availableStock) {
+              setErrorMessage(`Cannot exceed available stock of ${product.availableStock} for ${product.name}`);
+              return it;
+            }
             return nextQty > 0
               ? { ...it, quantity: nextQty, subtotal: Math.round(nextQty * it.retailPrice * 100) / 100 }
               : null;
@@ -113,6 +145,13 @@ export const CashierPosTerminal: React.FC = () => {
     e.preventDefault();
     if (!barcodeInput.trim()) return;
     setErrorMessage(null);
+
+    if (!isShiftOpen) {
+      setErrorMessage('Cannot add products: Shift is closed. Please open a shift float first.');
+      setIsShiftModalOpen(true);
+      return;
+    }
+
     try {
       const scanned = await posService.scanProduct(barcodeInput.trim());
       handleAddToCart(scanned);
@@ -127,6 +166,12 @@ export const CashierPosTerminal: React.FC = () => {
   };
 
   const handleCheckout = async () => {
+    if (!isShiftOpen) {
+      setErrorMessage('Cannot complete sale: Shift is closed. Please open a shift float first.');
+      setIsShiftModalOpen(true);
+      return;
+    }
+
     if (cart.length === 0) {
       setErrorMessage('POS cart is empty. Add items to proceed.');
       return;
@@ -147,7 +192,7 @@ export const CashierPosTerminal: React.FC = () => {
       const receipt: ThermalReceipt = {
         storeName: 'ONLINE RETAIL POS - STORE #01',
         terminalId: 'POS-TERM-01',
-        cashierName: activeShift?.cashierName || 'Jane Doe (ID #10)',
+        cashierName: activeShift?.cashierName || 'POS Lead Cashier',
         orderNumber: result.order.orderNumber,
         dateTime: new Date().toLocaleString(),
         items: cart.map((it) => ({
@@ -163,6 +208,20 @@ export const CashierPosTerminal: React.FC = () => {
         changeDue: result.changeDue,
         barcodeData: `RCP*${result.order.orderNumber}*V1`
       };
+
+      // Real-time FIFO inventory update: Deduct local stock and sync with backend
+      setProducts((prev) =>
+        prev.map((p) => {
+          const purchased = cart.find((it) => it.productId === p.id);
+          if (purchased) {
+            return {
+              ...p,
+              availableStock: Math.max(0, p.availableStock - purchased.quantity)
+            };
+          }
+          return p;
+        })
+      );
 
       // Update active shift drawer stats
       if (activeShift && activeShift.status === 'OPEN') {
@@ -180,6 +239,9 @@ export const CashierPosTerminal: React.FC = () => {
       setIsReceiptModalOpen(true);
       setCart([]);
       setAmountTendered('');
+
+      // Refresh live product catalog in background to ensure perfect batch synchronization
+      fetchProducts();
     } catch (err: any) {
       setErrorMessage(err.message || 'Checkout failed.');
     } finally {
@@ -190,11 +252,13 @@ export const CashierPosTerminal: React.FC = () => {
   const handleOpenShift = async (floatAmount: number, notes: string) => {
     const shift = await posService.openShift(floatAmount, notes);
     setActiveShift(shift);
+    fetchProducts();
   };
 
   const handleCloseShift = async (closingCash: number, notes: string) => {
     const shift = await posService.closeShift(closingCash, notes);
     setActiveShift(shift);
+    fetchProducts();
   };
 
   // Filtered catalog
@@ -337,6 +401,52 @@ export const CashierPosTerminal: React.FC = () => {
         </div>
       )}
 
+      {/* Shift Closed Warning Banner */}
+      {!isShiftOpen && (
+        <div
+          className="ios-glass-panel"
+          style={{
+            padding: '14px 20px',
+            borderRadius: '16px',
+            backgroundColor: 'rgba(245, 158, 11, 0.12)',
+            border: '1px solid rgba(245, 158, 11, 0.35)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertCircle size={20} color="#F59E0B" />
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 700, color: '#FCD34D' }}>
+                SHIFT IS CURRENTLY CLOSED
+              </div>
+              <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.8)' }}>
+                You must open a shift float before ringing up walk-in sales or adding items to current order.
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => setIsShiftModalOpen(true)}
+            style={{
+              padding: '8px 18px',
+              borderRadius: '9999px',
+              backgroundColor: '#F59E0B',
+              color: '#000000',
+              fontWeight: 800,
+              fontSize: '12px',
+              border: 'none',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)'
+            }}
+          >
+            Open Shift Float
+          </button>
+        </div>
+      )}
+
       {/* Main POS Split Layout */}
       <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: '20px' }}>
         {/* Left Column: Fast Product Catalog & Barcode Scanner */}
@@ -359,7 +469,8 @@ export const CashierPosTerminal: React.FC = () => {
                 />
                 <input
                   type="text"
-                  placeholder="Scan barcode or enter SKU (e.g. SKU-ENERGY-BAR) + [Enter]..."
+                  placeholder={isShiftOpen ? "Scan barcode SKU (e.g. SKU-ENERGY-BAR) or type & press Enter..." : "Shift Closed - Open shift to enable scanner"}
+                  disabled={!isShiftOpen}
                   value={barcodeInput}
                   onChange={(e) => setBarcodeInput(e.target.value)}
                   style={{
@@ -371,21 +482,23 @@ export const CashierPosTerminal: React.FC = () => {
                     color: '#FFFFFF',
                     fontSize: '13px',
                     outline: 'none',
-                    boxSizing: 'border-box'
+                    boxSizing: 'border-box',
+                    opacity: !isShiftOpen ? 0.6 : 1
                   }}
                 />
               </div>
               <button
                 type="submit"
+                disabled={!isShiftOpen}
                 style={{
                   padding: '0 20px',
-                  backgroundColor: '#FFFFFF',
-                  color: '#000000',
+                  backgroundColor: isShiftOpen ? '#FFFFFF' : 'rgba(255, 255, 255, 0.2)',
+                  color: isShiftOpen ? '#000000' : 'rgba(0, 0, 0, 0.4)',
                   border: 'none',
                   borderRadius: '12px',
                   fontSize: '13px',
                   fontWeight: 700,
-                  cursor: 'pointer'
+                  cursor: isShiftOpen ? 'pointer' : 'not-allowed'
                 }}
               >
                 Scan SKU
@@ -444,7 +557,7 @@ export const CashierPosTerminal: React.FC = () => {
             {/* Quick Demo Scan Pills */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>Quick Scan Demo:</span>
-              {DEFAULT_POS_PRODUCTS.slice(0, 4).map((p) => (
+              {products.slice(0, 4).map((p) => (
                 <button
                   key={p.id}
                   onClick={() => handleAddToCart(p)}
@@ -475,79 +588,157 @@ export const CashierPosTerminal: React.FC = () => {
               paddingRight: '4px'
             }}
           >
-            {filteredProducts.map((product) => (
-              <div
-                key={product.id}
-                onClick={() => handleAddToCart(product)}
-                className="ios-glass-panel ios-glow-hover"
-                style={{
-                  padding: '16px',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: '12px',
-                  backgroundColor: 'rgba(24, 24, 27, 0.65)'
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        fontWeight: 700,
-                        padding: '2px 6px',
-                        borderRadius: '6px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                        color: 'var(--ios-text-muted)'
-                      }}
-                    >
-                      {product.sku}
-                    </span>
-                    {product.isPerishable && (
+            {filteredProducts.map((product) => {
+              const isOutOfStock = product.availableStock <= 0;
+              return (
+                <div
+                  key={product.id}
+                  onClick={() => !isOutOfStock && handleAddToCart(product)}
+                  className="ios-glass-panel ios-glow-hover"
+                  style={{
+                    padding: '12px',
+                    cursor: isOutOfStock ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '10px',
+                    backgroundColor: isOutOfStock ? 'rgba(24, 24, 27, 0.4)' : 'rgba(24, 24, 27, 0.65)',
+                    opacity: isOutOfStock ? 0.6 : 1,
+                    position: 'relative'
+                  }}
+                >
+                  {/* Product Image Container */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      width: '100%',
+                      height: '110px',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    {product.imageUrl ? (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    ) : (
+                      <Barcode size={32} style={{ opacity: 0.3 }} />
+                    )}
+
+                    {/* SKU Tag */}
+                    <div style={{ position: 'absolute', top: '6px', left: '6px' }}>
                       <span
                         style={{
                           fontSize: '9px',
                           fontWeight: 700,
                           padding: '2px 6px',
                           borderRadius: '6px',
-                          backgroundColor: 'rgba(245, 158, 11, 0.15)',
-                          color: '#F59E0B'
+                          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                          backdropFilter: 'blur(4px)',
+                          color: '#FFFFFF'
                         }}
                       >
-                        FEFO
+                        {product.sku}
                       </span>
+                    </div>
+
+                    {/* FEFO Tag */}
+                    {product.isPerishable && (
+                      <div style={{ position: 'absolute', top: '6px', right: '6px' }}>
+                        <span
+                          style={{
+                            fontSize: '9px',
+                            fontWeight: 800,
+                            padding: '2px 6px',
+                            borderRadius: '6px',
+                            backgroundColor: 'rgba(245, 158, 11, 0.9)',
+                            backdropFilter: 'blur(4px)',
+                            color: '#000000'
+                          }}
+                        >
+                          FEFO
+                        </span>
+                      </div>
+                    )}
+
+                    {isOutOfStock && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                          backdropFilter: 'blur(2px)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#EF4444',
+                          fontWeight: 800,
+                          fontSize: '11px',
+                          letterSpacing: '0.5px'
+                        }}
+                      >
+                        OUT OF STOCK
+                      </div>
                     )}
                   </div>
-                  <h3 style={{ fontSize: '14px', fontWeight: 700, margin: '0 0 4px', color: '#FFFFFF', lineHeight: 1.3 }}>
-                    {product.name}
-                  </h3>
-                  <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
-                    {product.availableStock} in stock
-                  </div>
-                </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#FFFFFF' }}>
-                    ${product.retailPrice.toFixed(2)}
+                  <div>
+                    <h3
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        margin: '0 0 4px',
+                        color: '#FFFFFF',
+                        lineHeight: 1.3,
+                        height: '34px',
+                        overflow: 'hidden',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical'
+                      }}
+                    >
+                      {product.name}
+                    </h3>
+                    <div style={{ fontSize: '11px', color: isOutOfStock ? '#EF4444' : 'var(--ios-text-muted)', fontWeight: 600 }}>
+                      {isOutOfStock ? '0 in stock (FIFO)' : `${product.availableStock} in stock (FIFO)`}
+                    </div>
                   </div>
-                  <div
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      borderRadius: '50%',
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#FFFFFF'
-                    }}
-                  >
-                    <Plus size={16} />
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                    <div style={{ fontSize: '16px', fontWeight: 800, color: '#FFFFFF' }}>
+                      ${product.retailPrice.toFixed(2)}
+                    </div>
+                    <div
+                      style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        backgroundColor: isOutOfStock ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#FFFFFF'
+                      }}
+                    >
+                      <Plus size={14} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -620,91 +811,111 @@ export const CashierPosTerminal: React.FC = () => {
                 }}
               >
                 <Barcode size={32} style={{ margin: '0 auto 10px', opacity: 0.4 }} />
-                Scan product barcode or tap items from the catalog grid to build the walk-in order.
+                {isShiftOpen
+                  ? 'Scan product barcode or tap items from the catalog grid to build the walk-in order.'
+                  : 'Shift is closed. Open a starting float to begin adding products to current order.'}
               </div>
             ) : (
-              cart.map((item) => (
-                <div
-                  key={item.productId}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 12px',
-                    borderRadius: '12px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                    border: '1px solid rgba(255, 255, 255, 0.08)'
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0, paddingRight: '10px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {item.name}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
-                      ${item.retailPrice.toFixed(2)} each
-                    </div>
-                  </div>
-
-                  {/* Quantity Stepper */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button
-                      onClick={() => handleUpdateQuantity(item.productId, -1)}
-                      style={{
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '6px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                        border: 'none',
-                        color: '#FFFFFF',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Minus size={12} />
-                    </button>
-                    <span style={{ fontSize: '13px', fontWeight: 700, minWidth: '16px', textAlign: 'center' }}>
-                      {item.quantity}
-                    </span>
-                    <button
-                      onClick={() => handleUpdateQuantity(item.productId, 1)}
-                      style={{
-                        width: '24px',
-                        height: '24px',
-                        borderRadius: '6px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                        border: 'none',
-                        color: '#FFFFFF',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                      }}
-                    >
-                      <Plus size={12} />
-                    </button>
-                  </div>
-
-                  <div style={{ fontSize: '13px', fontWeight: 700, minWidth: '55px', textAlign: 'right' }}>
-                    ${item.subtotal.toFixed(2)}
-                  </div>
-
-                  <button
-                    onClick={() => handleRemoveItem(item.productId)}
+              cart.map((item) => {
+                const prod = products.find((p) => p.id === item.productId);
+                return (
+                  <div
+                    key={item.productId}
                     style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'var(--ios-text-muted)',
-                      cursor: 'pointer',
-                      padding: '4px',
-                      marginLeft: '6px'
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 12px',
+                      borderRadius: '12px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid rgba(255, 255, 255, 0.08)'
                     }}
                   >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-              ))
+                    {/* Thumbnail Image */}
+                    {prod?.imageUrl && (
+                      <img
+                        src={prod.imageUrl}
+                        alt={item.name}
+                        style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          objectFit: 'cover',
+                          marginRight: '10px'
+                        }}
+                      />
+                    )}
+
+                    <div style={{ flex: 1, minWidth: 0, paddingRight: '10px' }}>
+                      <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {item.name}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
+                        ${item.retailPrice.toFixed(2)} each
+                      </div>
+                    </div>
+
+                    {/* Quantity Stepper */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button
+                        onClick={() => handleUpdateQuantity(item.productId, -1)}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          border: 'none',
+                          color: '#FFFFFF',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Minus size={12} />
+                      </button>
+                      <span style={{ fontSize: '13px', fontWeight: 700, minWidth: '16px', textAlign: 'center' }}>
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => handleUpdateQuantity(item.productId, 1)}
+                        style={{
+                          width: '24px',
+                          height: '24px',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          border: 'none',
+                          color: '#FFFFFF',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Plus size={12} />
+                      </button>
+                    </div>
+
+                    <div style={{ fontSize: '13px', fontWeight: 700, minWidth: '55px', textAlign: 'right' }}>
+                      ${item.subtotal.toFixed(2)}
+                    </div>
+
+                    <button
+                      onClick={() => handleRemoveItem(item.productId)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--ios-text-muted)',
+                        cursor: 'pointer',
+                        padding: '4px',
+                        marginLeft: '6px'
+                      }}
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                );
+              })
             )}
           </div>
 

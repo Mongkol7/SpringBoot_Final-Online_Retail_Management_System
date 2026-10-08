@@ -153,6 +153,7 @@ export interface PosProductScan {
   id: number;
   sku: string;
   name: string;
+  imageUrl?: string;
   retailPrice: number;
   availableStock: number;
   isPerishable: boolean;

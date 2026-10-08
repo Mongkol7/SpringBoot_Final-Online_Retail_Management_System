@@ -182,6 +182,7 @@ public class CashierMapper {
                 dto.id(),
                 dto.sku(),
                 dto.name(),
+                dto.imageUrl(),
                 dto.retailPrice(),
                 dto.availableStock(),
                 dto.isPerishable()
@@ -196,6 +197,7 @@ public class CashierMapper {
                 product.getId(),
                 product.getSku(),
                 product.getName(),
+                product.getImageUrl(),
                 product.getRetailPrice(),
                 availableStock,
                 product.getIsPerishable()
