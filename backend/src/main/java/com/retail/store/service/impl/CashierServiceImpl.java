@@ -233,6 +233,9 @@ public class CashierServiceImpl implements CashierService {
 
             OrderItem savedOrderItem = orderItemRepository.save(orderItem);
             savedItems.add(savedOrderItem);
+            if (savedOrder.getItems() != null) {
+                savedOrder.getItems().add(savedOrderItem);
+            }
 
             // Trigger FIFO / FEFO inventory allocation and deduction
             batchAllocationService.allocateAndDeductBatches(
@@ -243,8 +246,6 @@ public class CashierServiceImpl implements CashierService {
                     TransactionType.POS_SALE.name()
             );
         }
-
-        savedOrder.setItems(savedItems);
 
         // Update active cashier shift drawer stats
         activeShift.setTotalTransactions(activeShift.getTotalTransactions() + 1);
@@ -417,9 +418,12 @@ public class CashierServiceImpl implements CashierService {
 
         List<Order> orders;
         if (cashierId != null) {
-            orders = orderRepository.findByCashier_IdAndCreatedAtBetweenOrderByCreatedAtDesc(cashierId, start, end);
+            orders = orderRepository.findPosOrdersByCashierWithDetails(cashierId, start, end);
+            if (orders.isEmpty() && !"SHIFT".equalsIgnoreCase(periodUpper)) {
+                orders = orderRepository.findPosOrdersWithDetails(OrderChannel.POS, start, end);
+            }
         } else {
-            orders = orderRepository.findByChannelAndCreatedAtBetweenOrderByCreatedAtDesc(OrderChannel.POS, start, end);
+            orders = orderRepository.findPosOrdersWithDetails(OrderChannel.POS, start, end);
         }
 
         return orders.stream()

@@ -38,4 +38,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     List<Order> findByChannelAndCreatedAtBetweenOrderByCreatedAtDesc(OrderChannel channel, LocalDateTime start, LocalDateTime end);
 
     List<Order> findByCashier_IdAndCreatedAtBetweenOrderByCreatedAtDesc(Long cashierId, LocalDateTime start, LocalDateTime end);
+
+    @Query("SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.product LEFT JOIN FETCH o.cashier LEFT JOIN FETCH o.user WHERE o.channel = :channel AND o.createdAt >= :start AND o.createdAt <= :end ORDER BY o.createdAt DESC")
+    List<Order> findPosOrdersWithDetails(OrderChannel channel, LocalDateTime start, LocalDateTime end);
+
+    @Query("SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.product LEFT JOIN FETCH o.cashier LEFT JOIN FETCH o.user WHERE o.cashier.id = :cashierId AND o.createdAt >= :start AND o.createdAt <= :end ORDER BY o.createdAt DESC")
+    List<Order> findPosOrdersByCashierWithDetails(Long cashierId, LocalDateTime start, LocalDateTime end);
+
+    @Query("SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.product LEFT JOIN FETCH o.cashier LEFT JOIN FETCH o.user WHERE o.channel = :channel ORDER BY o.createdAt DESC")
+    List<Order> findAllPosOrdersWithDetails(OrderChannel channel);
 }
