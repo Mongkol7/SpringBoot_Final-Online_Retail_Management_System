@@ -34,5 +34,9 @@ public interface ProductBatchRepository extends JpaRepository<ProductBatch, Long
 
     List<ProductBatch> findByIsExpiredFalseAndExpiryDateLessThanEqual(LocalDate date);
 
+    List<ProductBatch> findByProduct_IdOrderByReceivedAtDesc(Long productId);
+
+    List<ProductBatch> findAllByOrderByReceivedAtDesc();
+
     long countByIsExpiredTrue();
 }

@@ -1,5 +1,6 @@
 package com.retail.store.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
 
@@ -17,12 +18,14 @@ public class ProductBatch {
     @Column(name = "batch_code", nullable = false, unique = true, length = 100)
     private String batchCode;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "product_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Product product;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "supplier_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Supplier supplier;
 
     @Column(name = "initial_quantity", nullable = false)
@@ -95,6 +98,7 @@ public class ProductBatch {
         private Integer currentQuantity;
         private LocalDate expiryDate;
         private Boolean isExpired = false;
+        private LocalDateTime receivedAt;
 
         public Builder id(Long id) { this.id = id; return this; }
         public Builder batchCode(String batchCode) { this.batchCode = batchCode; return this; }
@@ -104,9 +108,10 @@ public class ProductBatch {
         public Builder currentQuantity(Integer currentQuantity) { this.currentQuantity = currentQuantity; return this; }
         public Builder expiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; return this; }
         public Builder isExpired(Boolean isExpired) { this.isExpired = isExpired; return this; }
+        public Builder receivedAt(LocalDateTime receivedAt) { this.receivedAt = receivedAt; return this; }
 
         public ProductBatch build() {
-            return new ProductBatch(id, batchCode, product, supplier, initialQuantity, currentQuantity, expiryDate, isExpired, null);
+            return new ProductBatch(id, batchCode, product, supplier, initialQuantity, currentQuantity, expiryDate, isExpired, receivedAt);
         }
     }
 }
