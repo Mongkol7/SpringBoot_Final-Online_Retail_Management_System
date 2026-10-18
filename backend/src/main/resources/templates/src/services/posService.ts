@@ -110,25 +110,89 @@ function extractErrorMessage(err: any): string {
   return err.message || 'Operation failed';
 }
 
-// Helper to acquire and cache valid JWT for live database writes
-async function getAuthHeaders(): Promise<{ headers: Record<string, string>; cashierId: number }> {
-  let token = localStorage.getItem('cashier_jwt');
-  let cashierId = parseInt(localStorage.getItem('cashier_id') || '0', 10);
+// Check if a JWT is present, has 3 segments, and is not expired
+function isTokenValid(token: string | null): boolean {
+  if (!token) return false;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.exp) return true;
+    // Buffer by 30 seconds before actual expiration
+    return payload.exp * 1000 > Date.now() + 30000;
+  } catch {
+    return false;
+  }
+}
 
-  if (!token || !cashierId) {
+// Single-flight promise to avoid multiple simultaneous login calls
+let refreshPromise: Promise<string> | null = null;
+
+async function getValidToken(): Promise<string> {
+  let token = localStorage.getItem('cashier_jwt');
+  if (token && isTokenValid(token)) {
+    return token;
+  }
+
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
     try {
       const loginRes = await axios.post(`${API_BASE}/login`, {
         email: 'cashier@retailstore.com',
         password: 'cashier123'
       });
-      token = loginRes.data.token;
-      cashierId = loginRes.data.userId || 1;
-      if (token) localStorage.setItem('cashier_jwt', token);
-      localStorage.setItem('cashier_id', String(cashierId));
+      const newToken = loginRes.data.token;
+      const cashierId = loginRes.data.userId || 1;
+      if (newToken) {
+        localStorage.setItem('cashier_jwt', newToken);
+        localStorage.setItem('cashier_id', String(cashierId));
+      }
+      return newToken;
     } catch (err) {
-      console.warn('Auto-login cashier attempt:', err);
+      localStorage.removeItem('cashier_jwt');
+      localStorage.removeItem('cashier_id');
+      console.warn('Auto-login cashier attempt failed:', err);
+      return '';
+    } finally {
+      refreshPromise = null;
     }
+  })();
+
+  return refreshPromise;
+}
+
+// Global response interceptor to auto-recover if a 401 or 403 occurs
+axios.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (
+      error.response &&
+      (error.response.status === 401 || error.response.status === 403) &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/login')
+    ) {
+      originalRequest._retry = true;
+      localStorage.removeItem('cashier_jwt');
+      localStorage.removeItem('cashier_id');
+      const freshToken = await getValidToken();
+      if (freshToken) {
+        originalRequest.headers = originalRequest.headers || {};
+        originalRequest.headers['Authorization'] = `Bearer ${freshToken}`;
+        return axios(originalRequest);
+      }
+    }
+    return Promise.reject(error);
   }
+);
+
+// Helper to acquire and cache valid JWT for live database writes
+async function getAuthHeaders(): Promise<{ headers: Record<string, string>; cashierId: number }> {
+  const token = await getValidToken();
+  const cashierId = parseInt(localStorage.getItem('cashier_id') || '1', 10);
 
   return {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
