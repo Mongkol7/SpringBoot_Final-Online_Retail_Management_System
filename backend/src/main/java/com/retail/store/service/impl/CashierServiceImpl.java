@@ -362,6 +362,8 @@ public class CashierServiceImpl implements CashierService {
                 .orElseThrow(() -> new ResourceNotFoundException("No active product found with barcode / SKU: " + sku));
 
         int availableStock = batchAllocationService.getAvailableStock(product.getId());
+        BatchAllocationService.CurrentBatchInfoDto batchInfo =
+                batchAllocationService.getCurrentBatchInfo(product.getId()).orElse(null);
 
         return new PosProductScanDto(
                 product.getId(),
@@ -370,7 +372,14 @@ public class CashierServiceImpl implements CashierService {
                 product.getImageUrl(),
                 product.getRetailPrice(),
                 availableStock,
-                Boolean.TRUE.equals(product.getIsPerishable())
+                Boolean.TRUE.equals(product.getIsPerishable()),
+                product.getDescription(),
+                product.getCategory() != null ? product.getCategory().getName() : null,
+                product.getWholesalePrice(),
+                product.getCostPrice(),
+                product.getMinStockThreshold(),
+                batchInfo != null ? batchInfo.expiryDate() : null,
+                batchInfo != null ? batchInfo.batchCode() : null
         );
     }
 
@@ -378,15 +387,26 @@ public class CashierServiceImpl implements CashierService {
     @Transactional(readOnly = true)
     public List<PosProductScanDto> getAllProducts() {
         return productRepository.findByIsDeletedFalseOrderByNameAsc().stream()
-                .map(product -> new PosProductScanDto(
-                        product.getId(),
-                        product.getSku(),
-                        product.getName(),
-                        product.getImageUrl(),
-                        product.getRetailPrice(),
-                        batchAllocationService.getAvailableStock(product.getId()),
-                        Boolean.TRUE.equals(product.getIsPerishable())
-                ))
+                .map(product -> {
+                    BatchAllocationService.CurrentBatchInfoDto batchInfo =
+                            batchAllocationService.getCurrentBatchInfo(product.getId()).orElse(null);
+                    return new PosProductScanDto(
+                            product.getId(),
+                            product.getSku(),
+                            product.getName(),
+                            product.getImageUrl(),
+                            product.getRetailPrice(),
+                            batchAllocationService.getAvailableStock(product.getId()),
+                            Boolean.TRUE.equals(product.getIsPerishable()),
+                            product.getDescription(),
+                            product.getCategory() != null ? product.getCategory().getName() : null,
+                            product.getWholesalePrice(),
+                            product.getCostPrice(),
+                            product.getMinStockThreshold(),
+                            batchInfo != null ? batchInfo.expiryDate() : null,
+                            batchInfo != null ? batchInfo.batchCode() : null
+                    );
+                })
                 .toList();
     }
 

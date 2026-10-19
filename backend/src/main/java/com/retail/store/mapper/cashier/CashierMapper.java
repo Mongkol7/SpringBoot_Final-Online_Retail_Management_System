@@ -185,7 +185,14 @@ public class CashierMapper {
                 dto.imageUrl(),
                 dto.retailPrice(),
                 dto.availableStock(),
-                dto.isPerishable()
+                dto.isPerishable(),
+                dto.description(),
+                dto.categoryName(),
+                dto.wholesalePrice(),
+                dto.costPrice(),
+                dto.minStockThreshold(),
+                dto.currentBatchExpiryDate(),
+                dto.currentBatchCode()
         );
     }
 
@@ -200,7 +207,14 @@ public class CashierMapper {
                 product.getImageUrl(),
                 product.getRetailPrice(),
                 availableStock,
-                product.getIsPerishable()
+                Boolean.TRUE.equals(product.getIsPerishable()),
+                product.getDescription(),
+                product.getCategory() != null ? product.getCategory().getName() : null,
+                product.getWholesalePrice(),
+                product.getCostPrice(),
+                product.getMinStockThreshold(),
+                null,
+                null
         );
     }
 

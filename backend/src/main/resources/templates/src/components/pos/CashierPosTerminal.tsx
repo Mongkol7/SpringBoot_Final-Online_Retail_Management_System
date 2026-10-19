@@ -6,6 +6,7 @@ import { ShiftManagementModal } from './ShiftManagementModal';
 import { AppleSuccessModal } from './AppleSuccessModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { PosSalesHistory } from './PosSalesHistory';
+import { ProductDetailModal } from './ProductDetailModal';
 import {
   Barcode,
   Search,
@@ -22,7 +23,9 @@ import {
   AlertCircle,
   Clock,
   History,
-  X
+  X,
+  Info,
+  Eye
 } from 'lucide-react';
 
 export const CashierPosTerminal: React.FC = () => {
@@ -58,6 +61,9 @@ export const CashierPosTerminal: React.FC = () => {
     changeDue: number;
     orderNumber: string;
   } | null>(null);
+
+  // Floating Product Detail Modal State
+  const [selectedProductDetail, setSelectedProductDetail] = useState<PosProductScan | null>(null);
 
   // Delete Confirmation Modal State
   const [deleteConfirm, setDeleteConfirm] = useState<{
@@ -194,6 +200,51 @@ export const CashierPosTerminal: React.FC = () => {
           retailPrice: product.retailPrice,
           quantity: 1,
           subtotal: product.retailPrice
+        }
+      ];
+    });
+  };
+
+  // Add custom quantity of product to cart (from ProductDetailModal)
+  const handleAddMultipleToCart = (product: PosProductScan, quantity: number) => {
+    setErrorMessage(null);
+
+    if (!isShiftOpen) {
+      showError('Cannot add products: Shift is closed. Please open a shift float first.');
+      setIsShiftModalOpen(true);
+      return;
+    }
+
+    const existing = cart.find((it) => it.productId === product.id);
+    const inCartQty = existing ? existing.quantity : 0;
+    const remainingStock = product.availableStock - inCartQty;
+
+    if (quantity > remainingStock) {
+      showError(`Cannot add ${quantity} units: Only ${remainingStock} remaining for '${product.name}'.`);
+      return;
+    }
+
+    setCart((prev) => {
+      if (existing) {
+        return prev.map((it) =>
+          it.productId === product.id
+            ? {
+                ...it,
+                quantity: it.quantity + quantity,
+                subtotal: Math.round((it.quantity + quantity) * it.retailPrice * 100) / 100
+              }
+            : it
+        );
+      }
+      return [
+        ...prev,
+        {
+          productId: product.id,
+          name: product.name,
+          sku: product.sku,
+          retailPrice: product.retailPrice,
+          quantity: quantity,
+          subtotal: Math.round(quantity * product.retailPrice * 100) / 100
         }
       ];
     });
@@ -458,17 +509,19 @@ export const CashierPosTerminal: React.FC = () => {
   });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
+    <div className="pos-terminal-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
       {/* Top POS Header, Cambodia Clock & Shift Status Bar */}
       <div
-        className="ios-glass-panel"
+        className="ios-glass-panel pos-header-panel"
         style={{
           padding: '16px 24px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '12px'
+          gap: '12px',
+          width: '100%',
+          boxSizing: 'border-box'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -704,16 +757,9 @@ export const CashierPosTerminal: React.FC = () => {
 
       {/* VIEW 1: POS TOUCHSCREEN TERMINAL */}
       {activeView === 'TERMINAL' && (
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1fr) 420px',
-            gap: '20px',
-            alignItems: 'start'
-          }}
-        >
+        <div className="pos-main-layout">
           {/* Left Column: Fast Product Catalog & Barcode Scanner */}
-          <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', boxSizing: 'border-box' }}>
             {/* Barcode & Search Bar */}
             <div
               className="ios-glass-panel"
@@ -794,7 +840,7 @@ export const CashierPosTerminal: React.FC = () => {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px' }}>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {(['All', 'Beverages', 'Snacks', 'Nutrition'] as const).map((cat) => (
                     <button
                       key={cat}
@@ -849,16 +895,7 @@ export const CashierPosTerminal: React.FC = () => {
             </div>
 
             {/* Product Grid with REAL-TIME FIFO Stock Deduction on Cards */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-                gap: '12px',
-                maxHeight: '620px',
-                overflowY: 'auto',
-                paddingRight: '4px'
-              }}
-            >
+            <div className="pos-catalog-grid">
               {filteredProducts.map((product) => {
                 // Real-time stock calculation: Total Batch Stock - In Cart Quantity
                 const cartItem = cart.find((it) => it.productId === product.id);
@@ -950,6 +987,37 @@ export const CashierPosTerminal: React.FC = () => {
                         </div>
                       )}
 
+                      {/* View Detail Floating Pill Button */}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedProductDetail(product);
+                        }}
+                        style={{
+                          position: 'absolute',
+                          bottom: '6px',
+                          left: '6px',
+                          padding: '3px 8px',
+                          borderRadius: '6px',
+                          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                          backdropFilter: 'blur(4px)',
+                          border: '1px solid rgba(255, 255, 255, 0.25)',
+                          color: '#FFFFFF',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          cursor: 'pointer',
+                          zIndex: 3,
+                          transition: 'all 0.15s ease'
+                        }}
+                        title="View Product Details & Inventory Specs"
+                      >
+                        <Info size={11} /> Detail
+                      </button>
+
                       {/* In-Cart Indicator Badge */}
                       {inCartQty > 0 && (
                         <div style={{ position: 'absolute', bottom: '6px', right: '6px' }}>
@@ -1027,19 +1095,46 @@ export const CashierPosTerminal: React.FC = () => {
                       <div style={{ fontSize: '16px', fontWeight: 800, color: '#FFFFFF' }}>
                         ${product.retailPrice.toFixed(2)}
                       </div>
-                      <div
-                        style={{
-                          width: '28px',
-                          height: '28px',
-                          borderRadius: '50%',
-                          backgroundColor: isOutOfStock ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.12)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#FFFFFF'
-                        }}
-                      >
-                        <Plus size={14} />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedProductDetail(product);
+                          }}
+                          style={{
+                            padding: '4px 8px',
+                            borderRadius: '8px',
+                            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                            border: '1px solid rgba(255, 255, 255, 0.15)',
+                            color: 'rgba(255, 255, 255, 0.85)',
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            transition: 'all 0.15s ease'
+                          }}
+                          title="View Product Details"
+                        >
+                          <Eye size={12} /> Detail
+                        </button>
+                        <div
+                          style={{
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            backgroundColor: isOutOfStock ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.12)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#FFFFFF'
+                          }}
+                          title="Add to Current Order"
+                        >
+                          <Plus size={14} />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1048,15 +1143,10 @@ export const CashierPosTerminal: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: FIXED WIDTH Current Order & Tender Drawer (Width never expands) */}
+          {/* Right Column: FIXED WIDTH Current Order & Tender Drawer (Width never expands on Desktop, adapts on Mobile) */}
           <div
-            className="ios-glass-panel"
+            className="ios-glass-panel pos-cart-panel"
             style={{
-              width: '420px',
-              minWidth: '420px',
-              maxWidth: '420px',
-              flexShrink: 0,
-              boxSizing: 'border-box',
               padding: '20px',
               display: 'flex',
               flexDirection: 'column',
@@ -1157,19 +1247,34 @@ export const CashierPosTerminal: React.FC = () => {
                         />
                       )}
 
-                      {/* Product Name & Unit Price with strict truncation */}
-                      <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
+                      {/* Product Name & Unit Price with click to view detail */}
+                      <div
+                        onClick={() => {
+                          if (prod) setSelectedProductDetail(prod);
+                        }}
+                        style={{
+                          flex: 1,
+                          minWidth: 0,
+                          paddingRight: '8px',
+                          cursor: prod ? 'pointer' : 'default'
+                        }}
+                        title={prod ? `Click to view specs for ${item.name}` : undefined}
+                      >
                         <div
                           style={{
                             fontSize: '13px',
                             fontWeight: 600,
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap'
+                            whiteSpace: 'nowrap',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px'
                           }}
                           title={item.name}
                         >
-                          {item.name}
+                          <span>{item.name}</span>
+                          <Info size={11} style={{ opacity: 0.5, flexShrink: 0 }} />
                         </div>
                         <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
                           ${item.retailPrice.toFixed(2)} ea
@@ -1543,6 +1648,19 @@ export const CashierPosTerminal: React.FC = () => {
         onClose={() => setIsShiftModalOpen(false)}
         onOpenShift={handleOpenShift}
         onCloseShift={handleCloseShift}
+      />
+
+      {/* Floating Product Detail Modal */}
+      <ProductDetailModal
+        isOpen={selectedProductDetail !== null}
+        product={selectedProductDetail}
+        onClose={() => setSelectedProductDetail(null)}
+        onAddToCart={handleAddMultipleToCart}
+        inCartQty={
+          selectedProductDetail
+            ? cart.find((it) => it.productId === selectedProductDetail.id)?.quantity || 0
+            : 0
+        }
       />
     </div>
   );

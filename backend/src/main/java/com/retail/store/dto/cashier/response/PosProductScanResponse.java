@@ -11,8 +11,27 @@ public record PosProductScanResponse(
         String imageUrl,
         BigDecimal retailPrice,
         int availableStock,
-        boolean isPerishable
+        boolean isPerishable,
+        String description,
+        String categoryName,
+        BigDecimal wholesalePrice,
+        BigDecimal costPrice,
+        Integer minStockThreshold,
+        java.time.LocalDate currentBatchExpiryDate,
+        String currentBatchCode
 ) {
+    public PosProductScanResponse(
+            Long id,
+            String sku,
+            String name,
+            String imageUrl,
+            BigDecimal retailPrice,
+            int availableStock,
+            boolean isPerishable
+    ) {
+        this(id, sku, name, imageUrl, retailPrice, availableStock, isPerishable, null, null, null, null, null, null, null);
+    }
+
     public static PosProductScanResponse from(CashierService.PosProductScanDto dto) {
         if (dto == null) return null;
         return new PosProductScanResponse(
@@ -22,7 +41,14 @@ public record PosProductScanResponse(
                 dto.imageUrl(),
                 dto.retailPrice(),
                 dto.availableStock(),
-                dto.isPerishable()
+                dto.isPerishable(),
+                dto.description(),
+                dto.categoryName(),
+                dto.wholesalePrice(),
+                dto.costPrice(),
+                dto.minStockThreshold(),
+                dto.currentBatchExpiryDate(),
+                dto.currentBatchCode()
         );
     }
 }

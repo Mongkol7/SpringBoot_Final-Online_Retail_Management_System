@@ -153,10 +153,17 @@ export interface PosProductScan {
   id: number;
   sku: string;
   name: string;
+  description?: string;
+  categoryName?: string;
   imageUrl?: string;
   retailPrice: number;
+  wholesalePrice?: number;
+  costPrice?: number;
   availableStock: number;
   isPerishable: boolean;
+  minStockThreshold?: number;
+  currentBatchExpiryDate?: string;
+  currentBatchCode?: string;
 }
 
 export interface ReceiptItem {

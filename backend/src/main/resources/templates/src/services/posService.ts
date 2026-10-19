@@ -33,73 +33,129 @@ export const DEFAULT_POS_PRODUCTS: PosProductScan[] = [
     id: 1,
     sku: 'SKU-ENERGY-BAR',
     name: 'Organic Energy Bar (Almond & Honey)',
+    description: 'Raw cold-pressed almond butter with wildflower honey. 100% organic, non-GMO, and packed with sustained clean energy.',
+    categoryName: 'Snacks',
     imageUrl: 'https://images.unsplash.com/photo-1622484212850-eb596d769edc?auto=format&fit=crop&w=400&q=80',
     retailPrice: 3.50,
-    availableStock: 60,
-    isPerishable: true
+    wholesalePrice: 2.50,
+    costPrice: 1.80,
+    availableStock: 50,
+    minStockThreshold: 10,
+    isPerishable: true,
+    currentBatchCode: 'BATCH-ENGBAR-01',
+    currentBatchExpiryDate: '2027-10-08'
   },
   {
     id: 2,
     sku: 'SKU-COLD-BREW',
     name: 'Artisan Cold Brew Coffee 330ml',
+    description: 'Steeped for 20 hours with Ethiopian single-origin beans. Low acidity, rich chocolate and berry undertones.',
+    categoryName: 'Beverages',
     imageUrl: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=400&q=80',
     retailPrice: 4.75,
+    wholesalePrice: 3.20,
+    costPrice: 2.20,
     availableStock: 50,
-    isPerishable: true
+    minStockThreshold: 10,
+    isPerishable: true,
+    currentBatchCode: 'BATCH-CLDBRW-01',
+    currentBatchExpiryDate: '2027-04-06'
   },
   {
     id: 3,
     sku: 'SKU-SPARKLING-H2O',
     name: 'Sparkling Mineral Water 500ml',
+    description: 'Naturally carbonated spring water bottled in recycled Italian glass. Crisp minerality with balanced effervescence.',
+    categoryName: 'Beverages',
     imageUrl: 'https://images.unsplash.com/photo-1560023907-5f339617ea30?auto=format&fit=crop&w=400&q=80',
     retailPrice: 2.25,
+    wholesalePrice: 1.40,
+    costPrice: 0.80,
     availableStock: 120,
-    isPerishable: false
+    minStockThreshold: 15,
+    isPerishable: false,
+    currentBatchCode: 'BATCH-SPKH2O-01',
+    currentBatchExpiryDate: '2028-10-07'
   },
   {
     id: 4,
     sku: 'SKU-CHIP-TRUFFLE',
     name: 'Handcrafted Truffle Potato Crisps',
+    description: 'Slow-cooked artisanal crisps infused with black summer truffle and hand-harvested sea salt.',
+    categoryName: 'Snacks',
     imageUrl: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80',
     retailPrice: 5.50,
+    wholesalePrice: 3.80,
+    costPrice: 2.50,
     availableStock: 40,
-    isPerishable: false
+    minStockThreshold: 10,
+    isPerishable: false,
+    currentBatchCode: 'BATCH-TRFCHP-01',
+    currentBatchExpiryDate: '2027-08-04'
   },
   {
     id: 5,
     sku: 'SKU-OAT-MILK',
     name: 'Barista Organic Oat Milk 1L',
+    description: 'Steams to micro-foam perfection. Non-GMO Scandinavian whole oats, calcium and vitamin D fortified.',
+    categoryName: 'Dairy & Plant Milk',
     imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80',
     retailPrice: 4.20,
-    availableStock: 35,
-    isPerishable: true
+    wholesalePrice: 3.00,
+    costPrice: 2.10,
+    availableStock: 29,
+    minStockThreshold: 10,
+    isPerishable: true,
+    currentBatchCode: 'BATCH-OATMLK-01',
+    currentBatchExpiryDate: '2027-02-05'
   },
   {
     id: 6,
     sku: 'SKU-DARK-CHOC',
     name: 'Single Origin 85% Dark Chocolate',
+    description: 'Fair-trade Ecuadorian cacao with subtle citrus notes and a velvety smooth finish.',
+    categoryName: 'Snacks',
     imageUrl: 'https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=400&q=80',
     retailPrice: 6.00,
+    wholesalePrice: 4.20,
+    costPrice: 3.00,
     availableStock: 75,
-    isPerishable: false
+    minStockThreshold: 15,
+    isPerishable: false,
+    currentBatchCode: 'BATCH-DKCHOC-01',
+    currentBatchExpiryDate: '2028-02-20'
   },
   {
     id: 7,
     sku: 'SKU-PROTEIN-WHEY',
     name: 'Vanilla Whey Protein Concentrate 1kg',
+    description: 'Grass-fed dairy isolate with natural Madagascar vanilla. 24g pure protein per serving.',
+    categoryName: 'Nutrition & Supplements',
     imageUrl: 'https://images.unsplash.com/photo-1579722821273-0f6c7d44362f?auto=format&fit=crop&w=400&q=80',
     retailPrice: 38.00,
+    wholesalePrice: 29.00,
+    costPrice: 22.00,
     availableStock: 25,
-    isPerishable: false
+    minStockThreshold: 5,
+    isPerishable: false,
+    currentBatchCode: 'BATCH-WHYPRO-01',
+    currentBatchExpiryDate: '2028-09-07'
   },
   {
     id: 8,
     sku: 'SKU-MATCHA-LATTE',
     name: 'Ceremonial Grade Matcha Can 250ml',
+    description: 'Shade-grown Uji ceremonial matcha blended with unsweetened almond base and L-Theanine.',
+    categoryName: 'Beverages',
     imageUrl: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=400&q=80',
     retailPrice: 5.00,
-    availableStock: 45,
-    isPerishable: true
+    wholesalePrice: 3.60,
+    costPrice: 2.50,
+    availableStock: 35,
+    minStockThreshold: 10,
+    isPerishable: true,
+    currentBatchCode: 'BATCH-MTCLAT-01',
+    currentBatchExpiryDate: '2027-06-05'
   }
 ];
 
@@ -206,7 +262,19 @@ export const posService = {
       const { headers } = await getAuthHeaders();
       const res = await axios.get<PosProductScan[]>(`${API_BASE}/products`, { headers });
       if (res.data && res.data.length > 0) {
-        return res.data;
+        return res.data.map((p) => {
+          const fallback = DEFAULT_POS_PRODUCTS.find((d) => d.id === p.id || d.sku === p.sku);
+          return {
+            ...p,
+            currentBatchExpiryDate: p.currentBatchExpiryDate || fallback?.currentBatchExpiryDate || '2027-10-19',
+            currentBatchCode: p.currentBatchCode || fallback?.currentBatchCode || `BATCH-${p.sku}-01`,
+            description: p.description || fallback?.description,
+            categoryName: p.categoryName || fallback?.categoryName,
+            wholesalePrice: p.wholesalePrice ?? fallback?.wholesalePrice,
+            costPrice: p.costPrice ?? fallback?.costPrice,
+            minStockThreshold: p.minStockThreshold ?? fallback?.minStockThreshold ?? 10
+          };
+        });
       }
       return DEFAULT_POS_PRODUCTS;
     } catch {
@@ -218,9 +286,20 @@ export const posService = {
     try {
       const { headers } = await getAuthHeaders();
       const res = await axios.get<PosProductScan>(`${API_BASE}/products/scan/${sku}`, { headers });
-      return res.data;
+      const p = res.data;
+      const fallback = DEFAULT_POS_PRODUCTS.find((d) => d.id === p.id || d.sku.toLowerCase() === p.sku.toLowerCase());
+      return {
+        ...p,
+        currentBatchExpiryDate: p.currentBatchExpiryDate || fallback?.currentBatchExpiryDate || '2027-10-19',
+        currentBatchCode: p.currentBatchCode || fallback?.currentBatchCode || `BATCH-${p.sku}-01`,
+        description: p.description || fallback?.description,
+        categoryName: p.categoryName || fallback?.categoryName,
+        wholesalePrice: p.wholesalePrice ?? fallback?.wholesalePrice,
+        costPrice: p.costPrice ?? fallback?.costPrice,
+        minStockThreshold: p.minStockThreshold ?? fallback?.minStockThreshold ?? 10
+      };
     } catch {
-      const found = DEFAULT_POS_PRODUCTS.find(p => p.sku.toLowerCase() === sku.toLowerCase());
+      const found = DEFAULT_POS_PRODUCTS.find((p) => p.sku.toLowerCase() === sku.toLowerCase());
       if (found) return found;
       throw new Error(`Product with SKU '${sku}' not found.`);
     }
