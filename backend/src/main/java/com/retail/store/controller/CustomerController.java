@@ -116,6 +116,11 @@ public class CustomerController {
         return ResponseEntity.ok(customerService.getAvailableProducts());
     }
 
+    @GetMapping("/products/{id}")
+    public ResponseEntity<com.retail.store.entity.Product> getProductById(@PathVariable Long id) {
+        return ResponseEntity.ok(customerService.getProductById(id));
+    }
+
     public record AddCartItemRequest(Long productId, int quantity) {}
     public record CheckoutRequest(
         String shippingAddress,

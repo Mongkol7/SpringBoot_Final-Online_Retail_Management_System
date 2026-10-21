@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShopPage } from './ShopPage';
 import { CartPage } from './CartPage';
 import { CheckoutPage } from './CheckoutPage';
 import { OrdersPage } from './OrdersPage';
 import { WholesaleApplyModal } from './WholesaleApplyModal';
+import { ProductDetailPage } from './ProductDetailPage';
 import { WholesaleRegisterPage } from './WholesaleRegisterPage';
 import { CustomerFooter } from './CustomerFooter';
 import { useCustomerCartStore } from '../../store/customerCartStore';
@@ -17,7 +18,7 @@ import {
   LogOut
 } from 'lucide-react';
 
-export type CustomerRoute = 'shop' | 'cart' | 'checkout' | 'orders' | 'wholesale';
+export type CustomerRoute = 'shop' | 'cart' | 'checkout' | 'orders' | 'wholesale' | 'product-detail';
 
 interface CustomerAppProps {
   initialRoute?: CustomerRoute;
@@ -31,11 +32,18 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
     if (p.startsWith('/checkout')) return 'checkout';
     if (p.startsWith('/orders')) return 'orders';
     if (p.startsWith('/wholesale')) return 'wholesale';
+    if (p.startsWith('/product') || p.includes('/product/')) return 'product-detail';
     return 'shop';
   };
 
   const [currentRoute, setCurrentRouteState] = useState<CustomerRoute>(getInitial);
   const [isWholesaleModalOpen, setIsWholesaleModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialRoute) {
+      setCurrentRouteState(initialRoute);
+    }
+  }, [initialRoute]);
 
   const setCurrentRoute = (route: CustomerRoute) => {
     setCurrentRouteState(route);
@@ -252,6 +260,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
 
       {currentRoute === 'wholesale' && (
         <WholesaleRegisterPage />
+      )}
+
+      {currentRoute === 'product-detail' && (
+        <ProductDetailPage
+          onNavigateToShop={() => setCurrentRoute('shop')}
+          onNavigateToCart={() => setCurrentRoute('cart')}
+          onNavigateToCheckout={() => setCurrentRoute('checkout')}
+        />
       )}
 
       {/* Wholesale Modal */}

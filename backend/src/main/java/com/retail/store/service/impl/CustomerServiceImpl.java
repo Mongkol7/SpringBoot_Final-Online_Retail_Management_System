@@ -263,4 +263,13 @@ public class CustomerServiceImpl implements CustomerService {
         }
         return products;
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public com.retail.store.entity.Product getProductById(Long id) {
+        com.retail.store.entity.Product product = productRepository.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new com.retail.store.exception.ResourceNotFoundException("Product not found with id: " + id));
+        product.setStockQuantity(batchAllocationService.getAvailableStock(product.getId()));
+        return product;
+    }
 }

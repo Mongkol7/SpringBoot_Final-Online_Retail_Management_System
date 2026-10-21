@@ -24,4 +24,5 @@ public interface CustomerService {
     WholesaleApplication applyForWholesale(Long userId, String businessName, String taxId);
     WholesaleApplication getWholesaleStatus(Long userId);
     List<com.retail.store.entity.Product> getAvailableProducts();
+    com.retail.store.entity.Product getProductById(Long id);
 }

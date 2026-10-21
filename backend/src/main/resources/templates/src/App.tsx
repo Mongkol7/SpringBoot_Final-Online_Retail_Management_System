@@ -31,9 +31,11 @@ const AppLayout: React.FC = () => {
       }}
     >
       <Routes>
-        {/* Customer Storefront Routes (Public Catalog, Cart) */}
+        {/* Customer Storefront Routes (Public Catalog, Cart, Product Details) */}
         <Route path="/" element={<CustomerApp initialRoute="shop" />} />
         <Route path="/shop" element={<CustomerApp initialRoute="shop" />} />
+        <Route path="/product/:id" element={<CustomerApp initialRoute="product-detail" />} />
+        <Route path="/shop/product/:id" element={<CustomerApp initialRoute="product-detail" />} />
         <Route path="/cart" element={<CustomerApp initialRoute="cart" />} />
         <Route path="/wholesale" element={<CustomerApp initialRoute="wholesale" />} />
         <Route path="/wholesale-register" element={<CustomerApp initialRoute="wholesale" />} />

@@ -315,20 +315,30 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(readOnly = true)
     public Product getProductById(Long productId) {
-        return productRepository.findByIdAndIsDeletedFalse(productId)
+        Product product = productRepository.findByIdAndIsDeletedFalse(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+        product.setStockQuantity(getAvailableStock(productId));
+        return product;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Product> getAllActiveProducts() {
-        return productRepository.findByIsDeletedFalse();
+        List<Product> list = productRepository.findByIsDeletedFalse();
+        for (Product p : list) {
+            p.setStockQuantity(getAvailableStock(p.getId()));
+        }
+        return list;
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Product> getAllProducts(boolean includeDeleted) {
-        return includeDeleted ? productRepository.findAll() : productRepository.findByIsDeletedFalse();
+        List<Product> list = includeDeleted ? productRepository.findAll() : productRepository.findByIsDeletedFalse();
+        for (Product p : list) {
+            p.setStockQuantity(getAvailableStock(p.getId()));
+        }
+        return list;
     }
 
     @Override

@@ -48,12 +48,17 @@ public class ProductController {
             result = productRepository.findByIsDeletedFalse(pageable);
         }
 
+        for (Product p : result.getContent()) {
+            p.setStockQuantity(inventoryService.getAvailableStock(p.getId()));
+        }
         return ResponseEntity.ok(result);
     }
 
     @GetMapping("/products/{id}")
     public ResponseEntity<Product> getProductById(@PathVariable Long id) {
-        return ResponseEntity.ok(inventoryService.getProductById(id));
+        Product p = inventoryService.getProductById(id);
+        p.setStockQuantity(inventoryService.getAvailableStock(id));
+        return ResponseEntity.ok(p);
     }
 
     @GetMapping("/categories")

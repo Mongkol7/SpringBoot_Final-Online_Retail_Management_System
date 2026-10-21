@@ -6,7 +6,6 @@ import { IosBadge } from '../../components/ui/IosBadge';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import { customerApi, DEFAULT_CUSTOMER_PRODUCTS, CATEGORIES_LIST } from './customerApi';
 import { WholesaleApplyModal } from './WholesaleApplyModal';
-import { ProductDetailModal } from './ProductDetailModal';
 import { SnackStorefrontBento } from './SnackStorefrontBento';
 import { Product } from '../../types/schema';
 import {
@@ -67,8 +66,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
   const [selectedCategory, setSelectedCategory] = useState<number>(0);
   const [isWholesaleModalOpen, setIsWholesaleModalOpen] = useState(false);
   const [addedAnimationId, setAddedAnimationId] = useState<number | null>(null);
-
-  const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
   const [toastAlert, setToastAlert] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
 
   // Auto-dismiss toast
@@ -712,7 +709,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
 
                   {/* Product Image Capsule from Database */}
                   <div
-                    onClick={() => setSelectedProductForModal(product)}
+                    onClick={() => navigate(`/product/${product.id}`)}
                     style={{
                       width: '100%',
                       aspectRatio: '1 / 1',
@@ -728,7 +725,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                       padding: 0,
                       cursor: 'pointer'
                     }}
-                    title="Click to view product details"
+                    title="Click to view product details on dedicated page"
                   >
                     {product.imageUrl && (
                       <img
@@ -819,7 +816,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
 
                   {/* Title & Description */}
                   <h3
-                    onClick={() => setSelectedProductForModal(product)}
+                    onClick={() => navigate(`/product/${product.id}`)}
                     style={{
                       fontSize: '16px',
                       fontWeight: 800,
@@ -922,7 +919,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <button
                       type="button"
-                      onClick={() => setSelectedProductForModal(product)}
+                      onClick={() => navigate(`/product/${product.id}`)}
                       style={{
                         padding: '12px 14px',
                         borderRadius: '9999px',
@@ -1044,13 +1041,6 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
       <WholesaleApplyModal
         isOpen={isWholesaleModalOpen}
         onClose={() => setIsWholesaleModalOpen(false)}
-      />
-
-      {/* Storefront Product Detail Modal */}
-      <ProductDetailModal
-        product={selectedProductForModal}
-        isOpen={!!selectedProductForModal}
-        onClose={() => setSelectedProductForModal(null)}
       />
 
       {/* Real-time Floating Toast Alert */}

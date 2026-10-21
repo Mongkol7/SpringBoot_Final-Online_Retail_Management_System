@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ShoppingBag, ArrowRight, Sparkles, Flame, Check, ChevronLeft, ChevronRight, Truck, ShieldCheck, Headphones, CreditCard } from 'lucide-react';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import { Product } from '../../types/schema';
@@ -12,6 +13,7 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
   onSelectCategory,
   products = []
 }) => {
+  const navigate = useNavigate();
   const { addToCart, setNotification, getEffectiveTier } = useCustomerCartStore();
   const effectiveTier = getEffectiveTier();
   const [addedId, setAddedId] = useState<number | null>(null);
@@ -1238,6 +1240,7 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
 
                 {/* Product Thumbnail */}
                 <div
+                  onClick={() => navigate(`/product/${item.productId}`)}
                   style={{
                     width: '100%',
                     aspectRatio: '1 / 1',
@@ -1248,8 +1251,10 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
                     backgroundColor: '#F5F5F7',
                     borderRadius: '18px',
                     overflow: 'hidden',
-                    padding: 0
+                    padding: 0,
+                    cursor: 'pointer'
                   }}
+                  title="View product details on dedicated page"
                 >
                   <img
                     src={item.image}
@@ -1267,13 +1272,16 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
                 {/* Info */}
                 <div>
                   <h4
+                    onClick={() => navigate(`/product/${item.productId}`)}
                     style={{
                       fontSize: '15px',
                       fontWeight: 800,
                       color: '#111827',
                       margin: '0 0 4px 0',
-                      lineHeight: 1.3
+                      lineHeight: 1.3,
+                      cursor: 'pointer'
                     }}
+                    title="View product details"
                   >
                     {item.name}
                   </h4>

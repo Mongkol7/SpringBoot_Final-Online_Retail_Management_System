@@ -76,7 +76,7 @@ public class SecurityConfig {
                 // Public Endpoints: Auth, Static Resources, Catalog Browsing
                 .requestMatchers("/auth/**", "/api/v1/auth/**", "/pos/login", "/api/v1/pos/login", "/cashier/login", "/api/v1/cashier/login",
                                  "/pos/cashiers", "/api/v1/pos/cashiers", "/pos/pin-login", "/api/v1/pos/pin-login").permitAll()
-                .requestMatchers(HttpMethod.GET, "/products/**", "/api/v1/products/**", "/categories/**", "/api/v1/categories/**", "/customer/products", "/api/v1/customer/products").permitAll()
+                .requestMatchers(HttpMethod.GET, "/products/**", "/api/v1/products/**", "/categories/**", "/api/v1/categories/**", "/customer/products", "/api/v1/customer/products", "/customer/products/**", "/api/v1/customer/products/**").permitAll()
                 .requestMatchers("/", "/index.html", "/static/**", "/assets/**", "/templates/**", "/favicon.ico").permitAll()
 
                 // Role-Specific Access Controls

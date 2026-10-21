@@ -218,43 +218,80 @@ function normalizeOrder(raw: any): Order {
   };
 }
 
+export function normalizeProduct(p: any): Product {
+  const stock = p.stockQuantity !== undefined
+    ? Number(p.stockQuantity)
+    : (p.availableStock !== undefined ? Number(p.availableStock) : 0);
+
+  let images: string[] = [];
+  if (Array.isArray(p.images)) {
+    images = p.images;
+  } else if (typeof p.images === 'string' && p.images.trim()) {
+    try {
+      const parsed = JSON.parse(p.images);
+      images = Array.isArray(parsed) ? parsed : [p.images];
+    } catch {
+      images = p.images.split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
+  } else if (p.imageUrl || p.image_url) {
+    images = [p.imageUrl || p.image_url];
+  }
+
+  const primaryImage = images.length > 0 ? images[0] : (p.imageUrl || p.image_url || '');
+
+  return {
+    ...p,
+    id: Number(p.id),
+    name: p.name || 'Artisanal Snack Product',
+    sku: p.sku || `SKU-${p.id}`,
+    description: p.description || '',
+    categoryId: p.categoryId ?? p.category?.id ?? 2,
+    imageUrl: primaryImage,
+    costPrice: Number(p.costPrice || 0),
+    retailPrice: Number(p.retailPrice || 0),
+    wholesalePrice: Number(p.wholesalePrice || 0),
+    minStockThreshold: p.minStockThreshold !== undefined ? Number(p.minStockThreshold) : 10,
+    wholesaleMinQty: p.wholesaleMinQty !== undefined ? Number(p.wholesaleMinQty) : 10,
+    isPerishable: Boolean(p.isPerishable),
+    isDeleted: Boolean(p.isDeleted),
+    stockQuantity: stock,
+    availableStock: stock
+  };
+}
+
 export const customerApi = {
-  // Products (Direct from central PostgreSQL DB)
+  // Products (Direct from central PostgreSQL DB - synchronized with Stock Controller)
   async getProducts(): Promise<Product[]> {
     try {
       const res = await axios.get(`${API_BASE}/customer/products`);
       if (Array.isArray(res.data) && res.data.length > 0) {
-        return res.data.map((p: any) => {
-          const stock = p.stockQuantity !== undefined ? Number(p.stockQuantity) : (p.availableStock !== undefined ? Number(p.availableStock) : 0);
-          return {
-            ...p,
-            categoryId: p.categoryId ?? p.category?.id ?? 2,
-            imageUrl: p.imageUrl || p.image_url || '',
-            stockQuantity: stock,
-            availableStock: stock
-          };
-        });
+        return res.data.map((p: any) => normalizeProduct(p));
       }
     } catch {
+      // Fallback 1: Public products endpoint
       try {
         const fallbackRes = await axios.get(`${API_BASE}/products`);
         const list = Array.isArray(fallbackRes.data)
           ? fallbackRes.data
           : (fallbackRes.data?.content && Array.isArray(fallbackRes.data.content) ? fallbackRes.data.content : []);
         if (list.length > 0) {
-          return list.map((p: any) => {
-            const stock = p.stockQuantity !== undefined ? Number(p.stockQuantity) : (p.availableStock !== undefined ? Number(p.availableStock) : 0);
-            return {
-              ...p,
-              categoryId: p.categoryId ?? p.category?.id ?? 2,
-              imageUrl: p.imageUrl || p.image_url || '',
-              stockQuantity: stock,
-              availableStock: stock
-            };
-          });
+          return list.map((p: any) => normalizeProduct(p));
         }
       } catch {
-        // Fallback to seeded products
+        // Fallback 2: Inventory products if staff/admin token is present
+        try {
+          const invToken = localStorage.getItem('inventory_jwt') || localStorage.getItem('customer_jwt');
+          if (invToken) {
+            const invRes = await axios.get(`${API_BASE}/inventory/products`, {
+              headers: { Authorization: `Bearer ${invToken}` }
+            });
+            if (Array.isArray(invRes.data) && invRes.data.length > 0) {
+              return invRes.data.map((p: any) => normalizeProduct(p));
+            }
+          }
+        } catch {
+          // Continue to fallback
+        }
       }
     }
     return DEFAULT_CUSTOMER_PRODUCTS.map((p) => ({
@@ -262,6 +299,51 @@ export const customerApi = {
       stockQuantity: (p.minStockThreshold || 10) * 3,
       availableStock: (p.minStockThreshold || 10) * 3
     }));
+  },
+
+  // Get single product by ID (Direct from DB with live batch calculation)
+  async getProductById(id: number | string): Promise<Product | null> {
+    const numId = Number(id);
+    if (!numId) return null;
+
+    try {
+      const res = await axios.get(`${API_BASE}/customer/products/${numId}`);
+      if (res.data) {
+        return normalizeProduct(res.data);
+      }
+    } catch {
+      try {
+        const fallbackRes = await axios.get(`${API_BASE}/products/${numId}`);
+        if (fallbackRes.data) {
+          return normalizeProduct(fallbackRes.data);
+        }
+      } catch {
+        try {
+          const invToken = localStorage.getItem('inventory_jwt') || localStorage.getItem('customer_jwt');
+          if (invToken) {
+            const invRes = await axios.get(`${API_BASE}/inventory/products/${numId}`, {
+              headers: { Authorization: `Bearer ${invToken}` }
+            });
+            if (invRes.data) {
+              return normalizeProduct(invRes.data);
+            }
+          }
+        } catch {
+          // Fallback to in-memory search
+        }
+      }
+    }
+
+    // Fallback: search in seeded list
+    const found = DEFAULT_CUSTOMER_PRODUCTS.find((p) => p.id === numId);
+    if (found) {
+      return {
+        ...found,
+        stockQuantity: (found.minStockThreshold || 10) * 3,
+        availableStock: (found.minStockThreshold || 10) * 3
+      };
+    }
+    return null;
   },
 
   // Cart
