@@ -334,7 +334,9 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(readOnly = true)
     public List<Product> getAllProducts(boolean includeDeleted) {
-        List<Product> list = includeDeleted ? productRepository.findAll() : productRepository.findByIsDeletedFalse();
+        List<Product> list = includeDeleted
+                ? productRepository.findAllByOrderByNameAsc()
+                : productRepository.findByIsDeletedFalseOrderByNameAsc();
         for (Product p : list) {
             p.setStockQuantity(getAvailableStock(p.getId()));
         }

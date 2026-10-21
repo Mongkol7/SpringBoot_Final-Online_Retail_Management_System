@@ -23,6 +23,7 @@ import com.retail.store.repository.WholesaleApplicationRepository;
 import com.retail.store.service.AdminService;
 import com.retail.store.service.BatchAllocationService;
 import com.retail.store.service.InventoryService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -75,6 +76,7 @@ public class AdminServiceImpl implements AdminService {
     private final BatchAllocationService batchAllocationService;
     private final PasswordEncoder passwordEncoder;
 
+    @Autowired
     public AdminServiceImpl(WholesaleApplicationRepository wholesaleRepository,
                             UserRepository userRepository,
                             RoleRepository roleRepository,

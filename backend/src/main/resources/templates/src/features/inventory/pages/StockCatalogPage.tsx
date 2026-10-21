@@ -262,7 +262,11 @@ export const StockCatalogPage: React.FC = () => {
           </thead>
           <tbody>
             {filteredProducts.map((product) => {
-              const onHand = productStock(product.id);
+              // Prefer the backend-calculated quantity so the stock controller and
+              // storefront use the exact same active-batch/expiry rules.
+              const onHand = product.stockQuantity !== undefined
+                ? Number(product.stockQuantity)
+                : (product.availableStock !== undefined ? Number(product.availableStock) : productStock(product.id));
               const isLow = onHand <= product.minStockThreshold;
               const hasMultipleImages = Boolean(product.images && product.images.length > 1);
 

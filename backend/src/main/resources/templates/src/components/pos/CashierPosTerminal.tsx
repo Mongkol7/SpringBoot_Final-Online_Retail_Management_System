@@ -8,6 +8,8 @@ import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { PosSalesHistory } from './PosSalesHistory';
 import { ProductDetailModal } from './ProductDetailModal';
 import { CashierPinModal } from './CashierPinModal';
+import { LogoutConfirmModal } from '../ui/LogoutConfirmModal';
+import { useAuth } from '../../context/AuthContext';
 import {
   Barcode,
   Search,
@@ -26,10 +28,12 @@ import {
   History,
   X,
   Info,
-  Eye
+  Eye,
+  LogOut
 } from 'lucide-react';
 
 export const CashierPosTerminal: React.FC = () => {
+  const { currentUser, logoutRole } = useAuth();
   const [products, setProducts] = useState<PosProductScan[]>(DEFAULT_POS_PRODUCTS);
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -55,6 +59,7 @@ export const CashierPosTerminal: React.FC = () => {
   // Shift & Receipt State
   const [activeShift, setActiveShift] = useState<PosShift | null>(null);
   const [isShiftModalOpen, setIsShiftModalOpen] = useState<boolean>(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [receiptData, setReceiptData] = useState<ThermalReceipt | null>(null);
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState<boolean>(false);
 
@@ -743,8 +748,41 @@ export const CashierPosTerminal: React.FC = () => {
           >
             {isShiftOpen ? 'Reconcile Drawer' : 'Open Shift Float'}
           </button>
+
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            title="Sign out of cashier session"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 13px',
+              color: '#FCA5A5',
+              backgroundColor: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.28)',
+              borderRadius: '9999px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
+          >
+            <LogOut size={13} />
+            Sign Out
+          </button>
         </div>
       </div>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        roleLabel="Cashier"
+        description="The cashier account will be signed out. Any open register work remains recorded on the server."
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          posService.lockRegister();
+          logoutRole(currentUser?.role === 'ADMIN' ? 'ADMIN' : 'CASHIER');
+          setShowLogoutConfirm(false);
+        }}
+      />
 
       {/* Auto-Dismissing Error banner if present */}
       {errorMessage && (

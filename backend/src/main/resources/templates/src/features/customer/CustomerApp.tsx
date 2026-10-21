@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ShopPage } from './ShopPage';
 import { CartPage } from './CartPage';
 import { CheckoutPage } from './CheckoutPage';
@@ -25,6 +26,7 @@ interface CustomerAppProps {
 }
 
 export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
+  const navigate = useNavigate();
   const getInitial = (): CustomerRoute => {
     if (initialRoute) return initialRoute;
     const p = window.location.pathname.toLowerCase();
@@ -49,7 +51,10 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
     setCurrentRouteState(route);
     const path = route === 'shop' ? '/' : `/${route}`;
     if (window.location.pathname !== path) {
-      window.history.pushState(null, '', path);
+      // Use React Router so the URL, route match, and rendered view stay in sync.
+      // Direct history.pushState does not notify BrowserRouter and can leave the
+      // app showing the previous page until another navigation occurs.
+      navigate(path);
     }
   };
 

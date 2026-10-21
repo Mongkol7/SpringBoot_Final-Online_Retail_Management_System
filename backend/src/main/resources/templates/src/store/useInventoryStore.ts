@@ -108,6 +108,7 @@ interface InventoryState {
   closeModal: () => void;
 
   // Network Actions
+  syncSession: () => void;
   refresh: () => Promise<void>;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => void;
@@ -249,6 +250,10 @@ export const useInventoryStore = create<InventoryState>()(persist((set, get) => 
       selectedBatch: null,
       preselectedProductForIntake: null
     }),
+
+  syncSession: () => {
+    set({ isConnected: hasInventorySession() });
+  },
 
   refresh: async () => {
     set({ isSyncing: true });

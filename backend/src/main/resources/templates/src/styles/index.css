@@ -17,6 +17,20 @@ body {
   min-height: 100vh;
 }
 
+/* Keep operational role workspaces on the original full-black canvas. */
+.role-app-shell {
+  background: #000000;
+}
+
+.auth-app-shell {
+  background: #F5F5F7;
+}
+
+@keyframes logout-modal-enter {
+  from { opacity: 0; transform: translateY(8px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
 /* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;

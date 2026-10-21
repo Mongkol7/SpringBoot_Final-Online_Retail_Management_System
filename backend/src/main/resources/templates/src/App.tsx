@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useLayoutEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
@@ -10,22 +10,37 @@ import { StockWorkspace } from './features/inventory/StockWorkspace';
 
 const AppLayout: React.FC = () => {
   const location = useLocation();
-  const { logoutRole } = useAuth();
+  const { logoutRole, hasAccess } = useAuth();
   const path = location.pathname.toLowerCase();
+
+  useLayoutEffect(() => {
+    // BrowserRouter keeps the current document scroll position across client-side
+    // route changes. Product details should always open at their top, not at the
+    // storefront card's previous position near the bottom of the page.
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, location.search]);
 
   const isPos = path.startsWith('/pos') || path.startsWith('/cashier');
   const isAdmin = path.startsWith('/admin');
   const isStock = path.startsWith('/stock') || path.startsWith('/inventory');
-  const isWide = isPos || isAdmin || isStock;
+  const isExplicitAuthPath = path === '/login' || path === '/signup' || path.endsWith('/login');
+  const isProtectedLoginScreen =
+    (isAdmin && !hasAccess('ADMIN')) ||
+    (isPos && !hasAccess('CASHIER')) ||
+    (isStock && !hasAccess('STOCK_CONTROLLER'));
+  const isAuthShell = isExplicitAuthPath || isProtectedLoginScreen;
+  const isWide = !isAuthShell && (isPos || isAdmin || isStock);
 
   return (
     <div
+      className={isWide ? 'role-app-shell' : isAuthShell ? 'auth-app-shell' : undefined}
       style={{
         minHeight: '100vh',
-        padding: isWide ? '24px 20px 36px' : '32px 24px 60px',
-        maxWidth: isWide ? '100%' : '1240px',
+        padding: isWide ? '24px 20px 36px' : isAuthShell ? 0 : '32px 24px 60px',
+        maxWidth: isWide || isAuthShell ? '100%' : '1240px',
         width: '100%',
         margin: '0 auto',
+        background: isAuthShell ? '#F5F5F7' : undefined,
         boxSizing: 'border-box',
         transition: 'all 0.25s ease'
       }}

@@ -1,10 +1,11 @@
 import axios from 'axios';
 import { Product, CartItem, Order, WholesaleApplication, PaymentMethod } from '../../types/schema';
+import { MOCK_BATCHES, MOCK_CATEGORIES, MOCK_PRODUCTS } from '../inventory/mocks/mockInventoryData';
 
 const API_BASE = '/api/v1';
 
 // Seeded products matching Flyway V5_1__seed_products_and_batches.sql
-export const DEFAULT_CUSTOMER_PRODUCTS: Product[] = [
+export const LEGACY_DEFAULT_CUSTOMER_PRODUCTS: Product[] = [
   {
     id: 1,
     categoryId: 2,
@@ -167,13 +168,54 @@ export const DEFAULT_CUSTOMER_PRODUCTS: Product[] = [
   }
 ];
 
-export const CATEGORIES_LIST = [
+export const LEGACY_CATEGORIES_LIST = [
   { id: 0, name: 'All Products' },
   { id: 1, name: 'Beverages' },
   { id: 2, name: 'Snacks' },
   { id: 3, name: 'Dairy & Plant Milk' },
   { id: 4, name: 'Nutrition & Supplements' }
 ];
+
+// Keep the offline storefront preview on the same catalog used by the stock controller.
+// Live mode still comes from /api/v1/customer/products, backed by the same database.
+export const DEFAULT_CUSTOMER_PRODUCTS: Product[] = MOCK_PRODUCTS.map((p) => ({
+  id: p.id,
+  categoryId: p.categoryId ?? p.category?.id ?? 0,
+  sku: p.sku,
+  name: p.name,
+  description: p.description,
+  imageUrl: p.imageUrl,
+  costPrice: p.costPrice,
+  retailPrice: p.retailPrice,
+  wholesalePrice: p.wholesalePrice,
+  minStockThreshold: p.minStockThreshold,
+  isPerishable: p.isPerishable,
+  isDeleted: Boolean(p.isDeleted),
+  createdAt: '',
+  updatedAt: ''
+}));
+
+export const CATEGORIES_LIST = [
+  { id: 0, name: 'All Products' },
+  ...MOCK_CATEGORIES.map(({ id, name }) => ({ id, name }))
+];
+
+function getFallbackStock(productId: number): number {
+  const today = new Date().toISOString().slice(0, 10);
+  return MOCK_BATCHES
+    .filter((batch) =>
+      batch.product?.id === productId &&
+      !batch.isExpired &&
+      batch.currentQuantity > 0 &&
+      (!batch.expiryDate || batch.expiryDate > today)
+    )
+    .reduce((total, batch) => total + Number(batch.currentQuantity || 0), 0);
+}
+
+function withFallbackStock(product: Product): Product {
+  const stock = getFallbackStock(product.id);
+  return { ...product, stockQuantity: stock, availableStock: stock };
+}
 
 // Helper to get auth headers from localStorage across personas
 function getAuthHeaders(): { headers: Record<string, string> } {
@@ -294,11 +336,7 @@ export const customerApi = {
         }
       }
     }
-    return DEFAULT_CUSTOMER_PRODUCTS.map((p) => ({
-      ...p,
-      stockQuantity: (p.minStockThreshold || 10) * 3,
-      availableStock: (p.minStockThreshold || 10) * 3
-    }));
+    return DEFAULT_CUSTOMER_PRODUCTS.map(withFallbackStock);
   },
 
   // Get single product by ID (Direct from DB with live batch calculation)
@@ -337,11 +375,7 @@ export const customerApi = {
     // Fallback: search in seeded list
     const found = DEFAULT_CUSTOMER_PRODUCTS.find((p) => p.id === numId);
     if (found) {
-      return {
-        ...found,
-        stockQuantity: (found.minStockThreshold || 10) * 3,
-        availableStock: (found.minStockThreshold || 10) * 3
-      };
+      return withFallbackStock(found);
     }
     return null;
   },

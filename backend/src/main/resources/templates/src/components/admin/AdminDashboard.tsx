@@ -58,6 +58,7 @@ import {
 } from '../../types/schema';
 import { adminService } from '../../services/adminService';
 import { IosCardGlass } from '../ui/IosCardGlass';
+import { LogoutConfirmModal } from '../ui/LogoutConfirmModal';
 
 export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   // Navigation Tabs
@@ -67,6 +68,7 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Executive Data State
   const [kpi, setKpi] = useState<ExecutiveKpiSummary | null>(null);
@@ -916,12 +918,7 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
           </button>
 
           <button
-            onClick={() => {
-              if (window.confirm('Lock Executive HUD and sign out from Administrator session?')) {
-                localStorage.removeItem('admin_jwt');
-                onLogout?.();
-              }
-            }}
+            onClick={() => setShowLogoutConfirm(true)}
             title="Sign Out / Lock Executive HUD"
             style={{
               display: 'flex',
@@ -943,6 +940,18 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
           </button>
         </div>
       </div>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        roleLabel="Administrator"
+        description="Your executive dashboard session and administrator access token will be cleared from this browser."
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          localStorage.removeItem('admin_jwt');
+          setShowLogoutConfirm(false);
+          onLogout?.();
+        }}
+      />
 
       {/* Top KPI Cards Grid */}
       <div

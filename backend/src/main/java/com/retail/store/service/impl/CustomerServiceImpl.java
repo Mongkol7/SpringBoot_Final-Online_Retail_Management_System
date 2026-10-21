@@ -255,9 +255,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional(readOnly = true)
     public List<com.retail.store.entity.Product> getAvailableProducts() {
-        List<com.retail.store.entity.Product> products = productRepository.findAll().stream()
-                .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
-                .toList();
+        List<com.retail.store.entity.Product> products = productRepository.findByIsDeletedFalseOrderByNameAsc();
         for (com.retail.store.entity.Product p : products) {
             p.setStockQuantity(batchAllocationService.getAvailableStock(p.getId()));
         }

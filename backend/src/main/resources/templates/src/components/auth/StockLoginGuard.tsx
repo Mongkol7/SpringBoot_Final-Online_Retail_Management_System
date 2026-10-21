@@ -240,7 +240,7 @@ export const StockLoginGuard: React.FC<StockLoginGuardProps> = ({ onSuccess }) =
             <span>1-Click Verified Demo Credentials:</span>
           </div>
           <button
-            onClick={() => handleQuickFill('stock@retailstore.com', 'password123')}
+            onClick={() => handleQuickFill('stock@retailstore.com', 'cashier123')}
             type="button"
             style={{
               width: '100%',
@@ -258,7 +258,7 @@ export const StockLoginGuard: React.FC<StockLoginGuardProps> = ({ onSuccess }) =
             }}
           >
             <span><strong>Warehouse Controller:</strong> stock@retailstore.com</span>
-            <span style={{ color: '#FBBF24', fontWeight: 700 }}>Auto-Fill (password123)</span>
+            <span style={{ color: '#FBBF24', fontWeight: 700 }}>Auto-Fill (cashier123)</span>
           </button>
         </div>
       </div>

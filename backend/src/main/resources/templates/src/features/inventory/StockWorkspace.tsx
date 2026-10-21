@@ -14,6 +14,8 @@ import {
   FileText
 } from 'lucide-react';
 import { useInventoryStore, StockTab } from '../../store/useInventoryStore';
+import { useAuth } from '../../context/AuthContext';
+import { hasInventorySession } from '../../services/inventoryService';
 import { StockOverviewPage } from './pages/StockOverviewPage';
 import { StockCatalogPage } from './pages/StockCatalogPage';
 import { BatchExpiryRadar } from './components/BatchExpiryRadar';
@@ -27,16 +29,19 @@ import { SupplierModal } from './components/SupplierModal';
 import { CategoryModal } from './components/CategoryModal';
 import { AdjustmentModal } from './components/AdjustmentModal';
 import { InventoryLoginModal } from './components/InventoryLoginModal';
+import { LogoutConfirmModal } from '../../components/ui/LogoutConfirmModal';
 
 import './stock.css';
 
 export const StockWorkspace: React.FC = () => {
+  const { currentUser, logoutRole } = useAuth();
   const {
     activeTab,
     setTab,
     isConnected,
     isSyncing,
     syncError,
+    syncSession,
     refresh,
     logout,
     toast,
@@ -47,6 +52,7 @@ export const StockWorkspace: React.FC = () => {
   } = useInventoryStore();
 
   const [currentTime, setCurrentTime] = useState<string>('');
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const soonCount = soonExpiringCount();
   // Migrate any previously selected Stock Inbound tab to the unified radar view.
   const visibleTab = activeTab === 'intake' ? 'batches' : activeTab;
@@ -70,12 +76,14 @@ export const StockWorkspace: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Sync on initial mount if token present
+  // Rehydrate the inventory session after unified login. The inventory store
+  // may have initialized before authService wrote inventory_jwt.
   useEffect(() => {
-    if (isConnected) {
+    syncSession();
+    if (hasInventorySession()) {
       void refresh();
     }
-  }, []);
+  }, [currentUser, refresh, syncSession]);
 
   const navItems: { id: StockTab; label: string; icon: React.ReactNode; badge?: number }[] = [
     { id: 'overview', label: 'Overview', icon: <Layers3 size={15} /> },
@@ -159,7 +167,7 @@ export const StockWorkspace: React.FC = () => {
 
           {isConnected ? (
             <button
-              onClick={logout}
+              onClick={() => setShowLogoutConfirm(true)}
               title="Sign Out"
               style={{
                 width: '34px',
@@ -217,6 +225,18 @@ export const StockWorkspace: React.FC = () => {
 
         </div>
       </header>
+
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        roleLabel="Stock Controller"
+        description="Your live inventory session will be closed and this workspace will return to local preview mode."
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          logout();
+          logoutRole('STOCK_CONTROLLER');
+          setShowLogoutConfirm(false);
+        }}
+      />
 
       {/* Hero Intro */}
       <div

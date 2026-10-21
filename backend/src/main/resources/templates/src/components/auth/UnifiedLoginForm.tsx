@@ -772,7 +772,7 @@ export const UnifiedLoginForm: React.FC<UnifiedLoginFormProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('cashier1@retailstore.com', 'password123')}
+                  onClick={() => handleQuickFill('cashier@retailstore.com', 'cashier123')}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -789,12 +789,12 @@ export const UnifiedLoginForm: React.FC<UnifiedLoginFormProps> = ({
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(16, 185, 129, 0.06)')}
                 >
                   <span style={{ fontSize: '11px', fontWeight: 800, color: '#047857' }}>💳 Cashier</span>
-                  <span style={{ fontSize: '10px', color: '#6B7280' }}>cashier1@retailstore.com</span>
+                  <span style={{ fontSize: '10px', color: '#6B7280' }}>cashier@retailstore.com</span>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('stock@retailstore.com', 'password123')}
+                  onClick={() => handleQuickFill('stock@retailstore.com', 'cashier123')}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -816,7 +816,7 @@ export const UnifiedLoginForm: React.FC<UnifiedLoginFormProps> = ({
 
                 <button
                   type="button"
-                  onClick={() => handleQuickFill('customer@retailstore.com', 'customer123')}
+                  onClick={() => handleQuickFill('sarah.j@gmail.com', 'cashier123')}
                   style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -833,7 +833,7 @@ export const UnifiedLoginForm: React.FC<UnifiedLoginFormProps> = ({
                   onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(236, 72, 153, 0.06)')}
                 >
                   <span style={{ fontSize: '11px', fontWeight: 800, color: '#BE185D' }}>🛍️ Customer</span>
-                  <span style={{ fontSize: '10px', color: '#6B7280' }}>customer@retailstore.com</span>
+                  <span style={{ fontSize: '10px', color: '#6B7280' }}>sarah.j@gmail.com</span>
                 </button>
               </div>
             </div>

@@ -21,7 +21,7 @@ export async function getValidInventoryToken(): Promise<string> {
     try {
       const res = await axios.post(`${API_BASE}/auth/login`, {
         email: 'stock@retailstore.com',
-        password: 'password123'
+        password: 'cashier123'
       });
       const t = res.data?.token;
       if (t) {
@@ -97,6 +97,9 @@ export interface StockProduct {
   minStockThreshold: number;
   isPerishable: boolean;
   isDeleted?: boolean;
+  /** Live available quantity calculated from active, non-expired batches. */
+  stockQuantity?: number;
+  availableStock?: number;
 }
 
 export interface StockBatch {
@@ -193,7 +196,10 @@ export async function loadStockWorkspace(): Promise<StockWorkspaceData> {
     } else if (p.imageUrl) {
       images = [p.imageUrl];
     }
-    return { ...p, images };
+    const stock = p.stockQuantity !== undefined
+      ? Number(p.stockQuantity)
+      : (p.availableStock !== undefined ? Number(p.availableStock) : undefined);
+    return { ...p, images, stockQuantity: stock, availableStock: stock };
   });
 
   return {
