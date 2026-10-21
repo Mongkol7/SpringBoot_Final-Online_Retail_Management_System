@@ -1,0 +1,355 @@
+{
+  "info": {
+    "_postman_id": "a918e7e1-8f5b-4e12-b2c6-d92fa674b8c1",
+    "name": "Person 3 - Stock Controller Tasks",
+    "description": "Postman Collection for testing all Person 3 Stock & Inventory endpoints with automated JWT token handling.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8085/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Login (Obtain JWT Token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "if (jsonData.token) {",
+              "    pm.collectionVariables.set('jwt_token', jsonData.token);",
+              "    console.log('JWT Token saved successfully!');",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"admin@retailstore.com\",\n  \"password\": \"admin123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "2. Get Stock Catalog (Active Products)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/products",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "products"]
+        }
+      }
+    },
+    {
+      "name": "3. Get Stock Catalog (Include Soft-Deleted)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/products?includeDeleted=true",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "products"],
+          "query": [
+            {
+              "key": "includeDeleted",
+              "value": "true"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "4. Contract 2 - Pricing Tiers (cost <= wholesale <= retail)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/products/1/prices",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "products", "1", "prices"]
+        }
+      }
+    },
+    {
+      "name": "5. Low-Stock Radar Alert (Threshold)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/alerts/low-stock",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "alerts", "low-stock"]
+        }
+      }
+    },
+    {
+      "name": "6. View Active Inventory Batches",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/batches",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "batches"]
+        }
+      }
+    },
+    {
+      "name": "7. Expiring Batches Radar (Next 30 Days)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/batches/expiring?days=30",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "batches", "expiring"],
+          "query": [
+            {
+              "key": "days",
+              "value": "30"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "8. Stock-In Inbound Batch (Intake Engine)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"productId\": 1,\n  \"supplierId\": 1,\n  \"batchCode\": \"BATCH-2026-TEST\",\n  \"quantity\": 50,\n  \"expiryDate\": \"2027-12-31\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/inventory/batches/stock-in",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "batches", "stock-in"]
+        }
+      }
+    },
+    {
+      "name": "9. Manual Stock Adjustment (Audit Ledger)",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"batchId\": 1,\n  \"quantityDelta\": -2,\n  \"reason\": \"Damaged goods during inspection\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/inventory/adjustments",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "adjustments"]
+        }
+      }
+    },
+    {
+      "name": "10. Get Supplier Directory",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/suppliers",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "suppliers"]
+        }
+      }
+    },
+    {
+      "name": "11. Get Categories",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/categories",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "categories"]
+        }
+      }
+    },
+    {
+      "name": "12. Soft Delete Product",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "DELETE",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/products/1",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "products", "1"]
+        }
+      }
+    },
+    {
+      "name": "13. Restore Soft-Deleted Product",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{jwt_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/inventory/products/1/restore",
+          "host": ["{{baseUrl}}"],
+          "path": ["inventory", "products", "1", "restore"]
+        }
+      }
+    }
+  ]
+}

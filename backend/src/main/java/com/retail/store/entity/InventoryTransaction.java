@@ -1,5 +1,6 @@
 package com.retail.store.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.retail.store.entity.enums.TransactionType;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -14,12 +15,14 @@ public class InventoryTransaction {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "batch_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private ProductBatch batch;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "user_id", nullable = true)
+    @JsonIgnoreProperties({"passwordHash", "role", "hibernateLazyInitializer", "handler"})
     private User user;
 
     @Enumerated(EnumType.STRING)

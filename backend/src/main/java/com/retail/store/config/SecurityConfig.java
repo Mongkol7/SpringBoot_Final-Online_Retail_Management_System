@@ -64,7 +64,7 @@ public class SecurityConfig {
                 // Role-Specific Access Controls
                 .requestMatchers("/customer/**", "/api/v1/customer/**", "/cart/**", "/api/v1/cart/**").hasRole("USER")
                 .requestMatchers("/pos/**", "/api/v1/pos/**", "/cashier/**", "/api/v1/cashier/**").hasAnyRole("CASHIER", "ADMIN")
-                .requestMatchers("/inventory/**", "/api/v1/inventory/**", "/batches/**", "/api/v1/batches/**").hasRole("STOCK_CONTROLLER")
+                .requestMatchers("/inventory/**", "/api/v1/inventory/**", "/batches/**", "/api/v1/batches/**").hasAnyRole("STOCK_CONTROLLER", "ADMIN")
                 .requestMatchers("/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
 
                 .anyRequest().authenticated()

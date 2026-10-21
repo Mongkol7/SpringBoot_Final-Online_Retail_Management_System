@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --port 3000",
     "build": "tsc && vite build",
-    "preview": "vite preview --port 3000"
+    "preview": "vite preview --port 3000",
+    "test": "node --test src/features/inventory/tests/stock.test.mjs"
   },
   "dependencies": {
     "axios": "^1.6.8",
