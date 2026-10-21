@@ -24,6 +24,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -93,6 +94,16 @@ class InventoryServiceImplTest {
     }
 
     @Test
+    @DisplayName("Category Creation: Duplicate names are rejected case-insensitively")
+    void testCreateCategory_DuplicateName() {
+        when(categoryRepository.existsByNameIgnoreCase("electronics")).thenReturn(true);
+
+        assertThrows(BadRequestException.class, () ->
+                inventoryService.createCategory(" electronics ", "Duplicate"));
+        verify(categoryRepository, never()).save(any(Category.class));
+    }
+
+    @Test
     @DisplayName("Product Creation: Cost price higher than retail throws BadRequestException")
     void testCreateProduct_InvalidPricingHierarchy() {
         assertThrows(BadRequestException.class, () -> {
@@ -132,6 +143,48 @@ class InventoryServiceImplTest {
         assertThrows(BadRequestException.class, () -> {
             inventoryService.stockIn(10L, 1, "BATCH-001", 50, null, 1L);
         });
+    }
+
+    @Test
+    @DisplayName("Product Creation: Duplicate name in the same category is rejected")
+    void testCreateProduct_DuplicateCategoryAndName() {
+        when(categoryRepository.findById(1)).thenReturn(Optional.of(testCategory));
+        when(productRepository.existsByCategory_IdAndNameIgnoreCaseAndIsDeletedFalse(1, "Organic Milk"))
+                .thenReturn(true);
+
+        assertThrows(BadRequestException.class, () -> inventoryService.createProduct(
+                1, null, "Organic Milk", "Duplicate", null,
+                new BigDecimal("2.00"), new BigDecimal("4.00"), new BigDecimal("3.00"),
+                10, true));
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("Product Creation: Missing SKU is generated automatically")
+    void testCreateProduct_GeneratesSkuWhenMissing() {
+        when(categoryRepository.findById(1)).thenReturn(Optional.of(testCategory));
+        when(productRepository.existsByCategory_IdAndNameIgnoreCaseAndIsDeletedFalse(1, "New Product"))
+                .thenReturn(false);
+        when(productRepository.existsBySku(anyString())).thenReturn(false);
+        when(productRepository.save(any(Product.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Product created = inventoryService.createProduct(
+                1, null, "New Product", "Description", null,
+                new BigDecimal("2.00"), new BigDecimal("4.00"), new BigDecimal("3.00"),
+                10, false);
+
+        assertTrue(created.getSku().startsWith("SKU-1-NEW-PRODUCT-"));
+    }
+
+    @Test
+    @DisplayName("Stock-In: Any supplied expiry date must be in the future")
+    void testStockIn_NonPerishableRejectsNonFutureExpiry() {
+        when(productRepository.findByIdAndIsDeletedFalse(20L)).thenReturn(Optional.of(nonPerishableProduct));
+        when(supplierRepository.findById(1)).thenReturn(Optional.of(testSupplier));
+        when(batchRepository.findByBatchCode("BATCH-DRY")).thenReturn(Optional.empty());
+
+        assertThrows(BadRequestException.class, () ->
+                inventoryService.stockIn(20L, 1, "BATCH-DRY", 10, LocalDate.now(), 1L));
     }
 
     @Test

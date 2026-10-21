@@ -30,6 +30,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * =========================================================================
@@ -86,7 +87,11 @@ public class InventoryServiceImpl implements InventoryService {
         if (name == null || name.trim().isEmpty()) {
             throw new BadRequestException("Category name cannot be empty");
         }
-        return categoryRepository.save(new Category(null, name.trim(), description));
+        String trimmedName = name.trim();
+        if (categoryRepository.existsByNameIgnoreCase(trimmedName)) {
+            throw new BadRequestException("Category '" + trimmedName + "' already exists");
+        }
+        return categoryRepository.save(new Category(null, trimmedName, description));
     }
 
     @Override
@@ -101,7 +106,11 @@ public class InventoryServiceImpl implements InventoryService {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + categoryId));
         if (name != null && !name.trim().isEmpty()) {
-            category.setName(name.trim());
+            String trimmedName = name.trim();
+            if (!trimmedName.equalsIgnoreCase(category.getName()) && categoryRepository.existsByNameIgnoreCase(trimmedName)) {
+                throw new BadRequestException("Category '" + trimmedName + "' already exists");
+            }
+            category.setName(trimmedName);
         }
         if (description != null) {
             category.setDescription(description.trim());
@@ -168,27 +177,31 @@ public class InventoryServiceImpl implements InventoryService {
     public Product createProduct(Integer categoryId, String sku, String name, String description,
                                  String imageUrl, BigDecimal costPrice, BigDecimal retailPrice,
                                  BigDecimal wholesalePrice, Integer minThreshold, Boolean isPerishable) {
-        if (sku == null || sku.trim().isEmpty()) {
-            throw new BadRequestException("Product SKU cannot be empty");
-        }
         if (name == null || name.trim().isEmpty()) {
             throw new BadRequestException("Product name cannot be empty");
         }
+        String trimmedName = name.trim();
         validatePricingHierarchy(costPrice, retailPrice, wholesalePrice);
-
-        String trimmedSku = sku.trim().toUpperCase();
-        if (productRepository.existsBySku(trimmedSku)) {
-            throw new BadRequestException("Product with SKU '" + trimmedSku + "' already exists");
-        }
 
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + categoryId));
+
+        if (productRepository.existsByCategory_IdAndNameIgnoreCaseAndIsDeletedFalse(categoryId, trimmedName)) {
+            throw new BadRequestException("A product named '" + trimmedName + "' already exists in this category");
+        }
+
+        String trimmedSku = (sku == null || sku.trim().isEmpty())
+                ? generateProductSku(trimmedName, categoryId)
+                : sku.trim().toUpperCase();
+        if (productRepository.existsBySku(trimmedSku)) {
+            throw new BadRequestException("Product with SKU '" + trimmedSku + "' already exists");
+        }
 
         Product product = new Product(
                 null,
                 category,
                 trimmedSku,
-                name.trim(),
+                trimmedName,
                 description,
                 imageUrl,
                 costPrice,
@@ -202,6 +215,21 @@ public class InventoryServiceImpl implements InventoryService {
         );
 
         return productRepository.save(product);
+    }
+
+    private String generateProductSku(String name, Integer categoryId) {
+        String slug = name.toUpperCase()
+                .replaceAll("[^A-Z0-9]+", "-")
+                .replaceAll("^-|-$", "");
+        if (slug.isEmpty()) slug = "PRODUCT";
+        slug = slug.substring(0, Math.min(slug.length(), 24));
+
+        String sku;
+        do {
+            sku = "SKU-" + categoryId + "-" + slug + "-" +
+                    UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        } while (productRepository.existsBySku(sku));
+        return sku;
     }
 
     @Override
@@ -303,12 +331,13 @@ public class InventoryServiceImpl implements InventoryService {
         Supplier supplier = supplierRepository.findById(supplierId)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found with id: " + supplierId));
 
+        if (expiryDate != null && !expiryDate.isAfter(LocalDate.now())) {
+            throw new BadRequestException("Expiry date must be in the future (received: " + expiryDate + ")");
+        }
+
         if (Boolean.TRUE.equals(product.getIsPerishable())) {
             if (expiryDate == null) {
                 throw new BadRequestException("Perishable product requires an expiry date");
-            }
-            if (!expiryDate.isAfter(LocalDate.now())) {
-                throw new BadRequestException("Perishable product requires a future expiry date (received: " + expiryDate + ")");
             }
         }
 

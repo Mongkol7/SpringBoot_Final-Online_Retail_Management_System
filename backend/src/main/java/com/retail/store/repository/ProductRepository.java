@@ -13,6 +13,7 @@ import java.util.Optional;
 public interface ProductRepository extends JpaRepository<Product, Long> {
     Optional<Product> findBySkuAndIsDeletedFalse(String sku);
     boolean existsBySku(String sku);
+    boolean existsByCategory_IdAndNameIgnoreCaseAndIsDeletedFalse(Integer categoryId, String name);
     Optional<Product> findByIdAndIsDeletedFalse(Long id);
     List<Product> findByIsDeletedFalse();
     List<Product> findByIsDeletedFalseOrderByNameAsc();

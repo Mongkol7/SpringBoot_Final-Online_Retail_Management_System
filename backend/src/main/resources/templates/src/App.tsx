@@ -3,17 +3,19 @@ import { DynamicIsland } from './components/layout/DynamicIsland';
 import { IosCardGlass } from './components/ui/IosCardGlass';
 import { IosButton } from './components/ui/IosButton';
 import { CashierPosTerminal } from './components/pos/CashierPosTerminal';
+import { StockWorkspace } from './features/inventory/StockWorkspace';
 
 export const App: React.FC = () => {
-  const [activeRole, setActiveRole] = useState<'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN'>('CASHIER');
+  const [activeRole, setActiveRole] = useState<'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN'>('STOCK_CONTROLLER');
   const isCashier = activeRole === 'CASHIER';
+  const isStock = activeRole === 'STOCK_CONTROLLER';
 
   return (
     <div
       style={{
         minHeight: '100vh',
-        padding: isCashier ? '76px 20px 36px' : '90px 24px 60px',
-        maxWidth: isCashier ? '100%' : '1200px',
+        padding: isCashier ? '76px 20px 36px' : isStock ? '76px 24px 48px' : '90px 24px 60px',
+        maxWidth: (isCashier || isStock) ? '100%' : '1200px',
         width: '100%',
         margin: '0 auto',
         boxSizing: 'border-box',
@@ -80,23 +82,7 @@ export const App: React.FC = () => {
         <CashierPosTerminal />
       )}
 
-      {activeRole === 'STOCK_CONTROLLER' && (
-        <IosCardGlass glow>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 700 }}>📦 Person 3: Stock Controller Inventory Suite (`/stock`)</h2>
-            <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '9999px', background: 'rgba(255,255,255,0.1)' }}>
-              FIFO & FEFO ALLOCATION
-            </span>
-          </div>
-          <p style={{ color: 'var(--ios-text-muted)', marginBottom: '20px', lineHeight: 1.6 }}>
-            Product cataloging with 3 price tiers (cost, retail, wholesale), batch-based stock-in replenishment, supplier management, and visual FIFO/FEFO expiry radar.
-          </p>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <IosButton variant="primary">New Stock-In Batch</IosButton>
-            <IosButton variant="glass">Expiry Radar</IosButton>
-          </div>
-        </IosCardGlass>
-      )}
+      {activeRole === 'STOCK_CONTROLLER' && <StockWorkspace />}
 
       {activeRole === 'ADMIN' && (
         <IosCardGlass glow>
