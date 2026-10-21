@@ -220,7 +220,7 @@ export const WholesaleApplyModal: React.FC<WholesaleApplyModalProps> = ({ isOpen
                 lineHeight: 1.45
               }}
             >
-              🔒 <strong>Currently on Retail Pricing:</strong> You can continue shopping at regular retail prices. As soon as an Admin approves your application, Wholesale bulk tier pricing will activate automatically.
+              🔒 <strong>Standard Store Pricing Active:</strong> You can continue shopping at regular prices. Both normal and wholesale prices are shown, and wholesale discounts will activate automatically as soon as an Administrator approves your application.
             </div>
           </div>
         ) : status === 'REJECTED' ? (

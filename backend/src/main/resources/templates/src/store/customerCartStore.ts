@@ -63,6 +63,7 @@ interface CustomerState {
 
   // Computations
   getEffectiveTier: () => CustomerType;
+  getDisplayTier: () => 'RETAIL' | 'PENDING_WHOLESALE' | 'WHOLESALE';
   getItemPrice: (product: Product, quantity?: number) => number;
   getSubtotal: () => number;
   getTax: () => number;
@@ -298,6 +299,17 @@ export const useCustomerCartStore = create<CustomerState>()(
           return 'WHOLESALE';
         }
         // Otherwise, customer remains RETAIL (including when application is PENDING or REJECTED)
+        return 'RETAIL';
+      },
+
+      getDisplayTier: (): 'RETAIL' | 'PENDING_WHOLESALE' | 'WHOLESALE' => {
+        const state = get();
+        if (state.user.customerType === 'WHOLESALE' || state.wholesaleApplication?.status === 'APPROVED' || state.demoTierOverride === 'WHOLESALE') {
+          return 'WHOLESALE';
+        }
+        if (state.wholesaleApplication?.status === 'PENDING') {
+          return 'PENDING_WHOLESALE';
+        }
         return 'RETAIL';
       },
 
@@ -592,14 +604,14 @@ export const useCustomerCartStore = create<CustomerState>()(
         set({
           wholesaleApplication: app,
           user: updatedUser,
-          demoTierOverride: 'RETAIL',
+          demoTierOverride: null,
           items: updatedItems,
           totalPrice: calcCartTotal(updatedItems)
         });
 
         get().setNotification({
-          message: 'Wholesale Application Submitted. Still on Retail Pricing until Admin approves.',
-          badge: 'PENDING (RETAIL)'
+          message: 'Wholesale Application Submitted. Awaiting Administrator confirmation.',
+          badge: 'PENDING CONFIRMATION'
         });
         return app;
       },
@@ -674,7 +686,7 @@ export const useCustomerCartStore = create<CustomerState>()(
                 );
                 set({
                   user: updatedUser,
-                  demoTierOverride: 'RETAIL',
+                  demoTierOverride: null,
                   items: updatedItems,
                   totalPrice: calcCartTotal(updatedItems)
                 });

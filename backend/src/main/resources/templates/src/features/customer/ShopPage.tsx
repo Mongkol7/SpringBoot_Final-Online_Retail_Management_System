@@ -55,6 +55,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
     items,
     addToCart,
     getEffectiveTier,
+    getDisplayTier,
     getItemCount,
     setNotification,
     wholesaleApplication
@@ -77,6 +78,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
   }, [toastAlert]);
 
   const effectiveTier = getEffectiveTier();
+  const displayTier = getDisplayTier();
   const cartItemCount = getItemCount();
 
   // If user signed in after attempting to add an item as guest, automatically add it now
@@ -342,12 +344,31 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                   fontWeight: 800,
                   padding: '4px 12px',
                   borderRadius: '9999px',
-                  backgroundColor: effectiveTier === 'WHOLESALE' ? 'rgba(251, 192, 45, 0.15)' : 'rgba(0, 0, 0, 0.06)',
-                  color: effectiveTier === 'WHOLESALE' ? '#B45309' : '#374151',
-                  border: effectiveTier === 'WHOLESALE' ? '1px solid rgba(251, 192, 45, 0.4)' : '1px solid rgba(0, 0, 0, 0.08)'
+                  backgroundColor:
+                    displayTier === 'WHOLESALE'
+                      ? 'rgba(251, 192, 45, 0.15)'
+                      : displayTier === 'PENDING_WHOLESALE'
+                      ? '#FEF3C7'
+                      : 'rgba(0, 0, 0, 0.06)',
+                  color:
+                    displayTier === 'WHOLESALE'
+                      ? '#B45309'
+                      : displayTier === 'PENDING_WHOLESALE'
+                      ? '#92400E'
+                      : '#374151',
+                  border:
+                    displayTier === 'WHOLESALE'
+                      ? '1px solid rgba(251, 192, 45, 0.4)'
+                      : displayTier === 'PENDING_WHOLESALE'
+                      ? '1px solid #FCD34D'
+                      : '1px solid rgba(0, 0, 0, 0.08)'
                 }}
               >
-                {effectiveTier === 'WHOLESALE' ? '⭐ WHOLESALE ACCOUNT ACTIVE' : 'RETAIL STOREFRONT'}
+                {displayTier === 'WHOLESALE'
+                  ? '⭐ WHOLESALE ACCOUNT ACTIVE'
+                  : displayTier === 'PENDING_WHOLESALE'
+                  ? '⏳ WHOLESALE (PENDING CONFIRMATION)'
+                  : 'RETAIL STOREFRONT'}
               </span>
 
               {isAuthenticated && (
@@ -367,7 +388,11 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                 color: '#111827'
               }}
             >
-              Curated Retail & Wholesale Categories
+              {displayTier === 'WHOLESALE'
+                ? 'Curated Wholesale & Retail Categories'
+                : displayTier === 'PENDING_WHOLESALE'
+                ? 'Wholesale Application Pending Confirmation'
+                : 'Curated Retail & Wholesale Categories'}
             </h2>
             <p
               style={{
@@ -377,15 +402,17 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                 margin: 0
               }}
             >
-              {effectiveTier === 'WHOLESALE'
+              {displayTier === 'WHOLESALE'
                 ? 'Wholesale commercial pricing unlocked. Orders are batch-allocated in real-time via FIFO/FEFO directly from central inventory.'
+                : displayTier === 'PENDING_WHOLESALE'
+                ? 'Your wholesale application is pending administrator confirmation. Normal prices apply until confirmed. Both normal and wholesale prices are displayed for your review.'
                 : 'Browse products by category at standard retail pricing. Apply for an enterprise wholesale tier to unlock discounted volume rates.'}
             </p>
           </div>
 
           {/* Wholesale Status or Register CTA */}
           <div style={{ display: 'flex', alignItems: 'center' }}>
-            {effectiveTier === 'WHOLESALE' ? (
+            {displayTier === 'WHOLESALE' ? (
               <div
                 style={{
                   display: 'flex',
@@ -403,7 +430,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                 <span style={{ color: '#D97706', fontSize: '15px' }}>★</span>
                 <span>Verified Wholesale Partner Active</span>
               </div>
-            ) : wholesaleApplication?.status === 'PENDING' ? (
+            ) : displayTier === 'PENDING_WHOLESALE' ? (
               <button
                 onClick={() => navigate('/wholesale-apply')}
                 style={{
@@ -412,16 +439,16 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                   gap: '8px',
                   padding: '10px 20px',
                   borderRadius: '9999px',
-                  backgroundColor: 'rgba(251, 192, 45, 0.12)',
-                  border: '1px solid rgba(251, 192, 45, 0.4)',
-                  color: '#B45309',
+                  backgroundColor: '#FEF3C7',
+                  border: '1px solid #FCD34D',
+                  color: '#92400E',
                   fontSize: '12px',
                   fontWeight: 700,
                   cursor: 'pointer'
                 }}
               >
                 <Clock size={15} />
-                <span>Wholesale Pending Approval (Retail Active)</span>
+                <span>Wholesale Pending Admin Confirmation</span>
               </button>
             ) : (
               <button
@@ -468,7 +495,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Clock size={20} color="#D97706" style={{ flexShrink: 0 }} />
             <span style={{ fontSize: '13px', color: '#78350F', lineHeight: 1.5 }}>
-              <strong style={{ color: '#92400E' }}>Wholesale Application Under Review:</strong> You are currently shopping on <strong>Standard Retail Pricing</strong>. Bulk wholesale prices unlock automatically once an Administrator approves your business application.
+              <strong style={{ color: '#92400E' }}>Wholesale Application Under Review:</strong> Your wholesale application is awaiting Administrator confirmation. Normal store prices currently apply to purchases. Both normal and wholesale prices are displayed for your convenience, and wholesale pricing will activate automatically upon confirmation.
             </span>
           </div>
           <button
@@ -847,46 +874,107 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                 {/* Bottom Section: Dual Pricing & Add to Cart */}
                 <div style={{ borderTop: '1px solid rgba(0, 0, 0, 0.06)', paddingTop: '16px' }}>
                   {effectiveTier === 'WHOLESALE' ? (
-                    // WHOLESALE DUAL PRICING DISPLAY WITH MOQ THRESHOLD
+                    // CONFIRMED WHOLESALE: SHOW BOTH WHOLESALE PRICE & NORMAL PRICE
                     <div style={{ marginBottom: '14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#111827' }}>
-                          ${product.wholesalePrice.toFixed(2)}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: '14px',
-                            color: '#9CA3AF',
-                            textDecoration: 'line-through'
-                          }}
-                        >
-                          ${product.retailPrice.toFixed(2)}
-                        </span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                         <span
                           style={{
                             fontSize: '10px',
                             fontWeight: 800,
                             padding: '2px 8px',
                             borderRadius: '9999px',
-                            backgroundColor: 'rgba(251, 192, 45, 0.15)',
+                            backgroundColor: 'rgba(251, 192, 45, 0.18)',
                             color: '#B45309',
-                            border: '1px solid rgba(251, 192, 45, 0.35)'
+                            border: '1px solid rgba(251, 192, 45, 0.4)'
                           }}
                         >
-                          WHOLESALE TIER
+                          ★ CONFIRMED WHOLESALE
+                        </span>
+                        <span style={{ fontSize: '11px', color: '#059669', fontWeight: 800 }}>
+                          Save {savingsPercent}%
                         </span>
                       </div>
 
+                      {/* Explicit Wholesale and Normal Prices */}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flexWrap: 'wrap', backgroundColor: '#FBFBFB', padding: '8px 12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.04)' }}>
+                        <div>
+                          <span style={{ fontSize: '10px', color: '#B45309', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
+                            Wholesale Price
+                          </span>
+                          <span style={{ fontSize: '22px', fontWeight: 900, color: '#111827' }}>
+                            ${product.wholesalePrice.toFixed(2)}
+                          </span>
+                        </div>
+                        <div style={{ borderLeft: '1px solid rgba(0, 0, 0, 0.1)', paddingLeft: '14px' }}>
+                          <span style={{ fontSize: '10px', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
+                            Normal Price
+                          </span>
+                          <span
+                            style={{
+                              fontSize: '15px',
+                              color: '#9CA3AF',
+                              textDecoration: 'line-through',
+                              fontWeight: 700
+                            }}
+                          >
+                            ${product.retailPrice.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
                       {/* Threshold Explanation */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#059669' }}>
                           <Sparkles size={12} />
-                          <span>Wholesale Rate for <strong>{product.wholesaleMinQty || 10}+</strong> units (Save ${(product.retailPrice - product.wholesalePrice).toFixed(2)} · {savingsPercent}% off)</span>
+                          <span>Wholesale tier applies on <strong>{product.wholesaleMinQty || 10}+</strong> units (Save ${(product.retailPrice - product.wholesalePrice).toFixed(2)}/unit)</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6B7280' }}>
                           <Info size={12} />
-                          <span>Orders &lt; {product.wholesaleMinQty || 10} units charged at retail: <strong>${product.retailPrice.toFixed(2)}</strong></span>
+                          <span>Orders &lt; {product.wholesaleMinQty || 10} units billed at normal price: <strong>${product.retailPrice.toFixed(2)}</strong></span>
                         </div>
+                      </div>
+                    </div>
+                  ) : displayTier === 'PENDING_WHOLESALE' ? (
+                    // PENDING WHOLESALE (Awaiting Admin Confirmation): Show Normal Price (Active) & Wholesale Preview
+                    <div style={{ marginBottom: '14px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '9999px',
+                            backgroundColor: '#FEF3C7',
+                            color: '#92400E',
+                            border: '1px solid #FCD34D'
+                          }}
+                        >
+                          ⏳ PENDING ADMIN CONFIRMATION
+                        </span>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flexWrap: 'wrap', backgroundColor: '#FFFBEB', padding: '8px 12px', borderRadius: '12px', border: '1px solid #FDE68A' }}>
+                        <div>
+                          <span style={{ fontSize: '10px', color: '#92400E', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
+                            Normal Price (Active)
+                          </span>
+                          <span style={{ fontSize: '22px', fontWeight: 900, color: '#111827' }}>
+                            ${product.retailPrice.toFixed(2)}
+                          </span>
+                        </div>
+                        <div style={{ borderLeft: '1px solid rgba(146, 64, 14, 0.2)', paddingLeft: '14px' }}>
+                          <span style={{ fontSize: '10px', color: '#92400E', fontWeight: 700, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
+                            Wholesale Price
+                          </span>
+                          <span style={{ fontSize: '16px', color: '#92400E', fontWeight: 800 }}>
+                            ${product.wholesalePrice.toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#92400E', marginTop: '6px' }}>
+                        <Clock size={12} />
+                        <span>Wholesale pricing unlocks automatically upon Administrator approval</span>
                       </div>
                     </div>
                   ) : (

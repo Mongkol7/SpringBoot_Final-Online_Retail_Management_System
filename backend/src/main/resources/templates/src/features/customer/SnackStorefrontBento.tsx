@@ -14,8 +14,9 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
   products = []
 }) => {
   const navigate = useNavigate();
-  const { addToCart, setNotification, getEffectiveTier } = useCustomerCartStore();
+  const { addToCart, setNotification, getEffectiveTier, getDisplayTier } = useCustomerCartStore();
   const effectiveTier = getEffectiveTier();
+  const displayTier = getDisplayTier();
   const [addedId, setAddedId] = useState<number | null>(null);
   const [carouselIndex, setCarouselIndex] = useState(0);
 
@@ -34,6 +35,16 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
     return effectiveTier === 'WHOLESALE' ? prod.wholesalePrice : prod.retailPrice;
   };
 
+  const getProductRetailPrice = (skuOrId: string | number, fallbackRetail: number) => {
+    const prod = findProduct(skuOrId);
+    return prod ? prod.retailPrice : fallbackRetail;
+  };
+
+  const getProductWholesalePrice = (skuOrId: string | number, fallbackWholesale: number) => {
+    const prod = findProduct(skuOrId);
+    return prod ? prod.wholesalePrice : fallbackWholesale;
+  };
+
   // Best Sellers featured snack list dynamically mapped to database products
   const bestSellers = [
     {
@@ -42,6 +53,8 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
       weight: '65g / 2.3 oz',
       flavor: 'Wildflower Honey & Sprouted Quinoa',
       price: getProductPrice('SKU-ENERGY-BAR', 3.50, 2.50),
+      retailPrice: getProductRetailPrice('SKU-ENERGY-BAR', 3.50),
+      wholesalePrice: getProductWholesalePrice('SKU-ENERGY-BAR', 2.50),
       image: getProductImage('SKU-ENERGY-BAR', '/products/energy-bar.jpg'),
       badge: 'TOP SELLER',
       badgeColor: '#FA3E54',
@@ -53,6 +66,8 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
       weight: '150g / 5.3 oz',
       flavor: 'Black Summer Truffle & Sea Salt',
       price: getProductPrice('SKU-CHIP-TRUFFLE', 5.50, 3.80),
+      retailPrice: getProductRetailPrice('SKU-CHIP-TRUFFLE', 5.50),
+      wholesalePrice: getProductWholesalePrice('SKU-CHIP-TRUFFLE', 3.80),
       image: getProductImage('SKU-CHIP-TRUFFLE', '/products/truffle-chips.jpg'),
       badge: 'ARTISANAL',
       badgeColor: '#FBC02D',
@@ -64,6 +79,8 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
       weight: '120g / 4.2 oz',
       flavor: 'Aged Wisconsin Cheddar Crunch',
       price: getProductPrice('SKU-CHEDDAR-PUFFS', 4.50, 3.20),
+      retailPrice: getProductRetailPrice('SKU-CHEDDAR-PUFFS', 4.50),
+      wholesalePrice: getProductWholesalePrice('SKU-CHEDDAR-PUFFS', 3.20),
       image: getProductImage('SKU-CHEDDAR-PUFFS', '/products/cheddar-puffs.jpg'),
       badge: 'CRUNCH FEST',
       badgeColor: '#FBC02D',
@@ -75,6 +92,8 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
       weight: '140g / 4.9 oz',
       flavor: 'Roasted Habanero & Mexican Lime',
       price: getProductPrice('SKU-SPICY-LIME', 5.25, 3.50),
+      retailPrice: getProductRetailPrice('SKU-SPICY-LIME', 5.25),
+      wholesalePrice: getProductWholesalePrice('SKU-SPICY-LIME', 3.50),
       image: getProductImage('SKU-SPICY-LIME', '/products/spicy-crisps.jpg'),
       badge: 'HOT & FIERY',
       badgeColor: '#FA3E54',
@@ -86,6 +105,8 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
       weight: '100g / 3.5 oz',
       flavor: 'Ecuadorian Cacao & Caramel Crisp',
       price: getProductPrice('SKU-DARK-CHOC', 6.00, 4.20),
+      retailPrice: getProductRetailPrice('SKU-DARK-CHOC', 6.00),
+      wholesalePrice: getProductWholesalePrice('SKU-DARK-CHOC', 4.20),
       image: getProductImage('SKU-DARK-CHOC', '/products/dark-chocolate.jpg'),
       badge: 'AWARD WINNING',
       badgeColor: '#2ECC71',
@@ -97,6 +118,8 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
       weight: '500ml / 16.9 fl oz',
       flavor: 'Naturally Carbonated Spring Water',
       price: getProductPrice('SKU-SPARKLING-H2O', 2.25, 1.40),
+      retailPrice: getProductRetailPrice('SKU-SPARKLING-H2O', 2.25),
+      wholesalePrice: getProductWholesalePrice('SKU-SPARKLING-H2O', 1.40),
       image: getProductImage('SKU-SPARKLING-H2O', '/products/sparkling-water.jpg'),
       badge: 'REFRESHING',
       badgeColor: '#1E88E5',
@@ -1301,12 +1324,40 @@ export const SnackStorefrontBento: React.FC<SnackStorefrontBentoProps> = ({
                   }}
                 >
                   <div>
-                    <span style={{ fontSize: '11px', color: '#9CA3AF', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>
-                      {effectiveTier} Price
-                    </span>
-                    <span style={{ fontSize: '18px', fontWeight: 900, color: '#111827' }}>
-                      ${item.price.toFixed(2)}
-                    </span>
+                    {effectiveTier === 'WHOLESALE' ? (
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                          <span style={{ fontSize: '18px', fontWeight: 900, color: '#111827' }}>
+                            ${item.wholesalePrice.toFixed(2)}
+                          </span>
+                          <span style={{ fontSize: '12px', color: '#9CA3AF', textDecoration: 'line-through' }}>
+                            ${item.retailPrice.toFixed(2)}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: '4px', fontSize: '10px' }}>
+                          <span style={{ color: '#B45309', fontWeight: 800 }}>WHOLESALE</span>
+                          <span style={{ color: '#9CA3AF' }}>(Normal: ${item.retailPrice.toFixed(2)})</span>
+                        </div>
+                      </div>
+                    ) : displayTier === 'PENDING_WHOLESALE' ? (
+                      <div>
+                        <span style={{ fontSize: '18px', fontWeight: 900, color: '#111827' }}>
+                          ${item.retailPrice.toFixed(2)}
+                        </span>
+                        <div style={{ fontSize: '10px', color: '#92400E', fontWeight: 700 }}>
+                          ⏳ Wholesale Pending (${item.wholesalePrice.toFixed(2)})
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <span style={{ fontSize: '11px', color: '#9CA3AF', display: 'block', textTransform: 'uppercase', fontWeight: 600 }}>
+                          Retail Price
+                        </span>
+                        <span style={{ fontSize: '18px', fontWeight: 900, color: '#111827' }}>
+                          ${item.price.toFixed(2)}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Bright Red Pill Cart Button */}

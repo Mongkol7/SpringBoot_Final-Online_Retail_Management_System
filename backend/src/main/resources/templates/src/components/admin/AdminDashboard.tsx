@@ -260,6 +260,30 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     try {
       await adminService.approveWholesale(app.id);
       showToast(`Wholesale application for "${app.businessName}" APPROVED. Promoted to WHOLESALE tier.`);
+
+      // Sync local customer state immediately if active in browser session
+      try {
+        const storedCustomer = localStorage.getItem('aura-customer-store-rithysak');
+        if (storedCustomer) {
+          const parsed = JSON.parse(storedCustomer);
+          if (parsed && parsed.state) {
+            const targetAppUserId = app.user?.id;
+            if (!parsed.state.user || (targetAppUserId && parsed.state.user.id === targetAppUserId) || !targetAppUserId) {
+              parsed.state.user = { ...(parsed.state.user || {}), customerType: 'WHOLESALE' };
+              parsed.state.demoTierOverride = 'WHOLESALE';
+              if (parsed.state.wholesaleApplication) {
+                parsed.state.wholesaleApplication.status = 'APPROVED';
+                parsed.state.wholesaleApplication.reviewedAt = new Date().toISOString();
+              }
+              localStorage.setItem('aura-customer-store-rithysak', JSON.stringify(parsed));
+              window.dispatchEvent(new Event('wholesale-status-updated'));
+            }
+          }
+        }
+      } catch {
+        // ignore JSON parse error
+      }
+
       const [appsRes, usersRes, kpiRes] = await Promise.all([
         adminService.getWholesaleApplications(wholesaleFilter === 'ALL' ? undefined : wholesaleFilter),
         adminService.getUsers(),

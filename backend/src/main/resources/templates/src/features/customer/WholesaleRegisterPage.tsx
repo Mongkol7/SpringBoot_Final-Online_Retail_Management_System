@@ -364,28 +364,29 @@ export const WholesaleRegisterPage: React.FC = () => {
                   display: 'inline-block',
                   padding: '4px 12px',
                   borderRadius: '9999px',
-                  backgroundColor: '#EFF6FF',
-                  color: '#1D4ED8',
+                  backgroundColor: '#FEF3C7',
+                  color: '#92400E',
                   fontSize: '11px',
                   fontWeight: 800,
-                  marginBottom: '10px'
+                  marginBottom: '10px',
+                  border: '1px solid #FCD34D'
                 }}
               >
-                CURRENT STATUS: RETAIL CUSTOMER
+                STATUS: WHOLESALE (PENDING ADMIN CONFIRMATION)
               </div>
               <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#059669', margin: '0 0 8px 0' }}>
                 Wholesale Application Submitted!
               </h3>
               <p style={{ fontSize: '13px', color: '#374151', margin: '0 0 16px 0', lineHeight: 1.5 }}>
-                Your business <strong>{companyName}</strong> (Tax ID: {taxId}) is now under administrator review.
+                Your business <strong>{companyName}</strong> (Tax ID: {taxId}) is now in the administrator review queue.
               </p>
 
               <div
                 style={{
                   padding: '14px 16px',
                   borderRadius: '16px',
-                  backgroundColor: '#EFF6FF',
-                  border: '1px solid #BFDBFE',
+                  backgroundColor: '#FFFBEB',
+                  border: '1px solid #FDE68A',
                   marginBottom: '20px',
                   textAlign: 'left',
                   display: 'flex',
@@ -393,9 +394,9 @@ export const WholesaleRegisterPage: React.FC = () => {
                   gap: '10px'
                 }}
               >
-                <Info size={18} color="#2563EB" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div style={{ fontSize: '12px', color: '#1E40AF', lineHeight: 1.5 }}>
-                  <strong style={{ color: '#1D4ED8' }}>Active on Retail:</strong> While your application is pending Admin verification, you can shop at standard retail prices immediately. Wholesale bulk pricing unlocks as soon as an Administrator approves your account.
+                <Info size={18} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ fontSize: '12px', color: '#92400E', lineHeight: 1.5 }}>
+                  <strong style={{ color: '#78350F' }}>Awaiting Admin Confirmation:</strong> While your application is pending Admin verification, standard store prices apply to purchases. Both normal and wholesale prices will be visible across your storefront, and wholesale pricing automatically unlocks once confirmed.
                 </div>
               </div>
 
@@ -414,7 +415,7 @@ export const WholesaleRegisterPage: React.FC = () => {
                   boxShadow: '0 8px 20px rgba(250, 62, 84, 0.35)'
                 }}
               >
-                Continue Shopping as Retail
+                Explore Storefront →
               </button>
             </div>
           ) : currentStatus === 'APPROVED' && !showForm ? (
@@ -521,10 +522,11 @@ export const WholesaleRegisterPage: React.FC = () => {
                   color: '#92400E',
                   fontSize: '11px',
                   fontWeight: 800,
-                  marginBottom: '8px'
+                  marginBottom: '8px',
+                  border: '1px solid #FCD34D'
                 }}
               >
-                STATUS: PENDING REVIEW (CURRENTLY RETAIL)
+                STATUS: WHOLESALE (PENDING ADMIN CONFIRMATION)
               </div>
               <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#D97706', margin: '0 0 6px 0' }}>
                 Wholesale Application Under Review
@@ -545,15 +547,15 @@ export const WholesaleRegisterPage: React.FC = () => {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid rgba(0, 0, 0, 0.06)', paddingBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Current Account Tier:</span>
-                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#111827' }}>🛒 Standard Retail</span>
+                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Current Status:</span>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#92400E' }}>⏳ Wholesale (Pending Admin Confirmation)</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid rgba(0, 0, 0, 0.06)', paddingBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Wholesale Status:</span>
-                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#D97706' }}>⏳ Pending Admin Approval</span>
+                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Admin Confirmation:</span>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#D97706' }}>In Review Queue</span>
                 </div>
                 <p style={{ fontSize: '12px', color: '#78350F', margin: 0, lineHeight: 1.45 }}>
-                  Until an Administrator verifies and approves your application, your catalog and cart remain on <strong>Retail Pricing</strong>. Wholesale bulk pricing activates automatically once approved.
+                  Purchases use standard prices until confirmed by an Administrator. Both normal and wholesale prices are shown across your storefront, and wholesale pricing automatically unlocks once confirmed.
                 </p>
               </div>
 
@@ -573,7 +575,7 @@ export const WholesaleRegisterPage: React.FC = () => {
                   marginBottom: '10px'
                 }}
               >
-                Browse Storefront as Retail
+                Browse Storefront →
               </button>
 
               <button

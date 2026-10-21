@@ -29,7 +29,8 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { items, addToCart, getEffectiveTier, setNotification } = useCustomerCartStore();
+  const { items, addToCart, getEffectiveTier, getDisplayTier, setNotification } = useCustomerCartStore();
+  const displayTier = getDisplayTier ? getDisplayTier() : (getEffectiveTier() === 'WHOLESALE' ? 'WHOLESALE' : 'RETAIL');
 
   const [quantity, setQuantity] = useState<number>(1);
   const [stockWarning, setStockWarning] = useState<string | null>(null);
@@ -419,31 +420,101 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                   marginBottom: '20px'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#374151' }}>Retail Price:</span>
-                  <span style={{ fontSize: '20px', fontWeight: 900, color: '#111827' }}>
-                    ${product.retailPrice.toFixed(2)}
-                  </span>
-                </div>
+                {displayTier === 'WHOLESALE' ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#D97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Building2 size={13} color="#D97706" />
+                        Wholesale Price:
+                      </span>
+                      <span style={{ fontSize: '22px', fontWeight: 900, color: '#B45309' }}>
+                        ${product.wholesalePrice.toFixed(2)}
+                      </span>
+                    </div>
 
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'baseline',
-                    paddingTop: '8px',
-                    borderTop: '1px dashed rgba(0, 0, 0, 0.08)'
-                  }}
-                >
-                  <span style={{ fontSize: '12px', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Building2 size={13} color="#D97706" />
-                    Wholesale B2B Rate:
-                  </span>
-                  <span style={{ fontSize: '16px', fontWeight: 800, color: '#B45309' }}>
-                    ${product.wholesalePrice.toFixed(2)}{' '}
-                    <span style={{ fontSize: '10px', color: '#9CA3AF', fontWeight: 600 }}>({product.wholesaleMinQty || 10}+ units)</span>
-                  </span>
-                </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'baseline',
+                        paddingTop: '8px',
+                        borderTop: '1px dashed rgba(0, 0, 0, 0.08)'
+                      }}
+                    >
+                      <span style={{ fontSize: '12px', color: '#6B7280' }}>
+                        Normal Price:
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '14px', textDecoration: 'line-through', color: '#9CA3AF', fontWeight: 600 }}>
+                          ${product.retailPrice.toFixed(2)}
+                        </span>
+                        <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#ECFDF5', color: '#059669' }}>
+                          SAVE ${(product.retailPrice - product.wholesalePrice).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : displayTier === 'PENDING_WHOLESALE' ? (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#374151' }}>Normal Price (Active):</span>
+                      <span style={{ fontSize: '20px', fontWeight: 900, color: '#111827' }}>
+                        ${product.retailPrice.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'baseline',
+                        paddingTop: '8px',
+                        borderTop: '1px dashed rgba(0, 0, 0, 0.08)'
+                      }}
+                    >
+                      <span style={{ fontSize: '12px', color: '#B45309', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Building2 size={13} color="#D97706" />
+                        Wholesale Price:
+                      </span>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '16px', fontWeight: 800, color: '#B45309' }}>
+                          ${product.wholesalePrice.toFixed(2)}
+                        </span>
+                        <div style={{ fontSize: '10px', color: '#D97706', fontWeight: 700 }}>
+                          ⏳ Pending Admin Approval
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#374151' }}>Normal Price:</span>
+                      <span style={{ fontSize: '20px', fontWeight: 900, color: '#111827' }}>
+                        ${product.retailPrice.toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'baseline',
+                        paddingTop: '8px',
+                        borderTop: '1px dashed rgba(0, 0, 0, 0.08)'
+                      }}
+                    >
+                      <span style={{ fontSize: '12px', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Building2 size={13} color="#D97706" />
+                        Wholesale Price:
+                      </span>
+                      <span style={{ fontSize: '16px', fontWeight: 800, color: '#B45309' }}>
+                        ${product.wholesalePrice.toFixed(2)}{' '}
+                        <span style={{ fontSize: '10px', color: '#9CA3AF', fontWeight: 600 }}>({product.wholesaleMinQty || 10}+ units)</span>
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Real-Time Stock Warning Alert */}

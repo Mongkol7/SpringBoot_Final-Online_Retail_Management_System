@@ -12,7 +12,6 @@ import { useCustomerCartStore } from '../../store/customerCartStore';
 import {
   ShoppingBag,
   ShoppingCart,
-  CreditCard,
   ClipboardList,
   Building2,
   LogIn,
@@ -63,11 +62,30 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
     isAuthenticated,
     logout,
     getItemCount,
-    getEffectiveTier
+    getDisplayTier,
+    checkWholesaleStatus
   } = useCustomerCartStore();
 
   const cartCount = getItemCount();
-  const effectiveTier = getEffectiveTier();
+  const displayTier = getDisplayTier();
+
+  // Background polling to automatically catch Admin Wholesale Approval
+  React.useEffect(() => {
+    checkWholesaleStatus();
+    const interval = setInterval(() => {
+      checkWholesaleStatus();
+    }, 3000);
+    const handleSync = () => {
+      checkWholesaleStatus();
+    };
+    window.addEventListener('wholesale-status-updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('wholesale-status-updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [checkWholesaleStatus]);
 
   const navItems = [
     { id: 'shop' as CustomerRoute, label: 'Storefront', icon: <ShoppingBag size={16} /> },
@@ -77,7 +95,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
       icon: <ShoppingCart size={16} />,
       badge: cartCount > 0 ? cartCount : undefined
     },
-    { id: 'checkout' as CustomerRoute, label: 'Checkout', icon: <CreditCard size={16} /> },
     { id: 'orders' as CustomerRoute, label: 'My Orders', icon: <ClipboardList size={16} /> }
   ];
 
@@ -109,14 +126,45 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
             style={{
               fontSize: '10px',
               fontWeight: 800,
-              padding: '2px 8px',
+              padding: '3px 10px',
               borderRadius: '9999px',
-              backgroundColor: effectiveTier === 'WHOLESALE' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(255, 255, 255, 0.08)',
-              color: '#FFFFFF',
-              letterSpacing: '0.04em'
+              backgroundColor:
+                displayTier === 'WHOLESALE'
+                  ? 'rgba(251, 192, 45, 0.25)'
+                  : displayTier === 'PENDING_WHOLESALE'
+                  ? 'rgba(245, 158, 11, 0.25)'
+                  : 'rgba(255, 255, 255, 0.08)',
+              color:
+                displayTier === 'WHOLESALE'
+                  ? '#FDE047'
+                  : displayTier === 'PENDING_WHOLESALE'
+                  ? '#FBBF24'
+                  : '#FFFFFF',
+              border:
+                displayTier === 'WHOLESALE'
+                  ? '1px solid rgba(251, 192, 45, 0.5)'
+                  : displayTier === 'PENDING_WHOLESALE'
+                  ? '1px solid rgba(245, 158, 11, 0.5)'
+                  : '1px solid rgba(255, 255, 255, 0.12)',
+              letterSpacing: '0.04em',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px'
             }}
           >
-            {effectiveTier}
+            {displayTier === 'WHOLESALE' ? (
+              <>
+                <span>★</span>
+                <span>VERIFIED WHOLESALE</span>
+              </>
+            ) : displayTier === 'PENDING_WHOLESALE' ? (
+              <>
+                <span>⏳</span>
+                <span>WHOLESALE (PENDING CONFIRMATION)</span>
+              </>
+            ) : (
+              'RETAIL'
+            )}
           </span>
         </div>
 
