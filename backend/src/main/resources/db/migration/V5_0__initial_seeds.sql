@@ -14,7 +14,7 @@ INSERT INTO users (role_id, email, password_hash, full_name, phone, customer_typ
 SELECT 
     r.id,
     'admin@retailstore.com',
-    '$2a$12$K1bHqT/X4eZ7K9h9G4E.CeR0t8xZ1U9mO3W5J7K9L1N3P5Q7R9S1T',
+    '$2a$12$n4SIUurklIhoZFqQhbjWwesUPLygzKf/RP17VCsJBgkVatYA2Iy6W',
     'System Administrator',
     '+1-555-0100',
     'RETAIL',

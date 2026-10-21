@@ -1,6 +1,8 @@
 package com.retail.store.service;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface BatchAllocationService {
 
@@ -26,9 +28,23 @@ public interface BatchAllocationService {
      */
     void restoreStockForOrderItem(Long orderItemId, Long actorUserId);
 
+    /**
+     * Retrieves the current active batch being sold/allocated for a product (FEFO earliest expiring or FIFO oldest intake).
+     */
+    default Optional<CurrentBatchInfoDto> getCurrentBatchInfo(Long productId) {
+        return Optional.empty();
+    }
+
     record FulfillmentResultDto(
             Long orderItemId,
             Long batchId,
             int quantityDeducted
+    ) {}
+
+    record CurrentBatchInfoDto(
+            Long batchId,
+            String batchCode,
+            LocalDate expiryDate,
+            int currentQuantity
     ) {}
 }

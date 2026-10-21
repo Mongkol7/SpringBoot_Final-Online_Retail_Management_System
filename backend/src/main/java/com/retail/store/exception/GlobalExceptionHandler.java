@@ -38,6 +38,18 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(err, HttpStatus.CONFLICT);
     }
 
+    @ExceptionHandler(InsufficientCashTenderedException.class)
+    public ResponseEntity<ErrorResponse> handleInsufficientCash(InsufficientCashTenderedException ex, HttpServletRequest request) {
+        ErrorResponse err = ErrorResponse.builder()
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Insufficient Cash Tendered")
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return new ResponseEntity<>(err, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex, HttpServletRequest request) {
         ErrorResponse err = ErrorResponse.builder()
