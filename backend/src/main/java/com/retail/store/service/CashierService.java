@@ -12,6 +12,10 @@ public interface CashierService {
 
     AuthService.AuthResponse login(String email, String password);
 
+    List<CashierStaffDto> getCashierStaffList();
+
+    AuthService.AuthResponse loginWithPin(Long cashierId, String pin);
+
     PosCheckoutResult checkoutWalkIn(Long cashierUserId, List<PosCartItemDto> items,
                                     BigDecimal amountTendered, PaymentMethod paymentMethod);
 
@@ -31,6 +35,15 @@ public interface CashierService {
     List<PosProductScanDto> getAllProducts();
 
     List<PosSaleSummaryDto> getSalesHistory(Long cashierId, String period);
+
+    record CashierStaffDto(
+            Long id,
+            String fullName,
+            String email,
+            String role,
+            String avatarColor,
+            boolean hasPin
+    ) {}
 
     record PosSaleItemDto(
             String productName,

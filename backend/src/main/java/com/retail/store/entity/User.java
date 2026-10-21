@@ -44,6 +44,9 @@ public class User {
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
 
+    @Column(name = "pos_pin", length = 10)
+    private String posPin = "1234";
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -96,6 +99,9 @@ public class User {
 
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean active) { isActive = active; }
+
+    public String getPosPin() { return posPin; }
+    public void setPosPin(String posPin) { this.posPin = posPin; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

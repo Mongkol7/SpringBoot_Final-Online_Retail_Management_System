@@ -37,6 +37,20 @@ public class CashierMapper {
         );
     }
 
+    public CashierStaffResponse toCashierStaffResponse(CashierService.CashierStaffDto dto) {
+        if (dto == null) {
+            return null;
+        }
+        return new CashierStaffResponse(
+                dto.id(),
+                dto.fullName(),
+                dto.email(),
+                dto.role(),
+                dto.avatarColor(),
+                dto.hasPin()
+        );
+    }
+
     public PosOrderItemResponse toOrderItemResponse(OrderItem item) {
         if (item == null) {
             return null;

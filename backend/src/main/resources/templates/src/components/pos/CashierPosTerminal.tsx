@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { PosProductScan, PosShift, ThermalReceipt } from '../../types/schema';
-import { posService, DEFAULT_POS_PRODUCTS, PosCartItem } from '../../services/posService';
+import { posService, DEFAULT_POS_PRODUCTS, PosCartItem, CashierStaff } from '../../services/posService';
 import { ThermalReceiptModal } from './ThermalReceiptModal';
 import { ShiftManagementModal } from './ShiftManagementModal';
 import { AppleSuccessModal } from './AppleSuccessModal';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { PosSalesHistory } from './PosSalesHistory';
 import { ProductDetailModal } from './ProductDetailModal';
+import { CashierPinModal } from './CashierPinModal';
 import {
   Barcode,
   Search,
@@ -39,6 +40,10 @@ export const CashierPosTerminal: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasAttemptedCheckout, setHasAttemptedCheckout] = useState<boolean>(false);
+
+  // Step 2: Cashier PIN Authentication & Identification
+  const [activeCashier, setActiveCashier] = useState<CashierStaff | null>(() => posService.getActiveCashier());
+  const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(() => !posService.getActiveCashier());
 
   // View Mode: POS Terminal vs Sales History
   const [activeView, setActiveView] = useState<'TERMINAL' | 'SALES_HISTORY'>('TERMINAL');
@@ -97,8 +102,8 @@ export const CashierPosTerminal: React.FC = () => {
   };
 
   useEffect(() => {
-    // Initial active shift check against PostgreSQL backend
-    posService.getCurrentShift()
+    // Initial active shift check against PostgreSQL backend for this specific cashier
+    posService.getCurrentShift(activeCashier?.id)
       .then((shift) => {
         setActiveShift(shift);
       })
@@ -107,7 +112,13 @@ export const CashierPosTerminal: React.FC = () => {
       });
 
     fetchProducts();
-  }, []);
+  }, [activeCashier]);
+
+  const handleLockRegister = () => {
+    posService.lockRegister();
+    setActiveCashier(null);
+    setIsPinModalOpen(true);
+  };
 
   // Real-time Phnom Penh Clock (UTC+7) & Live Shift Counting Timer
   useEffect(() => {
@@ -163,6 +174,13 @@ export const CashierPosTerminal: React.FC = () => {
   const handleAddToCart = (product: PosProductScan) => {
     setErrorMessage(null);
 
+    // CRITICAL REQUIREMENT: Register must be unlocked with Cashier PIN
+    if (!activeCashier) {
+      showError('Register is locked. Please enter your Cashier PIN.');
+      setIsPinModalOpen(true);
+      return;
+    }
+
     // CRITICAL REQUIREMENT: Shift must be open before adding products
     if (!isShiftOpen) {
       showError('Cannot add products: Shift is closed. Please open a shift float first.');
@@ -208,6 +226,12 @@ export const CashierPosTerminal: React.FC = () => {
   // Add custom quantity of product to cart (from ProductDetailModal)
   const handleAddMultipleToCart = (product: PosProductScan, quantity: number) => {
     setErrorMessage(null);
+
+    if (!activeCashier) {
+      showError('Register is locked. Please enter your Cashier PIN.');
+      setIsPinModalOpen(true);
+      return;
+    }
 
     if (!isShiftOpen) {
       showError('Cannot add products: Shift is closed. Please open a shift float first.');
@@ -406,18 +430,24 @@ export const CashierPosTerminal: React.FC = () => {
       return;
     }
 
+    if (!activeCashier) {
+      showError('Cashier is not signed in. Please enter your PIN.');
+      setIsPinModalOpen(true);
+      return;
+    }
+
     setIsProcessing(true);
     setErrorMessage(null);
 
     try {
       const itemsPayload = cart.map((it) => ({ productId: it.productId, quantity: it.quantity }));
-      const result = await posService.checkoutWalkIn(itemsPayload, numericTendered, paymentMethod);
+      const result = await posService.checkoutWalkIn(itemsPayload, numericTendered, paymentMethod, activeCashier.id);
 
-      // Construct thermal receipt payload
+      // Construct thermal receipt payload with active cashier identity
       const receipt: ThermalReceipt = {
         storeName: 'ONLINE RETAIL POS - STORE #01',
         terminalId: 'POS-TERM-01',
-        cashierName: activeShift?.cashierName || 'POS Lead Cashier',
+        cashierName: `${activeCashier.fullName} (ID #${activeCashier.id})`,
         orderNumber: result.order.orderNumber,
         dateTime: currentTime || new Date().toLocaleString(),
         items: cart.map((it) => ({
@@ -484,13 +514,13 @@ export const CashierPosTerminal: React.FC = () => {
   };
 
   const handleOpenShift = async (floatAmount: number, notes: string) => {
-    const shift = await posService.openShift(floatAmount, notes);
+    const shift = await posService.openShift(floatAmount, notes, activeCashier?.id);
     setActiveShift(shift);
     fetchProducts();
   };
 
   const handleCloseShift = async (closingCash: number, notes: string) => {
-    const shift = await posService.closeShift(closingCash, notes);
+    const shift = await posService.closeShift(closingCash, notes, activeCashier?.id);
     setActiveShift(shift);
     fetchProducts();
   };
@@ -557,14 +587,59 @@ export const CashierPosTerminal: React.FC = () => {
               </span>
             </div>
 
-            {/* Phnom Penh Time & Staff Info */}
+            {/* Phnom Penh Time & Active Cashier Info */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '3px', fontSize: '12px', color: 'var(--ios-text-muted)', flexWrap: 'wrap' }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#60A5FA', fontWeight: 600 }}>
                 <Clock size={12} />
                 {currentTime ? `Phnom Penh: ${currentTime}` : 'Phnom Penh (UTC+7)'}
               </span>
               <span>•</span>
-              <span>Staff: {activeShift?.cashierName || 'Jane Doe (ID #1)'}</span>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '2px 9px',
+                  borderRadius: '9999px',
+                  backgroundColor: activeCashier ? 'rgba(56, 189, 248, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                  border: activeCashier ? '1px solid rgba(56, 189, 248, 0.25)' : '1px solid rgba(239, 68, 68, 0.25)',
+                  color: activeCashier ? '#38BDF8' : '#FCA5A5',
+                  fontWeight: 700,
+                  fontSize: '11px'
+                }}
+              >
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: activeCashier ? '#10B981' : '#EF4444',
+                    boxShadow: activeCashier ? '0 0 6px #10B981' : '0 0 6px #EF4444'
+                  }}
+                />
+                <span>Cashier: {activeCashier ? `${activeCashier.fullName} (#${activeCashier.id})` : 'Register Locked'}</span>
+              </div>
+              <button
+                onClick={handleLockRegister}
+                title="Lock register or switch cashier"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '3px 9px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  color: '#FFFFFF',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Lock size={11} color="#F59E0B" />
+                <span>Switch / Lock</span>
+              </button>
               <span>•</span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10B981' }}>
                 <Lock size={12} /> Retail FIFO Locked
@@ -1600,7 +1675,8 @@ export const CashierPosTerminal: React.FC = () => {
             setReceiptData(receipt);
             setIsReceiptModalOpen(true);
           }}
-          currentCashierName={activeShift?.cashierName}
+          currentCashierName={activeCashier ? `${activeCashier.fullName} (ID #${activeCashier.id})` : activeShift?.cashierName}
+          cashierId={activeCashier?.id}
         />
       )}
 
@@ -1645,6 +1721,8 @@ export const CashierPosTerminal: React.FC = () => {
       <ShiftManagementModal
         isOpen={isShiftModalOpen}
         activeShift={activeShift}
+        cashierName={activeCashier?.fullName}
+        cashierId={activeCashier?.id}
         onClose={() => setIsShiftModalOpen(false)}
         onOpenShift={handleOpenShift}
         onCloseShift={handleCloseShift}
@@ -1661,6 +1739,24 @@ export const CashierPosTerminal: React.FC = () => {
             ? cart.find((it) => it.productId === selectedProductDetail.id)?.quantity || 0
             : 0
         }
+      />
+
+      {/* Step 2: Cashier PIN Identification & Lock Screen Modal */}
+      <CashierPinModal
+        isOpen={isPinModalOpen}
+        onSuccess={(cashier) => {
+          setActiveCashier(cashier);
+          setIsPinModalOpen(false);
+          posService.getCurrentShift(cashier.id)
+            .then((shift) => setActiveShift(shift))
+            .catch(() => setActiveShift(null));
+        }}
+        canCancel={Boolean(activeCashier)}
+        onClose={() => {
+          if (activeCashier) {
+            setIsPinModalOpen(false);
+          }
+        }}
       />
     </div>
   );

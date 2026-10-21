@@ -1,6 +1,7 @@
 package com.retail.store.controller;
 
 import com.retail.store.dto.cashier.request.CashierLoginRequest;
+import com.retail.store.dto.cashier.request.CashierPinLoginRequest;
 import com.retail.store.dto.cashier.request.CloseShiftRequest;
 import com.retail.store.dto.cashier.request.OpenShiftRequest;
 import com.retail.store.dto.cashier.request.PosWalkInRequest;
@@ -35,6 +36,24 @@ public class CashierController {
     @PostMapping("/login")
     public ResponseEntity<CashierLoginResponse> login(@Valid @RequestBody CashierLoginRequest request) {
         var response = cashierService.login(request.email(), request.password());
+        return ResponseEntity.ok(cashierMapper.toLoginResponse(response));
+    }
+
+    /**
+     * Task 2.1: Cashier Staff Profiles for POS 2nd-Step PIN Login
+     */
+    @GetMapping("/cashiers")
+    public ResponseEntity<List<CashierStaffResponse>> getCashierStaff() {
+        var list = cashierService.getCashierStaffList();
+        return ResponseEntity.ok(list.stream().map(cashierMapper::toCashierStaffResponse).toList());
+    }
+
+    /**
+     * Task 2.1: Cashier Staff 2nd-Step PIN Login
+     */
+    @PostMapping("/pin-login")
+    public ResponseEntity<CashierLoginResponse> loginWithPin(@Valid @RequestBody CashierPinLoginRequest request) {
+        var response = cashierService.loginWithPin(request.cashierId(), request.pin());
         return ResponseEntity.ok(cashierMapper.toLoginResponse(response));
     }
 
@@ -140,17 +159,17 @@ public class CashierController {
             @AuthenticationPrincipal UserDetailsImpl cashier,
             @RequestParam(required = false) Long cashierId,
             @RequestParam(required = false, defaultValue = "TODAY") String period) {
-        Long targetCashierId = cashier != null ? cashier.getId() : cashierId;
+        Long targetCashierId = cashierId != null ? cashierId : (cashier != null ? cashier.getId() : null);
         var history = cashierService.getSalesHistory(targetCashierId, period);
         return ResponseEntity.ok(history.stream().map(cashierMapper::toSaleSummaryResponse).toList());
     }
 
     private Long resolveCashierId(UserDetailsImpl cashier, Long explicitId) {
-        if (cashier != null && cashier.getId() != null) {
-            return cashier.getId();
-        }
         if (explicitId != null) {
             return explicitId;
+        }
+        if (cashier != null && cashier.getId() != null) {
+            return cashier.getId();
         }
         throw new BadRequestException("Cashier identity must be authenticated or provided.");
     }

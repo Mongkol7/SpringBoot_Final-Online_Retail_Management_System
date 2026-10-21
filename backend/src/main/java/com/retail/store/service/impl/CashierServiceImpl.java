@@ -131,6 +131,91 @@ public class CashierServiceImpl implements CashierService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<CashierStaffDto> getCashierStaffList() {
+        List<User> users = userRepository.findAll().stream()
+                .filter(u -> Boolean.TRUE.equals(u.getIsActive()))
+                .filter(u -> {
+                    String role = u.getRole() != null ? u.getRole().getName() : "";
+                    return "CASHIER".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role);
+                })
+                .sorted((a, b) -> {
+                    String roleA = a.getRole() != null ? a.getRole().getName() : "";
+                    String roleB = b.getRole() != null ? b.getRole().getName() : "";
+                    boolean aIsCashier = "CASHIER".equalsIgnoreCase(roleA);
+                    boolean bIsCashier = "CASHIER".equalsIgnoreCase(roleB);
+                    if (aIsCashier != bIsCashier) return aIsCashier ? -1 : 1;
+                    return a.getId().compareTo(b.getId());
+                })
+                .toList();
+
+        String[] colors = {"#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EC4899", "#06B6D4"};
+        List<CashierStaffDto> result = new ArrayList<>();
+        int idx = 0;
+        for (User u : users) {
+            String color = colors[idx % colors.length];
+            idx++;
+            result.add(new CashierStaffDto(
+                    u.getId(),
+                    u.getFullName(),
+                    u.getEmail(),
+                    u.getRole() != null ? u.getRole().getName() : "CASHIER",
+                    color,
+                    u.getPosPin() != null && !u.getPosPin().isBlank()
+            ));
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AuthService.AuthResponse loginWithPin(Long cashierId, String pin) {
+        if (cashierId == null) {
+            throw new BadRequestException("Cashier ID is required for PIN authentication.");
+        }
+        if (pin == null || pin.trim().length() < 4) {
+            throw new BadRequestException("A valid 4-digit PIN is required.");
+        }
+
+        User user = userRepository.findById(cashierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found with ID: " + cashierId));
+
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new BadRequestException("Your cashier account has been deactivated. Contact store administrator.");
+        }
+
+        String roleName = user.getRole() != null ? user.getRole().getName() : "";
+        if (!"CASHIER".equalsIgnoreCase(roleName) && !"ADMIN".equalsIgnoreCase(roleName)) {
+            throw new UnauthorizedRoleException("Access denied: User does not hold staff credentials.");
+        }
+
+        String expectedPin = user.getPosPin();
+        if (expectedPin == null || expectedPin.isBlank()) {
+            expectedPin = "1234";
+        }
+
+        if (!expectedPin.equals(pin.trim())) {
+            throw new BadRequestException("Incorrect PIN. Please re-enter your 4-digit security PIN.");
+        }
+
+        String token = tokenProvider.generateToken(
+                user.getEmail(),
+                user.getId(),
+                roleName,
+                user.getCustomerType().name()
+        );
+
+        return new AuthService.AuthResponse(
+                token,
+                user.getId(),
+                user.getEmail(),
+                user.getFullName(),
+                roleName,
+                user.getCustomerType()
+        );
+    }
+
+    @Override
     @Transactional
     public PosCheckoutResult checkoutWalkIn(Long cashierUserId, List<PosCartItemDto> items,
                                             BigDecimal amountTendered, PaymentMethod paymentMethod) {

@@ -18,12 +18,14 @@ interface PosSalesHistoryProps {
   onBackToTerminal: () => void;
   onViewReceipt: (receipt: ThermalReceipt) => void;
   currentCashierName?: string;
+  cashierId?: number;
 }
 
 export const PosSalesHistory: React.FC<PosSalesHistoryProps> = ({
   onBackToTerminal,
   onViewReceipt,
-  currentCashierName
+  currentCashierName,
+  cashierId
 }) => {
   const [sales, setSales] = useState<PosSaleSummary[]>([]);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('TODAY');
@@ -33,7 +35,7 @@ export const PosSalesHistory: React.FC<PosSalesHistoryProps> = ({
   const fetchSales = async (period: string) => {
     setIsLoading(true);
     try {
-      const data = await posService.getSalesHistory(period);
+      const data = await posService.getSalesHistory(period, cashierId);
       setSales(data);
     } catch (err) {
       console.error('Failed to load sales history:', err);

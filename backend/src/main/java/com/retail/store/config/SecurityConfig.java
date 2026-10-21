@@ -56,7 +56,8 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Public Endpoints: Auth, Static Resources, Catalog Browsing
-                .requestMatchers("/auth/**", "/api/v1/auth/**", "/pos/login", "/api/v1/pos/login", "/cashier/login", "/api/v1/cashier/login").permitAll()
+                .requestMatchers("/auth/**", "/api/v1/auth/**", "/pos/login", "/api/v1/pos/login", "/cashier/login", "/api/v1/cashier/login",
+                                 "/pos/cashiers", "/api/v1/pos/cashiers", "/pos/pin-login", "/api/v1/pos/pin-login").permitAll()
                 .requestMatchers(HttpMethod.GET, "/products/**", "/api/v1/products/**", "/categories/**", "/api/v1/categories/**").permitAll()
                 .requestMatchers("/", "/index.html", "/static/**", "/assets/**", "/templates/**", "/favicon.ico").permitAll()
 

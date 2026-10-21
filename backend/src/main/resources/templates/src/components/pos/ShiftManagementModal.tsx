@@ -5,6 +5,8 @@ import { X, DollarSign, Calculator, AlertTriangle, CheckCircle, ShieldCheck } fr
 interface ShiftManagementModalProps {
   isOpen: boolean;
   activeShift: PosShift | null;
+  cashierName?: string;
+  cashierId?: number;
   onClose: () => void;
   onOpenShift: (floatAmount: number, notes: string) => Promise<void>;
   onCloseShift: (closingCash: number, notes: string) => Promise<void>;
@@ -13,6 +15,8 @@ interface ShiftManagementModalProps {
 export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   isOpen,
   activeShift,
+  cashierName,
+  cashierId,
   onClose,
   onOpenShift,
   onCloseShift
@@ -125,6 +129,30 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
           >
             <X size={20} />
           </button>
+        </div>
+
+        {/* Active Cashier Identity Tag */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '8px 14px',
+            borderRadius: '12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            marginBottom: '18px',
+            fontSize: '12px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShieldCheck size={14} color="#10B981" />
+            <span style={{ color: 'var(--ios-text-muted)' }}>Shift Operator:</span>
+            <strong style={{ color: '#FFFFFF' }}>{cashierName || activeShift?.cashierName || 'POS Lead Cashier'}</strong>
+          </div>
+          <span style={{ fontSize: '11px', color: '#60A5FA', backgroundColor: 'rgba(96, 165, 250, 0.15)', padding: '2px 8px', borderRadius: '6px' }}>
+            Staff ID #{cashierId || activeShift?.cashierId || 1}
+          </span>
         </div>
 
         {/* Error Alert Banner */}
