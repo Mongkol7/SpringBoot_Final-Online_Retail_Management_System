@@ -38,5 +38,7 @@ public interface ProductBatchRepository extends JpaRepository<ProductBatch, Long
 
     List<ProductBatch> findAllByOrderByReceivedAtDesc();
 
+    Optional<ProductBatch> findFirstByProduct_IdOrderByReceivedAtDesc(Long productId);
+
     long countByIsExpiredTrue();
 }

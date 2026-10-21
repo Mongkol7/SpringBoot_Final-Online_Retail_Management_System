@@ -182,9 +182,17 @@ public class CashierMapper {
                 dto.id(),
                 dto.sku(),
                 dto.name(),
+                dto.imageUrl(),
                 dto.retailPrice(),
                 dto.availableStock(),
-                dto.isPerishable()
+                dto.isPerishable(),
+                dto.description(),
+                dto.categoryName(),
+                dto.wholesalePrice(),
+                dto.costPrice(),
+                dto.minStockThreshold(),
+                dto.currentBatchExpiryDate(),
+                dto.currentBatchCode()
         );
     }
 
@@ -196,9 +204,49 @@ public class CashierMapper {
                 product.getId(),
                 product.getSku(),
                 product.getName(),
+                product.getImageUrl(),
                 product.getRetailPrice(),
                 availableStock,
-                product.getIsPerishable()
+                Boolean.TRUE.equals(product.getIsPerishable()),
+                product.getDescription(),
+                product.getCategory() != null ? product.getCategory().getName() : null,
+                product.getWholesalePrice(),
+                product.getCostPrice(),
+                product.getMinStockThreshold(),
+                null,
+                null
+        );
+    }
+
+    public PosSaleSummaryResponse toSaleSummaryResponse(CashierService.PosSaleSummaryDto dto) {
+        if (dto == null) {
+            return null;
+        }
+        List<PosSaleSummaryResponse.PosSaleItemResponse> items = dto.items() == null ? List.of() :
+                dto.items().stream()
+                        .map(it -> new PosSaleSummaryResponse.PosSaleItemResponse(
+                                it.productName(),
+                                it.quantity(),
+                                it.unitPrice(),
+                                it.subtotal()
+                        ))
+                        .toList();
+
+        return new PosSaleSummaryResponse(
+                dto.id(),
+                dto.orderNumber(),
+                dto.cashierId(),
+                dto.cashierName(),
+                dto.customerName(),
+                dto.channel(),
+                dto.paymentMethod(),
+                dto.totalItemsCount(),
+                dto.subtotal(),
+                dto.taxAmount(),
+                dto.totalAmount(),
+                dto.status(),
+                dto.createdAt(),
+                items
         );
     }
 }

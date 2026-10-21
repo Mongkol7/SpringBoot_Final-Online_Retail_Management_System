@@ -28,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -416,6 +417,50 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional(readOnly = true)
     public int getAvailableStock(Long productId) {
         return batchRepository.sumAvailableStock(productId, LocalDate.now());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public java.util.Optional<CurrentBatchInfoDto> getCurrentBatchInfo(Long productId) {
+        if (productId == null) {
+            return java.util.Optional.empty();
+        }
+        Product product = productRepository.findById(productId).orElse(null);
+        if (product == null) {
+            return java.util.Optional.empty();
+        }
+
+        List<ProductBatch> batches;
+        if (Boolean.TRUE.equals(product.getIsPerishable())) {
+            batches = batchRepository.findActiveBatchesFEFO(productId, LocalDate.now());
+        } else {
+            batches = batchRepository.findActiveBatchesFIFO(productId);
+        }
+
+        ProductBatch batch;
+        if (!batches.isEmpty()) {
+            batch = batches.get(0);
+        } else {
+            batch = batchRepository.findFirstByProduct_IdOrderByReceivedAtDesc(productId).orElse(null);
+        }
+
+        if (batch == null) {
+            return java.util.Optional.empty();
+        }
+
+        LocalDate expiryDate = batch.getExpiryDate();
+        if (expiryDate == null) {
+            expiryDate = batch.getReceivedAt() != null
+                    ? batch.getReceivedAt().toLocalDate().plusYears(1)
+                    : LocalDate.now().plusYears(1);
+        }
+
+        return java.util.Optional.of(new CurrentBatchInfoDto(
+                batch.getId(),
+                batch.getBatchCode(),
+                expiryDate,
+                batch.getCurrentQuantity()
+        ));
     }
 
     @Override

@@ -97,6 +97,17 @@ class CashierServiceImplTest {
     @Test
     @DisplayName("POS Checkout: Strictly enforces retail price, calculates 7% tax, and calculates change")
     void testCheckoutWalkIn_SuccessWithRetailPriceAndChange() {
+        PosShift activeShift = PosShift.builder()
+                .id(1L)
+                .cashier(cashierUser)
+                .openingFloat(new BigDecimal("100.00"))
+                .systemCashTotal(BigDecimal.ZERO)
+                .totalTransactions(0)
+                .status(PosShiftStatus.OPEN)
+                .build();
+        when(posShiftRepository.findTopByCashier_IdAndStatusOrderByOpenedAtDesc(10L, PosShiftStatus.OPEN))
+                .thenReturn(Optional.of(activeShift));
+
         when(userRepository.findById(10L)).thenReturn(Optional.of(cashierUser));
         when(productRepository.findByIdAndIsDeletedFalse(100L)).thenReturn(Optional.of(sampleProduct));
         when(batchAllocationService.getAvailableStock(100L)).thenReturn(50);
@@ -135,8 +146,34 @@ class CashierServiceImplTest {
     }
 
     @Test
+    @DisplayName("POS Checkout: Throws BadRequestException when no shift is currently open")
+    void testCheckoutWalkIn_NoActiveShift_ThrowsException() {
+        when(posShiftRepository.findTopByCashier_IdAndStatusOrderByOpenedAtDesc(10L, PosShiftStatus.OPEN))
+                .thenReturn(Optional.empty());
+
+        List<CashierService.PosCartItemDto> items = List.of(
+                new CashierService.PosCartItemDto(100L, 2)
+        );
+
+        assertThrows(com.retail.store.exception.BadRequestException.class, () ->
+                cashierService.checkoutWalkIn(10L, items, new BigDecimal("50.00"), PaymentMethod.CASH)
+        );
+    }
+
+    @Test
     @DisplayName("POS Checkout: Throws InsufficientCashTenderedException when cash is less than total")
     void testCheckoutWalkIn_InsufficientCash_ThrowsException() {
+        PosShift activeShift = PosShift.builder()
+                .id(1L)
+                .cashier(cashierUser)
+                .openingFloat(new BigDecimal("100.00"))
+                .systemCashTotal(BigDecimal.ZERO)
+                .totalTransactions(0)
+                .status(PosShiftStatus.OPEN)
+                .build();
+        when(posShiftRepository.findTopByCashier_IdAndStatusOrderByOpenedAtDesc(10L, PosShiftStatus.OPEN))
+                .thenReturn(Optional.of(activeShift));
+
         when(userRepository.findById(10L)).thenReturn(Optional.of(cashierUser));
         when(productRepository.findByIdAndIsDeletedFalse(100L)).thenReturn(Optional.of(sampleProduct));
         when(batchAllocationService.getAvailableStock(100L)).thenReturn(50);
@@ -155,6 +192,17 @@ class CashierServiceImplTest {
     @Test
     @DisplayName("POS Checkout: Throws InsufficientStockException when stock is insufficient")
     void testCheckoutWalkIn_InsufficientStock_ThrowsException() {
+        PosShift activeShift = PosShift.builder()
+                .id(1L)
+                .cashier(cashierUser)
+                .openingFloat(new BigDecimal("100.00"))
+                .systemCashTotal(BigDecimal.ZERO)
+                .totalTransactions(0)
+                .status(PosShiftStatus.OPEN)
+                .build();
+        when(posShiftRepository.findTopByCashier_IdAndStatusOrderByOpenedAtDesc(10L, PosShiftStatus.OPEN))
+                .thenReturn(Optional.of(activeShift));
+
         when(userRepository.findById(10L)).thenReturn(Optional.of(cashierUser));
         when(productRepository.findByIdAndIsDeletedFalse(100L)).thenReturn(Optional.of(sampleProduct));
         when(batchAllocationService.getAvailableStock(100L)).thenReturn(3); // only 3 in stock

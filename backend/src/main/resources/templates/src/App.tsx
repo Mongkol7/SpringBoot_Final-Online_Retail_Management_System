@@ -5,10 +5,21 @@ import { IosButton } from './components/ui/IosButton';
 import { CashierPosTerminal } from './components/pos/CashierPosTerminal';
 
 export const App: React.FC = () => {
-  const [activeRole, setActiveRole] = useState<'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN'>('USER');
+  const [activeRole, setActiveRole] = useState<'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN'>('CASHIER');
+  const isCashier = activeRole === 'CASHIER';
 
   return (
-    <div style={{ minHeight: '100vh', padding: '90px 24px 60px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div
+      style={{
+        minHeight: '100vh',
+        padding: isCashier ? '76px 20px 36px' : '90px 24px 60px',
+        maxWidth: isCashier ? '100%' : '1200px',
+        width: '100%',
+        margin: '0 auto',
+        boxSizing: 'border-box',
+        transition: 'all 0.25s ease'
+      }}
+    >
       <DynamicIsland statusText={`Active Mode: ${activeRole}`} badge="AURA OS" />
 
       {/* Role Navigation Bar */}
@@ -20,7 +31,7 @@ export const App: React.FC = () => {
           gap: '8px',
           padding: '6px',
           maxWidth: '680px',
-          margin: '0 auto 40px auto'
+          margin: isCashier ? '0 auto 24px auto' : '0 auto 40px auto'
         }}
       >
         {(['USER', 'CASHIER', 'STOCK_CONTROLLER', 'ADMIN'] as const).map((role) => (

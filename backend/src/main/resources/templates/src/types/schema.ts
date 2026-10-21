@@ -153,9 +153,17 @@ export interface PosProductScan {
   id: number;
   sku: string;
   name: string;
+  description?: string;
+  categoryName?: string;
+  imageUrl?: string;
   retailPrice: number;
+  wholesalePrice?: number;
+  costPrice?: number;
   availableStock: number;
   isPerishable: boolean;
+  minStockThreshold?: number;
+  currentBatchExpiryDate?: string;
+  currentBatchCode?: string;
 }
 
 export interface ReceiptItem {
@@ -179,3 +187,28 @@ export interface ThermalReceipt {
   changeDue: number;
   barcodeData: string;
 }
+
+export interface PosSaleItem {
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface PosSaleSummary {
+  id: number;
+  orderNumber: string;
+  cashierId: number | null;
+  cashierName: string;
+  customerName: string;
+  channel: string;
+  paymentMethod: PaymentMethod;
+  totalItemsCount: number;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  status: string;
+  createdAt: string;
+  items: PosSaleItem[];
+}
+

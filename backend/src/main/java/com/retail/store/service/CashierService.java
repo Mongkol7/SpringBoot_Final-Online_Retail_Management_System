@@ -28,6 +28,34 @@ public interface CashierService {
 
     PosProductScanDto scanProduct(String sku);
 
+    List<PosProductScanDto> getAllProducts();
+
+    List<PosSaleSummaryDto> getSalesHistory(Long cashierId, String period);
+
+    record PosSaleItemDto(
+            String productName,
+            int quantity,
+            BigDecimal unitPrice,
+            BigDecimal subtotal
+    ) {}
+
+    record PosSaleSummaryDto(
+            Long id,
+            String orderNumber,
+            Long cashierId,
+            String cashierName,
+            String customerName,
+            String channel,
+            PaymentMethod paymentMethod,
+            int totalItemsCount,
+            BigDecimal subtotal,
+            BigDecimal taxAmount,
+            BigDecimal totalAmount,
+            String status,
+            LocalDateTime createdAt,
+            List<PosSaleItemDto> items
+    ) {}
+
     record PosCartItemDto(Long productId, int quantity) {}
 
     record PosCheckoutResult(
@@ -77,8 +105,28 @@ public interface CashierService {
             Long id,
             String sku,
             String name,
+            String imageUrl,
             BigDecimal retailPrice,
             int availableStock,
-            boolean isPerishable
-    ) {}
+            boolean isPerishable,
+            String description,
+            String categoryName,
+            BigDecimal wholesalePrice,
+            BigDecimal costPrice,
+            Integer minStockThreshold,
+            java.time.LocalDate currentBatchExpiryDate,
+            String currentBatchCode
+    ) {
+        public PosProductScanDto(
+                Long id,
+                String sku,
+                String name,
+                String imageUrl,
+                BigDecimal retailPrice,
+                int availableStock,
+                boolean isPerishable
+        ) {
+            this(id, sku, name, imageUrl, retailPrice, availableStock, isPerishable, null, null, null, null, null, null, null);
+        }
+    }
 }
