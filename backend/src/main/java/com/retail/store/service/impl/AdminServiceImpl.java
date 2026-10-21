@@ -398,7 +398,50 @@ public class AdminServiceImpl implements AdminService {
     @Override
     @Transactional(readOnly = true)
     public List<SalesSeriesPointDto> getSalesSeries(int days) {
-        int windowDays = (days <= 0 || days > 90) ? 7 : days;
+        return getSalesSeries(days, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SalesSeriesPointDto> getSalesSeries(int days, Integer year) {
+        if (year != null && year >= 2000 && year <= 2100) {
+            LocalDateTime startOfYear = LocalDateTime.of(year, 1, 1, 0, 0, 0);
+            LocalDateTime endOfYear = LocalDateTime.of(year, 12, 31, 23, 59, 59);
+
+            List<Order> orders = orderRepository.findAll().stream()
+                    .filter(o -> o.getCreatedAt() != null &&
+                            !o.getCreatedAt().isBefore(startOfYear) &&
+                            !o.getCreatedAt().isAfter(endOfYear) &&
+                            o.getStatus() != com.retail.store.entity.enums.OrderStatus.CANCELLED)
+                    .toList();
+
+            List<SalesSeriesPointDto> series = new ArrayList<>();
+            for (int m = 1; m <= 12; m++) {
+                String monthStr = String.format("%d-%02d", year, m);
+                BigDecimal onlineRev = BigDecimal.ZERO;
+                BigDecimal posRev = BigDecimal.ZERO;
+                long count = 0;
+
+                for (Order o : orders) {
+                    if (o.getCreatedAt().getMonthValue() == m) {
+                        count++;
+                        BigDecimal amt = o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO;
+                        if (o.getChannel() == OrderChannel.ONLINE) {
+                            onlineRev = onlineRev.add(amt);
+                        } else if (o.getChannel() == OrderChannel.POS) {
+                            posRev = posRev.add(amt);
+                        }
+                    }
+                }
+
+                BigDecimal totalRev = onlineRev.add(posRev);
+                series.add(new SalesSeriesPointDto(monthStr, onlineRev, posRev, totalRev, count));
+            }
+
+            return series;
+        }
+
+        int windowDays = (days <= 0 || days > 365) ? 7 : days;
         LocalDate endDate = LocalDate.now();
         LocalDate startDate = endDate.minusDays(windowDays - 1);
 

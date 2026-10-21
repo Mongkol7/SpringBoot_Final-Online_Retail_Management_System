@@ -46,6 +46,9 @@ public interface AdminService {
 
     ExecutiveKpiSummary getDashboardSummary();
     java.util.List<SalesSeriesPointDto> getSalesSeries(int days);
+    default java.util.List<SalesSeriesPointDto> getSalesSeries(int days, Integer year) {
+        return getSalesSeries(days);
+    }
 
     java.util.List<AdminProductDetailDto> getAllProducts();
     AdminProductDetailDto getProductDetail(Long productId);

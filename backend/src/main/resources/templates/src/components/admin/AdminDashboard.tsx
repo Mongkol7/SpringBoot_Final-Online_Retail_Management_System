@@ -41,7 +41,8 @@ import {
   Key,
   ShieldCheck,
   Briefcase,
-  XCircle
+  XCircle,
+  ArrowUpDown
 } from 'lucide-react';
 import {
   ExecutiveKpiSummary,
@@ -69,6 +70,8 @@ export const AdminDashboard: React.FC = () => {
   // Executive Data State
   const [kpi, setKpi] = useState<ExecutiveKpiSummary | null>(null);
   const [salesDays, setSalesDays] = useState<number>(7);
+  const [salesYear, setSalesYear] = useState<number | null>(null);
+  const [salesSort, setSalesSort] = useState<'DATE_ASC' | 'DATE_DESC' | 'REV_DESC' | 'REV_ASC' | 'ONLINE_DESC' | 'POS_DESC'>('DATE_ASC');
   const [salesSeries, setSalesSeries] = useState<SalesSeriesPoint[]>([]);
 
   // Product & Inventory Intelligence State
@@ -215,8 +218,20 @@ export const AdminDashboard: React.FC = () => {
   // Handle Sales Days Change
   const handleDaysChange = async (days: number) => {
     setSalesDays(days);
+    setSalesYear(null);
     try {
       const res = await adminService.getSalesSeries(days);
+      setSalesSeries(res);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // Handle Sales Year Change (Monthly breakdown for the year)
+  const handleYearChange = async (year: number) => {
+    setSalesYear(year);
+    try {
+      const res = await adminService.getSalesSeries(365, year);
       setSalesSeries(res);
     } catch (err) {
       console.error(err);
@@ -692,15 +707,44 @@ export const AdminDashboard: React.FC = () => {
     };
   }, [payments]);
 
+  // Sorted sales series reactively responding to sort order changes
+  const sortedSalesSeries = useMemo(() => {
+    const list = [...salesSeries];
+    switch (salesSort) {
+      case 'DATE_ASC':
+        return list.sort((a, b) => a.date.localeCompare(b.date));
+      case 'DATE_DESC':
+        return list.sort((a, b) => b.date.localeCompare(a.date));
+      case 'REV_DESC':
+        return list.sort((a, b) => b.totalRevenue - a.totalRevenue);
+      case 'REV_ASC':
+        return list.sort((a, b) => a.totalRevenue - b.totalRevenue);
+      case 'ONLINE_DESC':
+        return list.sort((a, b) => b.onlineRevenue - a.onlineRevenue);
+      case 'POS_DESC':
+        return list.sort((a, b) => b.posRevenue - a.posRevenue);
+      default:
+        return list;
+    }
+  }, [salesSeries, salesSort]);
+
   // Max revenue calculation for SVG bar chart scaling
   const maxDayRevenue = useMemo(() => {
-    if (!salesSeries.length) return 1000;
-    return Math.max(...salesSeries.map((s) => s.totalRevenue), 500);
-  }, [salesSeries]);
+    if (!sortedSalesSeries.length) return 1000;
+    return Math.max(...sortedSalesSeries.map((s) => s.totalRevenue), 500);
+  }, [sortedSalesSeries]);
 
   const totalSeriesRevenue = useMemo(() => {
-    return salesSeries.reduce((acc, curr) => acc + curr.totalRevenue, 0);
-  }, [salesSeries]);
+    return sortedSalesSeries.reduce((acc, curr) => acc + curr.totalRevenue, 0);
+  }, [sortedSalesSeries]);
+
+  const totalOnlineSeriesRevenue = useMemo(() => {
+    return sortedSalesSeries.reduce((acc, curr) => acc + curr.onlineRevenue, 0);
+  }, [sortedSalesSeries]);
+
+  const totalPosSeriesRevenue = useMemo(() => {
+    return sortedSalesSeries.reduce((acc, curr) => acc + curr.posRevenue, 0);
+  }, [sortedSalesSeries]);
 
   return (
     <div style={{ width: '100%', maxWidth: '1440px', margin: '0 auto', boxSizing: 'border-box' }}>
@@ -1207,70 +1251,203 @@ export const AdminDashboard: React.FC = () => {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 marginBottom: '20px',
-                gap: '12px'
+                gap: '14px'
               }}
             >
               <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#FFFFFF' }}>
-                  Omnichannel Revenue Trajectory
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#FFFFFF' }}>
+                    Omnichannel Revenue Trajectory
+                  </h3>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '3px 10px',
+                      borderRadius: '9999px',
+                      background: 'rgba(59, 130, 246, 0.16)',
+                      color: '#93C5FD',
+                      border: '1px solid rgba(59, 130, 246, 0.35)'
+                    }}
+                  >
+                    {salesYear ? `Year ${salesYear} (12 Months)` : `Last ${salesDays} Days • Year 2026`}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--ios-text-muted)'
+                    }}
+                  >
+                    ({sortedSalesSeries.length} points)
+                  </span>
+                </div>
                 <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--ios-text-muted)' }}>
-                  Interactive breakdown of Online Web Store vs. Brick-and-Mortar POS daily revenue.
+                  Interactive breakdown of Online Web Store vs. Brick-and-Mortar POS daily and monthly revenue.
                 </p>
               </div>
 
-              {/* Timeframe Filters */}
-              <div
-                style={{
-                  display: 'flex',
-                  background: 'rgba(255, 255, 255, 0.06)',
-                  borderRadius: '9999px',
-                  padding: '4px',
-                  border: '1px solid var(--ios-glass-border)'
-                }}
-              >
-                {[7, 14, 30].map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => handleDaysChange(d)}
+              {/* Timeframe & Year Controls + Sorting Dropdown */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                {/* Timeframe & Year Buttons */}
+                <div
+                  style={{
+                    display: 'flex',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    borderRadius: '9999px',
+                    padding: '3px',
+                    border: '1px solid var(--ios-glass-border)',
+                    flexWrap: 'wrap',
+                    gap: '2px'
+                  }}
+                >
+                  {[7, 14, 30].map((d) => {
+                    const isSelected = salesYear === null && salesDays === d;
+                    return (
+                      <button
+                        key={d}
+                        onClick={() => handleDaysChange(d)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '9999px',
+                          border: 'none',
+                          background: isSelected ? '#FFFFFF' : 'transparent',
+                          color: isSelected ? '#000000' : 'rgba(255, 255, 255, 0.7)',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        {d} Days
+                      </button>
+                    );
+                  })}
+
+                  {/* Year Options */}
+                  {[2026, 2025].map((yr) => {
+                    const isSelected = salesYear === yr;
+                    return (
+                      <button
+                        key={yr}
+                        onClick={() => handleYearChange(yr)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '9999px',
+                          border: 'none',
+                          background: isSelected ? 'linear-gradient(135deg, #3B82F6, #2563EB)' : 'transparent',
+                          color: isSelected ? '#FFFFFF' : 'rgba(147, 197, 253, 0.85)',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                          boxShadow: isSelected ? '0 2px 8px rgba(37, 99, 235, 0.4)' : 'none'
+                        }}
+                      >
+                        Year {yr}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Sorting Controls */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    borderRadius: '9999px',
+                    padding: '4px 12px',
+                    border: '1px solid var(--ios-glass-border)'
+                  }}
+                >
+                  <ArrowUpDown size={12} color="#60A5FA" />
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--ios-text-muted)' }}>Sort:</span>
+                  <select
+                    value={salesSort}
+                    onChange={(e) => setSalesSort(e.target.value as any)}
                     style={{
-                      padding: '6px 14px',
-                      borderRadius: '9999px',
+                      background: 'transparent',
                       border: 'none',
-                      background: salesDays === d ? '#FFFFFF' : 'transparent',
-                      color: salesDays === d ? '#000000' : 'rgba(255, 255, 255, 0.65)',
+                      color: '#FFFFFF',
                       fontSize: '11px',
                       fontWeight: 700,
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease'
+                      outline: 'none',
+                      cursor: 'pointer'
                     }}
                   >
-                    Last {d} Days
-                  </button>
-                ))}
+                    <option value="DATE_ASC" style={{ background: '#1E222D', color: '#FFF' }}>
+                      Date: Oldest First (Chronological)
+                    </option>
+                    <option value="DATE_DESC" style={{ background: '#1E222D', color: '#FFF' }}>
+                      Date: Newest First
+                    </option>
+                    <option value="REV_DESC" style={{ background: '#1E222D', color: '#FFF' }}>
+                      Total Revenue: Highest First
+                    </option>
+                    <option value="REV_ASC" style={{ background: '#1E222D', color: '#FFF' }}>
+                      Total Revenue: Lowest First
+                    </option>
+                    <option value="ONLINE_DESC" style={{ background: '#1E222D', color: '#FFF' }}>
+                      Online E-Commerce Lead
+                    </option>
+                    <option value="POS_DESC" style={{ background: '#1E222D', color: '#FFF' }}>
+                      In-Store POS Register Lead
+                    </option>
+                  </select>
+                </div>
               </div>
             </div>
 
-            {/* SVG Interactive Multi-Bar Chart */}
+            {/* Interactive Multi-Bar Chart with Year & Date labels */}
             <div
               style={{
-                height: '240px',
+                height: '260px',
                 width: '100%',
                 position: 'relative',
                 display: 'flex',
                 alignItems: 'flex-end',
                 justifyContent: 'space-between',
-                gap: '12px',
+                gap: sortedSalesSeries.length > 20 ? '4px' : '10px',
                 paddingTop: '20px',
-                paddingBottom: '30px',
+                paddingBottom: '36px',
                 boxSizing: 'border-box',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)'
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                overflowX: 'auto'
               }}
             >
-              {salesSeries.map((point) => {
+              {sortedSalesSeries.map((point) => {
                 const totalHeightPct = Math.min(100, Math.max(10, (point.totalRevenue / maxDayRevenue) * 100));
                 const onlinePct = point.totalRevenue > 0 ? (point.onlineRevenue / point.totalRevenue) * 100 : 50;
                 const posPct = 100 - onlinePct;
+
+                const isMonthly = point.date.length === 7; // '2026-03'
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const monthFullNames = [
+                  'January', 'February', 'March', 'April', 'May', 'June',
+                  'July', 'August', 'September', 'October', 'November', 'December'
+                ];
+
+                let displayLabel = point.date.slice(5);
+                let fullTitleDate = point.date;
+
+                if (isMonthly) {
+                  const parts = point.date.split('-');
+                  const mIdx = parseInt(parts[1], 10) - 1;
+                  displayLabel = `${monthNames[mIdx]} '${parts[0].slice(2)}`;
+                  fullTitleDate = `${monthFullNames[mIdx]} ${parts[0]}`;
+                } else {
+                  const parts = point.date.split('-');
+                  if (parts.length === 3) {
+                    displayLabel = `${parts[1]}/${parts[2]} '${parts[0].slice(2)}`;
+                    fullTitleDate = new Date(`${point.date}T00:00:00`).toLocaleDateString(undefined, {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric'
+                    });
+                  }
+                }
 
                 return (
                   <div
@@ -1283,30 +1460,32 @@ export const AdminDashboard: React.FC = () => {
                       height: '100%',
                       justifyContent: 'flex-end',
                       position: 'relative',
-                      minWidth: '24px'
+                      minWidth: sortedSalesSeries.length > 20 ? '16px' : '26px'
                     }}
                   >
                     <div
                       style={{
                         width: '100%',
-                        maxWidth: '44px',
+                        maxWidth: sortedSalesSeries.length > 20 ? '22px' : '44px',
                         height: `${totalHeightPct}%`,
                         display: 'flex',
                         flexDirection: 'column',
                         borderRadius: '8px',
                         overflow: 'hidden',
                         cursor: 'pointer',
-                        transition: 'transform 0.2s ease',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                        transition: 'all 0.25s ease',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)'
                       }}
-                      title={`${point.date}\nTotal: $${point.totalRevenue.toFixed(2)}\nOnline: $${point.onlineRevenue.toFixed(2)}\nPOS: $${point.posRevenue.toFixed(2)}\nOrders: ${point.orderCount}`}
+                      title={`${fullTitleDate}\nTotal: $${point.totalRevenue.toFixed(2)}\nOnline: $${point.onlineRevenue.toFixed(2)} (${onlinePct.toFixed(1)}%)\nPOS: $${point.posRevenue.toFixed(2)} (${posPct.toFixed(1)}%)\nOrders: ${point.orderCount}`}
                     >
                       {/* Online Segment */}
                       <div
                         style={{
                           height: `${onlinePct}%`,
                           background: 'linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%)',
-                          width: '100%'
+                          width: '100%',
+                          transition: 'height 0.3s ease'
                         }}
                       />
                       {/* POS Segment */}
@@ -1314,23 +1493,26 @@ export const AdminDashboard: React.FC = () => {
                         style={{
                           height: `${posPct}%`,
                           background: 'linear-gradient(180deg, #34D399 0%, #10B981 100%)',
-                          width: '100%'
+                          width: '100%',
+                          transition: 'height 0.3s ease'
                         }}
                       />
                     </div>
 
-                    {/* Date label */}
+                    {/* Date label with Year */}
                     <span
                       style={{
                         position: 'absolute',
-                        bottom: '-24px',
-                        fontSize: '10px',
+                        bottom: '-28px',
+                        fontSize: sortedSalesSeries.length > 20 ? '9px' : '10px',
                         fontWeight: 600,
                         color: 'var(--ios-text-muted)',
-                        whiteSpace: 'nowrap'
+                        whiteSpace: 'nowrap',
+                        transform: sortedSalesSeries.length > 15 ? 'rotate(-25deg)' : 'none',
+                        transformOrigin: 'top center'
                       }}
                     >
-                      {point.date.slice(5)}
+                      {displayLabel}
                     </span>
                   </div>
                 );
@@ -1348,19 +1530,29 @@ export const AdminDashboard: React.FC = () => {
                 gap: '12px'
               }}
             >
-              <div style={{ display: 'flex', gap: '20px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', gap: '20px', fontSize: '12px', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#3B82F6' }} />
-                  <span style={{ color: 'var(--ios-text-muted)' }}>Online Storefront</span>
+                  <span style={{ color: 'var(--ios-text-muted)' }}>
+                    Online Storefront: <strong style={{ color: '#93C5FD' }}>${totalOnlineSeriesRevenue.toFixed(2)}</strong> ({((totalOnlineSeriesRevenue / (totalSeriesRevenue || 1)) * 100).toFixed(1)}%)
+                  </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: '#10B981' }} />
-                  <span style={{ color: 'var(--ios-text-muted)' }}>POS Cashier Register</span>
+                  <span style={{ color: 'var(--ios-text-muted)' }}>
+                    POS Cashier Register: <strong style={{ color: '#34D399' }}>${totalPosSeriesRevenue.toFixed(2)}</strong> ({((totalPosSeriesRevenue / (totalSeriesRevenue || 1)) * 100).toFixed(1)}%)
+                  </span>
                 </div>
               </div>
 
-              <div style={{ fontSize: '12px', color: 'var(--ios-text-muted)' }}>
-                {salesDays}-Day Window Total: <strong style={{ color: '#FFFFFF' }}>${totalSeriesRevenue.toFixed(2)}</strong>
+              <div style={{ fontSize: '12px', color: 'var(--ios-text-muted)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ padding: '2px 8px', borderRadius: '9999px', background: 'rgba(255,255,255,0.06)', fontSize: '10px' }}>
+                  Sort: {salesSort === 'DATE_ASC' ? 'Date ↑' : salesSort === 'DATE_DESC' ? 'Date ↓' : salesSort === 'REV_DESC' ? 'Revenue ↓' : salesSort === 'REV_ASC' ? 'Revenue ↑' : salesSort === 'ONLINE_DESC' ? 'Online ↓' : 'POS ↓'}
+                </span>
+                <span>
+                  {salesYear ? `Year ${salesYear} Cumulative:` : `${salesDays}-Day Trajectory Total:`}{' '}
+                  <strong style={{ color: '#FFFFFF' }}>${totalSeriesRevenue.toFixed(2)}</strong>
+                </span>
               </div>
             </div>
           </IosCardGlass>

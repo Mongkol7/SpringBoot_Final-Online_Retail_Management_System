@@ -32,7 +32,11 @@ public class AdminController {
 
     @GetMapping("/dashboard/sales-series")
     public ResponseEntity<List<AdminService.SalesSeriesPointDto>> getSalesSeries(
-            @RequestParam(defaultValue = "7") int days) {
+            @RequestParam(defaultValue = "7") int days,
+            @RequestParam(required = false) Integer year) {
+        if (year != null) {
+            return ResponseEntity.ok(adminService.getSalesSeries(days, year));
+        }
         return ResponseEntity.ok(adminService.getSalesSeries(days));
     }
 
