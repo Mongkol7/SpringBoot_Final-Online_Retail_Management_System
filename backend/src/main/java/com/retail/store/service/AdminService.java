@@ -20,6 +20,9 @@ public interface AdminService {
     Page<InventoryTransaction> getAuditLogs(Pageable pageable);
     ExecutiveKpiSummary getDashboardSummary();
 
+    com.retail.store.entity.Order confirmOrder(Long orderId, Long adminUserId);
+    Page<com.retail.store.entity.Order> getAllOrders(String status, Pageable pageable);
+
     record ExecutiveKpiSummary(
             BigDecimal totalGrossRevenue,
             BigDecimal onlineRevenue,

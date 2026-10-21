@@ -3,6 +3,11 @@ package com.retail.store.service.impl;
 import com.retail.store.entity.InventoryTransaction;
 import com.retail.store.entity.User;
 import com.retail.store.entity.WholesaleApplication;
+import com.retail.store.entity.Order;
+import com.retail.store.entity.enums.ApplicationStatus;
+import com.retail.store.entity.enums.CustomerType;
+import com.retail.store.entity.enums.OrderStatus;
+import com.retail.store.exception.ResourceNotFoundException;
 import com.retail.store.repository.InventoryTransactionRepository;
 import com.retail.store.repository.OrderRepository;
 import com.retail.store.repository.ProductBatchRepository;
@@ -17,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 /**
  * =========================================================================
@@ -68,38 +74,72 @@ public class AdminServiceImpl implements AdminService {
     @Override
     @Transactional
     public WholesaleApplication approveWholesale(Long applicationId, Long adminUserId) {
-        // TODO [Person 4]: 1. Find WholesaleApplication by applicationId
-        // TODO [Person 4]: 2. Set status = APPROVED, reviewedBy = adminUser, reviewedAt = now
-        // TODO [Person 4]: 3. Atomically update target User customerType = CustomerType.WHOLESALE
-        return null;
+        WholesaleApplication app = wholesaleRepository.findById(applicationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Wholesale application not found with id: " + applicationId));
+
+        User admin = userRepository.findById(adminUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin user not found with id: " + adminUserId));
+
+        app.setStatus(ApplicationStatus.APPROVED);
+        app.setReviewedBy(admin);
+        app.setReviewedAt(LocalDateTime.now());
+        app.setAdminNotes("Approved by Administrator: " + admin.getFullName());
+
+        // Atomically upgrade customer to WHOLESALE tier
+        User targetUser = app.getUser();
+        targetUser.setCustomerType(CustomerType.WHOLESALE);
+        userRepository.save(targetUser);
+
+        return wholesaleRepository.save(app);
     }
 
     @Override
     @Transactional
     public WholesaleApplication rejectWholesale(Long applicationId, Long adminUserId, String rejectionNotes) {
-        // TODO [Person 4]: Set status = REJECTED, reviewedBy = adminUser, adminNotes = rejectionNotes
-        return null;
+        WholesaleApplication app = wholesaleRepository.findById(applicationId)
+                .orElseThrow(() -> new ResourceNotFoundException("Wholesale application not found with id: " + applicationId));
+
+        User admin = userRepository.findById(adminUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin user not found with id: " + adminUserId));
+
+        app.setStatus(ApplicationStatus.REJECTED);
+        app.setReviewedBy(admin);
+        app.setReviewedAt(LocalDateTime.now());
+        app.setAdminNotes(rejectionNotes != null ? rejectionNotes : "Application rejected by administrator.");
+
+        return wholesaleRepository.save(app);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<WholesaleApplication> getWholesaleApplications(String status, Pageable pageable) {
-        // TODO [Person 4]: Query wholesale applications filtered optionally by status
-        return Page.empty();
+        if (status != null && !status.trim().isEmpty()) {
+            try {
+                ApplicationStatus appStatus = ApplicationStatus.valueOf(status.toUpperCase().trim());
+                return wholesaleRepository.findByStatus(appStatus, pageable);
+            } catch (IllegalArgumentException ignored) {}
+        }
+        return wholesaleRepository.findAll(pageable);
     }
 
     @Override
     @Transactional
     public User toggleUserActive(Long targetUserId) {
-        // TODO [Person 4]: Find user and toggle isActive (true -> false or false -> true)
-        return null;
+        User user = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + targetUserId));
+        user.setIsActive(!Boolean.TRUE.equals(user.getIsActive()));
+        return userRepository.save(user);
     }
 
     @Override
     @Transactional
     public User changeUserRole(Long targetUserId, String roleName) {
-        // TODO [Person 4]: Find role by roleName and update user.setRole(role)
-        return null;
+        User user = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + targetUserId));
+        com.retail.store.entity.Role role = roleRepository.findByName(roleName.toUpperCase())
+                .orElseThrow(() -> new ResourceNotFoundException("Role not found with name: " + roleName));
+        user.setRole(role);
+        return userRepository.save(user);
     }
 
     @Override
@@ -130,5 +170,26 @@ public class AdminServiceImpl implements AdminService {
                 0,
                 0
         );
+    }
+
+    @Override
+    @Transactional
+    public Order confirmOrder(Long orderId, Long adminUserId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+        order.setStatus(OrderStatus.PROCESSING);
+        return orderRepository.save(order);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<Order> getAllOrders(String status, Pageable pageable) {
+        if (status != null && !status.trim().isEmpty()) {
+            try {
+                OrderStatus orderStatus = OrderStatus.valueOf(status.toUpperCase().trim());
+                return orderRepository.findByStatus(orderStatus, pageable);
+            } catch (IllegalArgumentException ignored) {}
+        }
+        return orderRepository.findAll(pageable);
     }
 }

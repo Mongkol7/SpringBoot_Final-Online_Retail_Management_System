@@ -18,6 +18,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import java.util.List;
+
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
@@ -50,14 +55,27 @@ public class SecurityConfig {
     }
 
     @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+        configuration.setAllowedOriginPatterns(List.of("http://localhost:*", "http://127.0.0.1:*"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
+
+    @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Public Endpoints: Auth, Static Resources, Catalog Browsing
                 .requestMatchers("/auth/**", "/api/v1/auth/**", "/pos/login", "/api/v1/pos/login", "/cashier/login", "/api/v1/cashier/login").permitAll()
-                .requestMatchers(HttpMethod.GET, "/products/**", "/api/v1/products/**", "/categories/**", "/api/v1/categories/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/products/**", "/api/v1/products/**", "/categories/**", "/api/v1/categories/**", "/customer/products", "/api/v1/customer/products").permitAll()
                 .requestMatchers("/", "/index.html", "/static/**", "/assets/**", "/templates/**", "/favicon.ico").permitAll()
 
                 // Role-Specific Access Controls

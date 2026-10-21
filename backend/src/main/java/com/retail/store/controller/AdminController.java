@@ -73,6 +73,21 @@ public class AdminController {
         return ResponseEntity.ok(adminService.getAuditLogs(PageRequest.of(page, size)));
     }
 
+    @GetMapping("/orders")
+    public ResponseEntity<Page<com.retail.store.entity.Order>> getOrders(
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "15") int size) {
+        return ResponseEntity.ok(adminService.getAllOrders(status, PageRequest.of(page, size)));
+    }
+
+    @PostMapping("/orders/{id}/confirm")
+    public ResponseEntity<com.retail.store.entity.Order> confirmOrder(
+            @AuthenticationPrincipal UserDetailsImpl admin,
+            @PathVariable Long id) {
+        return ResponseEntity.ok(adminService.confirmOrder(id, admin != null ? admin.getId() : 1L));
+    }
+
     public record RejectRequest(String reason) {}
     public record ChangeRoleRequest(String roleName) {}
 }

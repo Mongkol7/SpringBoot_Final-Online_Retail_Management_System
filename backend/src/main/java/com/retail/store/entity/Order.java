@@ -29,10 +29,12 @@ public class Order {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cashier_id")
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private User cashier;
 
     @Column(name = "shipping_address", nullable = false, columnDefinition = "text")
@@ -100,8 +102,16 @@ public class Order {
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
 
+    public Long getUserId() {
+        return user != null ? user.getId() : null;
+    }
+
     public User getCashier() { return cashier; }
     public void setCashier(User cashier) { this.cashier = cashier; }
+
+    public Long getCashierId() {
+        return cashier != null ? cashier.getId() : null;
+    }
 
     public String getShippingAddress() { return shippingAddress; }
     public void setShippingAddress(String shippingAddress) { this.shippingAddress = shippingAddress; }

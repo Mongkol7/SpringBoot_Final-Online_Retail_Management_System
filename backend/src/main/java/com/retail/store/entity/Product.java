@@ -40,6 +40,12 @@ public class Product {
     @Column(name = "wholesale_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal wholesalePrice;
 
+    @Transient
+    private Integer wholesaleMinQty = 10;
+
+    @Transient
+    private Integer stockQuantity;
+
     @Column(name = "min_stock_threshold", nullable = false)
     private Integer minStockThreshold = 10;
 
@@ -106,6 +112,16 @@ public class Product {
     public BigDecimal getWholesalePrice() { return wholesalePrice; }
     public void setWholesalePrice(BigDecimal wholesalePrice) { this.wholesalePrice = wholesalePrice; }
 
+    public Integer getWholesaleMinQty() {
+        return wholesaleMinQty != null && wholesaleMinQty > 0 ? wholesaleMinQty : 10;
+    }
+    public void setWholesaleMinQty(Integer wholesaleMinQty) {
+        this.wholesaleMinQty = wholesaleMinQty;
+    }
+
+    public Integer getStockQuantity() { return stockQuantity; }
+    public void setStockQuantity(Integer stockQuantity) { this.stockQuantity = stockQuantity; }
+
     public Integer getMinStockThreshold() { return minStockThreshold; }
     public void setMinStockThreshold(Integer minStockThreshold) { this.minStockThreshold = minStockThreshold; }
 
@@ -133,6 +149,7 @@ public class Product {
         private BigDecimal costPrice;
         private BigDecimal retailPrice;
         private BigDecimal wholesalePrice;
+        private Integer wholesaleMinQty = 10;
         private Integer minStockThreshold = 10;
         private Boolean isPerishable = false;
         private Boolean isDeleted = false;
@@ -146,12 +163,15 @@ public class Product {
         public Builder costPrice(BigDecimal costPrice) { this.costPrice = costPrice; return this; }
         public Builder retailPrice(BigDecimal retailPrice) { this.retailPrice = retailPrice; return this; }
         public Builder wholesalePrice(BigDecimal wholesalePrice) { this.wholesalePrice = wholesalePrice; return this; }
+        public Builder wholesaleMinQty(Integer wholesaleMinQty) { this.wholesaleMinQty = wholesaleMinQty; return this; }
         public Builder minStockThreshold(Integer minStockThreshold) { this.minStockThreshold = minStockThreshold; return this; }
         public Builder isPerishable(Boolean isPerishable) { this.isPerishable = isPerishable; return this; }
         public Builder isDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; return this; }
 
         public Product build() {
-            return new Product(id, category, sku, name, description, imageUrl, costPrice, retailPrice, wholesalePrice, minStockThreshold, isPerishable, isDeleted, null, null);
+            Product product = new Product(id, category, sku, name, description, imageUrl, costPrice, retailPrice, wholesalePrice, minStockThreshold, isPerishable, isDeleted, null, null);
+            product.setWholesaleMinQty(wholesaleMinQty != null ? wholesaleMinQty : 10);
+            return product;
         }
     }
 }

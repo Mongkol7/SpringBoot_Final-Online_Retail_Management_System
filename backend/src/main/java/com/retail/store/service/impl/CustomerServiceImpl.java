@@ -2,6 +2,8 @@ package com.retail.store.service.impl;
 
 import com.retail.store.entity.CartItem;
 import com.retail.store.entity.Order;
+import com.retail.store.entity.Product;
+import com.retail.store.entity.User;
 import com.retail.store.entity.WholesaleApplication;
 import com.retail.store.entity.enums.PaymentMethod;
 import com.retail.store.repository.CartItemRepository;
@@ -11,12 +13,16 @@ import com.retail.store.repository.UserRepository;
 import com.retail.store.repository.WholesaleApplicationRepository;
 import com.retail.store.service.BatchAllocationService;
 import com.retail.store.service.CustomerService;
+import com.retail.store.service.OrderService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.Collections;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import com.retail.store.entity.enums.ApplicationStatus;
+import com.retail.store.entity.enums.CustomerType;
 
 /**
  * =========================================================================
@@ -46,74 +52,100 @@ public class CustomerServiceImpl implements CustomerService {
     private final OrderRepository orderRepository;
     private final WholesaleApplicationRepository wholesaleRepository;
     private final BatchAllocationService batchAllocationService;
+    private final OrderService orderService;
 
     public CustomerServiceImpl(CartItemRepository cartItemRepository,
                                ProductRepository productRepository,
                                UserRepository userRepository,
                                OrderRepository orderRepository,
                                WholesaleApplicationRepository wholesaleRepository,
-                               BatchAllocationService batchAllocationService) {
+                               BatchAllocationService batchAllocationService,
+                               OrderService orderService) {
         this.cartItemRepository = cartItemRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
         this.orderRepository = orderRepository;
         this.wholesaleRepository = wholesaleRepository;
         this.batchAllocationService = batchAllocationService;
+        this.orderService = orderService;
     }
 
     @Override
     @Transactional
     public CartItem addToCart(Long userId, Long productId, int quantity) {
-        // TODO [Person 1]: Validate stock availability using batchAllocationService.getAvailableStock(productId)
-        // TODO [Person 1]: Check if product already exists in user's cart; if so, update quantity, else create new CartItem
-        return null;
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+        Product product = productRepository.findByIdAndIsDeletedFalse(productId)
+                .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
+
+        int availableStock = batchAllocationService.getAvailableStock(productId);
+        if (availableStock < quantity) {
+            throw new IllegalStateException("Insufficient stock for product " + product.getName()
+                    + " (Available: " + availableStock + ", Requested: " + quantity + ")");
+        }
+
+        Optional<CartItem> existing = cartItemRepository.findByUser_IdAndProduct_Id(userId, productId);
+        if (existing.isPresent()) {
+            CartItem item = existing.get();
+            item.setQuantity(item.getQuantity() + quantity);
+            return cartItemRepository.save(item);
+        } else {
+            CartItem item = CartItem.builder()
+                    .user(user)
+                    .product(product)
+                    .quantity(quantity)
+                    .build();
+            return cartItemRepository.save(item);
+        }
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<CartItem> getCart(Long userId) {
-        // TODO [Person 1]: Fetch user cart items using cartItemRepository.findByUser_Id(userId)
         return cartItemRepository.findByUser_Id(userId);
     }
 
     @Override
     @Transactional
     public void removeFromCart(Long userId, Long cartItemId) {
-        // TODO [Person 1]: Verify cart item ownership by userId and remove from cartItemRepository
+        cartItemRepository.findById(cartItemId).ifPresent(item -> {
+            if (item.getUser() != null && item.getUser().getId().equals(userId)) {
+                cartItemRepository.delete(item);
+            }
+        });
     }
 
     @Override
     @Transactional
     public void clearCart(Long userId) {
-        // TODO [Person 1]: Delete all cart items for this user using cartItemRepository.deleteByUser_Id(userId)
         cartItemRepository.deleteByUser_Id(userId);
     }
 
     @Override
     @Transactional(readOnly = true)
     public BigDecimal getCartTotal(Long userId) {
-        // TODO [Person 1]: Sum (unit_price * quantity) for all items in user's cart
-        // Note: Check user.getCustomerType() to use retail_price vs wholesale_price
-        return BigDecimal.ZERO;
+        User user = userRepository.findById(userId).orElse(null);
+        if (user == null) return BigDecimal.ZERO;
+
+        List<CartItem> cartItems = cartItemRepository.findByUser_Id(userId);
+        BigDecimal subtotal = BigDecimal.ZERO;
+        for (CartItem ci : cartItems) {
+            BigDecimal unitPrice = orderService.calculateUnitPrice(ci.getProduct(), ci.getQuantity(), user.getCustomerType());
+            subtotal = subtotal.add(unitPrice.multiply(BigDecimal.valueOf(ci.getQuantity())));
+        }
+        return subtotal.setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     @Override
     @Transactional
     public Order checkoutOnline(Long userId, String shippingAddress, PaymentMethod paymentMethod) {
-        // TODO [Person 1]: 1. Check cart is not empty
-        // TODO [Person 1]: 2. Generate unique orderNumber (e.g. ORD-YYYYMMDD-XXXX)
-        // TODO [Person 1]: 3. Calculate subtotal, 7% tax, and total
-        // TODO [Person 1]: 4. Save Order (channel = ONLINE, pricingTierUsed = user.customerType)
-        // TODO [Person 1]: 5. Save OrderItems and call batchAllocationService.allocateAndDeductBatches()
-        // TODO [Person 1]: 6. Clear user cart
-        return null;
+        return orderService.createOrderFromCart(userId, shippingAddress, paymentMethod);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Order> getCustomerOrders(Long userId) {
-        // TODO [Person 1]: Return customer order history using orderRepository.findByUser_Id()
-        return Collections.emptyList();
+        return orderRepository.findByUser_Id(userId, org.springframework.data.domain.PageRequest.of(0, 50, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"))).getContent();
     }
 
     @Override
@@ -126,22 +158,100 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public void cancelOrder(Long userId, String orderNumber) {
-        // TODO [Person 1]: Validate order belongs to user and is eligible for cancellation
-        // TODO [Person 1]: Set status = CANCELLED
-        // TODO [Person 1]: Call batchAllocationService.restoreStockForOrderItem() for each item
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseGet(() -> {
+                    try {
+                        Long id = Long.parseLong(orderNumber);
+                        return orderRepository.findById(id).orElse(null);
+                    } catch (NumberFormatException e) {
+                        return null;
+                    }
+                });
+
+        if (order == null) {
+            throw new RuntimeException("Order not found: " + orderNumber);
+        }
+        if (order.getUser() != null && !order.getUser().getId().equals(userId)) {
+            throw new RuntimeException("Access denied: Order does not belong to user");
+        }
+        if (order.getStatus() != com.retail.store.entity.enums.OrderStatus.PENDING) {
+            throw new RuntimeException("Only PENDING orders can be cancelled. Current status: " + order.getStatus());
+        }
+
+        order.setStatus(com.retail.store.entity.enums.OrderStatus.CANCELLED);
+        orderRepository.save(order);
+
+        if (order.getItems() != null) {
+            for (com.retail.store.entity.OrderItem item : order.getItems()) {
+                try {
+                    batchAllocationService.restoreStockForOrderItem(item.getId(), userId);
+                } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    @Override
+    @Transactional
+    public Order confirmOrder(String orderNumber) {
+        Order order = orderRepository.findByOrderNumber(orderNumber)
+                .orElseGet(() -> {
+                    try {
+                        Long id = Long.parseLong(orderNumber);
+                        return orderRepository.findById(id).orElse(null);
+                    } catch (NumberFormatException e) {
+                        return null;
+                    }
+                });
+        if (order != null) {
+            order.setStatus(com.retail.store.entity.enums.OrderStatus.PROCESSING);
+            return orderRepository.save(order);
+        }
+        return null;
     }
 
     @Override
     @Transactional
     public WholesaleApplication applyForWholesale(Long userId, String businessName, String taxId) {
-        // TODO [Person 1]: Create and persist WholesaleApplication with status = PENDING
+        com.retail.store.entity.User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
+
+        WholesaleApplication app = WholesaleApplication.builder()
+                .user(user)
+                .businessName(businessName)
+                .taxIdOrLicense(taxId)
+                .status(com.retail.store.entity.enums.ApplicationStatus.PENDING)
+                .build();
+
+        return wholesaleRepository.save(app);
+    }
+
+    @Override
+    @Transactional
+    public WholesaleApplication getWholesaleStatus(Long userId) {
+        User user = userRepository.findById(userId).orElse(null);
+        Optional<WholesaleApplication> appOpt = wholesaleRepository.findTopByUser_IdOrderByCreatedAtDesc(userId);
+        if (appOpt.isPresent()) {
+            WholesaleApplication app = appOpt.get();
+            if (user != null && user.getCustomerType() == CustomerType.WHOLESALE && app.getStatus() == ApplicationStatus.PENDING) {
+                app.setStatus(ApplicationStatus.APPROVED);
+                app.setReviewedAt(LocalDateTime.now());
+                app.setAdminNotes("Auto-verified Wholesale Tier");
+                return wholesaleRepository.save(app);
+            }
+            return app;
+        }
         return null;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public WholesaleApplication getWholesaleStatus(Long userId) {
-        // TODO [Person 1]: Query wholesaleRepository for user's latest application
-        return wholesaleRepository.findTopByUser_IdOrderByCreatedAtDesc(userId).orElse(null);
+    public List<com.retail.store.entity.Product> getAvailableProducts() {
+        List<com.retail.store.entity.Product> products = productRepository.findAll().stream()
+                .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
+                .toList();
+        for (com.retail.store.entity.Product p : products) {
+            p.setStockQuantity(batchAllocationService.getAvailableStock(p.getId()));
+        }
+        return products;
     }
 }

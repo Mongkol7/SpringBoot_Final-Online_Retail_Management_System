@@ -12,6 +12,7 @@ public class OrderItemBatchFulfillment {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_item_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private OrderItem orderItem;
 
     @ManyToOne(fetch = FetchType.LAZY)

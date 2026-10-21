@@ -16,8 +16,18 @@ import com.retail.store.service.InventoryService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.retail.store.entity.InventoryTransaction;
+import com.retail.store.entity.OrderItem;
+import com.retail.store.entity.OrderItemBatchFulfillment;
+import com.retail.store.entity.User;
+import com.retail.store.entity.enums.TransactionType;
+import com.retail.store.exception.InsufficientStockException;
+import com.retail.store.exception.ResourceNotFoundException;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -106,25 +116,114 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional
     public List<FulfillmentResultDto> allocateAndDeductBatches(Long orderItemId, Long productId, int requestedQuantity, Long actorUserId, String transactionType) {
-        // TODO [Person 3]: 1. If product is perishable, query batchRepository.findActiveBatchesFEFO()
-        // TODO [Person 3]: 2. If non-perishable, query batchRepository.findActiveBatchesFIFO()
-        // TODO [Person 3]: 3. Loop candidate batches, deduct currentQuantity, persist OrderItemBatchFulfillment
-        // TODO [Person 3]: 4. Log InventoryTransaction with negative delta
-        // TODO [Person 3]: 5. Throw InsufficientStockException if requestedQuantity cannot be completely fulfilled
-        return Collections.emptyList();
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
+
+        OrderItem orderItem = orderItemId != null
+                ? orderItemRepository.findById(orderItemId).orElse(null)
+                : null;
+
+        User actor = actorUserId != null
+                ? userRepository.findById(actorUserId).orElse(null)
+                : null;
+        if (actor == null) {
+            actor = userRepository.findAll().stream().findFirst().orElse(null);
+        }
+
+        // 1. FEFO for perishable goods (sorted by expiryDate ASC), FIFO for non-perishable (sorted by receivedAt ASC)
+        List<ProductBatch> batches = Boolean.TRUE.equals(product.getIsPerishable())
+                ? batchRepository.findActiveBatchesFEFO(productId, LocalDate.now())
+                : batchRepository.findActiveBatchesFIFO(productId);
+
+        int remainingToDeduct = requestedQuantity;
+        List<FulfillmentResultDto> results = new ArrayList<>();
+
+        for (ProductBatch batch : batches) {
+            if (remainingToDeduct <= 0) break;
+            int availableInBatch = batch.getCurrentQuantity();
+            if (availableInBatch <= 0) continue;
+
+            int deductQty = Math.min(remainingToDeduct, availableInBatch);
+            batch.setCurrentQuantity(availableInBatch - deductQty);
+            batchRepository.save(batch);
+
+            // Persist OrderItemBatchFulfillment
+            if (orderItem != null) {
+                OrderItemBatchFulfillment fulfillment = OrderItemBatchFulfillment.builder()
+                        .orderItem(orderItem)
+                        .batch(batch)
+                        .quantityDeducted(deductQty)
+                        .build();
+                fulfillmentRepository.save(fulfillment);
+            }
+
+            // Record immutable InventoryTransaction ledger entry with negative delta
+            TransactionType type = TransactionType.ONLINE_SALE;
+            try {
+                if (transactionType != null && !transactionType.isBlank()) {
+                    type = TransactionType.valueOf(transactionType);
+                }
+            } catch (Exception ignored) {}
+
+            String orderRef = (orderItem != null && orderItem.getOrder() != null)
+                    ? orderItem.getOrder().getOrderNumber()
+                    : "BATCH-ALLOCATION";
+
+            InventoryTransaction tx = new InventoryTransaction(
+                    null,
+                    batch,
+                    actor,
+                    type,
+                    -deductQty,
+                    "Order fulfillment deduction: " + orderRef,
+                    LocalDateTime.now()
+            );
+            transactionRepository.save(tx);
+
+            results.add(new FulfillmentResultDto(orderItemId, batch.getId(), deductQty));
+            remainingToDeduct -= deductQty;
+        }
+
+        if (remainingToDeduct > 0) {
+            throw new InsufficientStockException("Insufficient stock in inventory batches for product: "
+                    + product.getName() + " (requested: " + requestedQuantity + ", missing: " + remainingToDeduct + ")");
+        }
+
+        return results;
     }
 
     @Override
     @Transactional(readOnly = true)
     public int getAvailableStock(Long productId) {
-        // TODO [Person 3]: Return total non-expired, available stock using batchRepository.sumAvailableStock()
         return batchRepository.sumAvailableStock(productId, LocalDate.now());
     }
 
     @Override
     @Transactional
     public void restoreStockForOrderItem(Long orderItemId, Long actorUserId) {
-        // TODO [Person 3]: Query fulfillmentRepository for batches used by orderItemId, restore currentQuantity, and log MANUAL_ADJUSTMENT
+        List<OrderItemBatchFulfillment> fulfillments = fulfillmentRepository.findByOrderItem_Id(orderItemId);
+        User actor = actorUserId != null ? userRepository.findById(actorUserId).orElse(null) : null;
+        if (actor == null) {
+            actor = userRepository.findAll().stream().findFirst().orElse(null);
+        }
+
+        for (OrderItemBatchFulfillment fulfillment : fulfillments) {
+            ProductBatch batch = fulfillment.getBatch();
+            int restoreQty = fulfillment.getQuantityDeducted();
+            batch.setCurrentQuantity(batch.getCurrentQuantity() + restoreQty);
+            batchRepository.save(batch);
+
+            InventoryTransaction tx = new InventoryTransaction(
+                    null,
+                    batch,
+                    actor,
+                    TransactionType.MANUAL_ADJUSTMENT,
+                    restoreQty,
+                    "Restored stock from cancelled order item #" + orderItemId,
+                    LocalDateTime.now()
+            );
+            transactionRepository.save(tx);
+        }
     }
 
     @Override

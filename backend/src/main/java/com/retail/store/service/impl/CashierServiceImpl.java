@@ -95,10 +95,6 @@ public class CashierServiceImpl implements CashierService {
     @Override
     @Transactional(readOnly = true)
     public AuthService.AuthResponse login(String email, String password) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(email, password)
-        );
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff user not found with email: " + email));
 
@@ -108,8 +104,12 @@ public class CashierServiceImpl implements CashierService {
 
         String roleName = user.getRole().getName();
         if (!"CASHIER".equalsIgnoreCase(roleName) && !"ADMIN".equalsIgnoreCase(roleName)) {
-            throw new UnauthorizedRoleException("Access denied: User does not hold CASHIER staff credentials.");
+            throw new UnauthorizedRoleException("Access denied: Account '" + email + "' does not hold CASHIER staff credentials.");
         }
+
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(email, password)
+        );
 
         String token = tokenProvider.generateToken(
                 user.getEmail(),

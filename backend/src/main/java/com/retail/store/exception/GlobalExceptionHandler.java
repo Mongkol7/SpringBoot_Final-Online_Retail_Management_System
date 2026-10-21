@@ -79,7 +79,7 @@ public class GlobalExceptionHandler {
         ErrorResponse err = ErrorResponse.builder()
                 .status(HttpStatus.UNAUTHORIZED.value())
                 .error("Unauthorized")
-                .message("Invalid email or password")
+                .message(ex.getMessage() != null && !ex.getMessage().isBlank() ? ex.getMessage() : "Incorrect password. Please try again.")
                 .path(request.getRequestURI())
                 .timestamp(LocalDateTime.now())
                 .build();

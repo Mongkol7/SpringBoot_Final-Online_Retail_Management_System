@@ -4,7 +4,7 @@ export type CustomerType = 'RETAIL' | 'WHOLESALE';
 export type ApplicationStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 export type OrderChannel = 'ONLINE' | 'POS';
 export type OrderStatus = 'PENDING' | 'PAID' | 'PROCESSING' | 'SHIPPED' | 'DELIVERED' | 'CANCELLED';
-export type PaymentMethod = 'CARD' | 'BANK_TRANSFER' | 'CASH';
+export type PaymentMethod = 'CARD' | 'BANK_TRANSFER' | 'CASH' | 'QR';
 export type TransactionType = 'STOCK_IN' | 'ONLINE_SALE' | 'POS_SALE' | 'MANUAL_ADJUSTMENT' | 'EXPIRED_WRITE_OFF';
 
 export interface Role {
@@ -29,7 +29,10 @@ export interface WholesaleApplication {
   id: number;
   userId: number;
   businessName: string;
+  companyName?: string;
   taxIdOrLicense: string;
+  contactDetails?: string;
+  reason?: string;
   status: ApplicationStatus;
   reviewedBy?: number;
   reviewedAt?: string;
@@ -62,6 +65,7 @@ export interface Product {
   costPrice: number;
   retailPrice: number;
   wholesalePrice: number;
+  wholesaleMinQty?: number;
   minStockThreshold: number;
   isPerishable: boolean;
   isDeleted: boolean;
