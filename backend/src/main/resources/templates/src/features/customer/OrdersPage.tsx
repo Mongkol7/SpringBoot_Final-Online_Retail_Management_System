@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useCustomerCartStore, SAMPLE_PENDING_ORDER } from '../../store/customerCartStore';
+import { useCustomerCartStore } from '../../store/customerCartStore';
 import { customerApi } from './customerApi';
 import { Order, OrderStatus } from '../../types/schema';
 import {
@@ -52,38 +52,15 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
     customerApi.getOrders()
       .then((backendOrders) => {
         if (isMounted) {
-          // Merge backend orders with any locally stored orders
-          const currentStoreOrders = useCustomerCartStore.getState().orders || [];
-          const sanitizedStoreOrders = currentStoreOrders.map((o, idx) => ({
-            ...o,
-            orderNumber: o?.orderNumber || (o?.id ? `ORD-${o.id}` : `ORD-${Date.now() + idx}`),
-            status: o?.status || 'PENDING'
-          }));
-
           const backendList = Array.isArray(backendOrders) ? backendOrders : [];
-          const backendNumbers = new Set(backendList.map((b) => b.orderNumber));
-          const localOnly = sanitizedStoreOrders.filter((o) => !backendNumbers.has(o.orderNumber));
-          let merged = [...localOnly, ...backendList];
-
-          // Always ensure at least one pending order is present so the customer can view and test Admin Confirm
-          if (!merged.some((o) => o.status === 'PENDING')) {
-            merged = [SAMPLE_PENDING_ORDER, ...merged];
-          }
-          setOrders(merged);
+          setOrders(backendList);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn('Failed to load DB orders:', err);
         if (isMounted) {
           const currentStoreOrders = useCustomerCartStore.getState().orders || [];
-          let sanitized = currentStoreOrders.map((o, idx) => ({
-            ...o,
-            orderNumber: o?.orderNumber || (o?.id ? `ORD-${o.id}` : `ORD-${Date.now() + idx}`),
-            status: o?.status || 'PENDING'
-          }));
-          if (!sanitized.some((o) => o.status === 'PENDING')) {
-            sanitized = [SAMPLE_PENDING_ORDER, ...sanitized];
-          }
-          setOrders(sanitized);
+          setOrders(currentStoreOrders);
         }
       })
       .finally(() => {

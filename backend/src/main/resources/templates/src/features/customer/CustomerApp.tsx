@@ -5,6 +5,7 @@ import { CheckoutPage } from './CheckoutPage';
 import { OrdersPage } from './OrdersPage';
 import { WholesaleApplyModal } from './WholesaleApplyModal';
 import { WholesaleRegisterPage } from './WholesaleRegisterPage';
+import { CustomerFooter } from './CustomerFooter';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import {
   ShoppingBag,
@@ -12,7 +13,6 @@ import {
   CreditCard,
   ClipboardList,
   Building2,
-  Shield,
   LogIn,
   LogOut
 } from 'lucide-react';
@@ -223,31 +223,6 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
               <span>Sign In</span>
             </button>
           )}
-
-          {/* Discreet Staff & Admin Gateway */}
-          <button
-            onClick={() => {
-              window.location.href = '/login?role=admin';
-            }}
-            title="Enterprise Staff & Admin Gateway"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-              padding: '6px 10px',
-              borderRadius: '9999px',
-              border: '1px solid rgba(96, 165, 250, 0.3)',
-              backgroundColor: 'rgba(59, 130, 246, 0.1)',
-              color: '#93C5FD',
-              fontSize: '11px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease'
-            }}
-          >
-            <Shield size={12} />
-            <span>Staff Portal</span>
-          </button>
         </div>
       </div>
 
@@ -284,6 +259,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
         isOpen={isWholesaleModalOpen}
         onClose={() => setIsWholesaleModalOpen(false)}
       />
+
+      {/* Customer Footer with Developer Credits */}
+      <CustomerFooter />
     </div>
   );
 };

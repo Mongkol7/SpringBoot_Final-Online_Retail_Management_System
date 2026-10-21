@@ -9,7 +9,8 @@ import {
   Building2,
   ArrowRight,
   Check,
-  Heart
+  Heart,
+  Code2
 } from 'lucide-react';
 
 export const CustomerFooter: React.FC = () => {
@@ -396,7 +397,92 @@ export const CustomerFooter: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. LEGAL & COPYRIGHT BAR */}
+      {/* 3. DEVELOPER CREDITS STRIP */}
+      <div
+        style={{
+          borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+          backgroundColor: '#F9FAFB',
+          padding: '24px'
+        }}
+      >
+        <div
+          style={{
+            maxWidth: '1280px',
+            margin: '0 auto',
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '16px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '10px',
+                backgroundColor: '#111827',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              <Code2 size={16} />
+            </div>
+            <div>
+              <span style={{ fontSize: '11px', fontWeight: 800, color: '#9CA3AF', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                Engineering & Development Team
+              </span>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#111827' }}>
+                Retail Enterprise Architecture System
+              </div>
+            </div>
+          </div>
+
+          {/* Developer Badges */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+            {[
+              { name: 'Thoeung Sereymongkol', role: 'Full Stack & POS', color: '#2563EB' },
+              { name: 'Sok Rithysak', role: 'Storefront & Pricing Engine', color: '#FA3E54' },
+              { name: 'Set Kimliza', role: 'Stock & Batch FIFO Radar', color: '#D97706' },
+              { name: 'Tren Mono', role: 'Admin & System Security', color: '#059669' }
+            ].map((dev, idx) => (
+              <div
+                key={idx}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 14px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#FFFFFF',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.03)'
+                }}
+              >
+                <div
+                  style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: dev.color
+                  }}
+                />
+                <span style={{ fontSize: '12px', fontWeight: 800, color: '#111827' }}>
+                  {dev.name}
+                </span>
+                <span style={{ fontSize: '10px', fontWeight: 600, color: '#6B7280' }}>
+                  ({dev.role})
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. LEGAL & COPYRIGHT BAR */}
       <div
         style={{
           borderTop: '1px solid rgba(0, 0, 0, 0.06)',

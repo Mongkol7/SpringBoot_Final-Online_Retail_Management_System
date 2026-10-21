@@ -88,12 +88,13 @@ const AppLayout: React.FC = () => {
           }
         />
 
-        {/* Universal Multi-Role Authentication Portals */}
+        {/* Universal Multi-Role Authentication Portals - Same UI for all users */}
         <Route path="/login" element={<EnterpriseAuthPortal />} />
-        <Route path="/admin/login" element={<EnterpriseAuthPortal defaultRole="ADMIN" />} />
-        <Route path="/pos/login" element={<EnterpriseAuthPortal defaultRole="CASHIER" />} />
-        <Route path="/cashier/login" element={<EnterpriseAuthPortal defaultRole="CASHIER" />} />
-        <Route path="/stock/login" element={<EnterpriseAuthPortal defaultRole="STOCK_CONTROLLER" />} />
+        <Route path="/signup" element={<EnterpriseAuthPortal />} />
+        <Route path="/admin/login" element={<EnterpriseAuthPortal />} />
+        <Route path="/pos/login" element={<EnterpriseAuthPortal />} />
+        <Route path="/cashier/login" element={<EnterpriseAuthPortal />} />
+        <Route path="/stock/login" element={<EnterpriseAuthPortal />} />
 
         {/* Catch-All Fallback */}
         <Route path="*" element={<Navigate to="/shop" replace />} />

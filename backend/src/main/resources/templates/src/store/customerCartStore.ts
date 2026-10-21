@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Product, CustomerType, Order, PaymentMethod, WholesaleApplication, User } from '../types/schema';
-import { customerApi, DEFAULT_CUSTOMER_PRODUCTS } from '../features/customer/customerApi';
+import { customerApi } from '../features/customer/customerApi';
 import { calculateItemPrice, DiscountType } from '../utils/pricingCalculator';
 
 export interface CustomerCartItem {
@@ -105,107 +105,9 @@ const DEFAULT_USER: User = {
   updatedAt: '2026-03-01T08:00:00Z'
 };
 
-// Initial simulated orders for Customer to demonstrate order tracking
-export const SAMPLE_PENDING_ORDER: Order = {
-  id: 100,
-  orderNumber: 'ORD-20261021-1042',
-  channel: 'ONLINE',
-  userId: 1,
-  cashierId: null,
-  shippingAddress: 'No. 42, St. 271, Sangkat Boeng Tumpun, Phnom Penh, Cambodia',
-  status: 'PENDING',
-  paymentMethod: 'CARD',
-  pricingTierUsed: 'RETAIL',
-  subtotal: 7.00,
-  taxAmount: 0.49,
-  totalAmount: 7.49,
-  createdAt: '2026-10-21T09:30:00Z',
-  items: [
-    {
-      id: 10,
-      orderId: 100,
-      productId: 1,
-      quantity: 2,
-      unitPrice: 3.50,
-      subtotal: 7.00,
-      product: DEFAULT_CUSTOMER_PRODUCTS[0]
-    }
-  ]
-};
-
-const INITIAL_ORDERS: Order[] = [
-  SAMPLE_PENDING_ORDER,
-  {
-    id: 101,
-    orderNumber: 'ORD-20260301-8401',
-    channel: 'ONLINE',
-    userId: 1,
-    cashierId: null,
-    shippingAddress: 'No. 42, St. 271, Sangkat Boeng Tumpun, Phnom Penh, Cambodia',
-    status: 'DELIVERED',
-    paymentMethod: 'CARD',
-    pricingTierUsed: 'RETAIL',
-    subtotal: 10.25,
-    taxAmount: 0.72,
-    totalAmount: 10.97,
-    createdAt: '2026-03-01T10:15:00Z',
-    items: [
-      {
-        id: 1,
-        orderId: 101,
-        productId: 2,
-        quantity: 2,
-        unitPrice: 4.75,
-        subtotal: 9.50,
-        product: DEFAULT_CUSTOMER_PRODUCTS[1]
-      },
-      {
-        id: 2,
-        orderId: 101,
-        productId: 3,
-        quantity: 1,
-        unitPrice: 2.25,
-        subtotal: 2.25,
-        product: DEFAULT_CUSTOMER_PRODUCTS[2]
-      }
-    ]
-  },
-  {
-    id: 102,
-    orderNumber: 'ORD-20260302-9124',
-    channel: 'ONLINE',
-    userId: 1,
-    cashierId: null,
-    shippingAddress: 'No. 42, St. 271, Sangkat Boeng Tumpun, Phnom Penh, Cambodia',
-    status: 'PROCESSING',
-    paymentMethod: 'BANK_TRANSFER',
-    pricingTierUsed: 'RETAIL',
-    subtotal: 41.50,
-    taxAmount: 2.91,
-    totalAmount: 44.41,
-    createdAt: '2026-03-02T14:30:00Z',
-    items: [
-      {
-        id: 3,
-        orderId: 102,
-        productId: 7,
-        quantity: 1,
-        unitPrice: 38.00,
-        subtotal: 38.00,
-        product: DEFAULT_CUSTOMER_PRODUCTS[6]
-      },
-      {
-        id: 4,
-        orderId: 102,
-        productId: 1,
-        quantity: 1,
-        unitPrice: 3.50,
-        subtotal: 3.50,
-        product: DEFAULT_CUSTOMER_PRODUCTS[0]
-      }
-    ]
-  }
-];
+// Real DB orders only (no mock data)
+export const SAMPLE_PENDING_ORDER: Order | null = null;
+const INITIAL_ORDERS: Order[] = [];
 
 const GUEST_USER: User = {
   id: 0,
@@ -409,10 +311,31 @@ export const useCustomerCartStore = create<CustomerState>()(
       },
 
       addToCart: (product: Product, quantity = 1) => {
-        const tier = get().getEffectiveTier();
+        const availableStock = product.stockQuantity !== undefined
+          ? Number(product.stockQuantity)
+          : (product.availableStock !== undefined ? Number(product.availableStock) : 999);
+
         const currentItems = [...get().items];
         const existingIndex = currentItems.findIndex((i) => i.productId === product.id);
+        const currentQty = existingIndex > -1 ? currentItems[existingIndex].quantity : 0;
 
+        if (availableStock <= 0) {
+          get().setNotification({
+            message: `⚠️ '${product.name}' is currently OUT OF STOCK.`,
+            badge: 'OUT OF STOCK'
+          });
+          return;
+        }
+
+        if (currentQty + quantity > availableStock) {
+          get().setNotification({
+            message: `⚠️ Stock Limit Warning: Only ${availableStock} units available for '${product.name}'. You have ${currentQty} in cart.`,
+            badge: 'STOCK LIMIT'
+          });
+          return;
+        }
+
+        const tier = get().getEffectiveTier();
         if (existingIndex > -1) {
           const newQty = currentItems[existingIndex].quantity + quantity;
           currentItems[existingIndex] = buildCartItem(
@@ -427,8 +350,8 @@ export const useCustomerCartStore = create<CustomerState>()(
 
         set({ items: currentItems, totalPrice: calcCartTotal(currentItems) });
         get().setNotification({
-          message: `Added ${product.name} (${quantity}x)`,
-          badge: tier === 'WHOLESALE' ? 'WHOLESALE' : 'CART'
+          message: `✓ Successfully added ${quantity}x '${product.name}' to cart!`,
+          badge: tier === 'WHOLESALE' ? 'WHOLESALE' : 'SUCCESS'
         });
 
         // Background call to backend if authenticated
@@ -441,8 +364,24 @@ export const useCustomerCartStore = create<CustomerState>()(
           return;
         }
 
+        const currentItems = get().items;
+        const targetItem = currentItems.find((i) => i.productId === productId);
+        if (!targetItem) return;
+
+        const availableStock = targetItem.product.stockQuantity !== undefined
+          ? Number(targetItem.product.stockQuantity)
+          : (targetItem.product.availableStock !== undefined ? Number(targetItem.product.availableStock) : 999);
+
+        if (quantity > availableStock) {
+          get().setNotification({
+            message: `⚠️ Stock Limit Warning: Cannot order ${quantity} units. Only ${availableStock} in stock for '${targetItem.product.name}'.`,
+            badge: 'STOCK LIMIT'
+          });
+          return;
+        }
+
         const tier = get().getEffectiveTier();
-        const updatedItems = get().items.map((item) => {
+        const updatedItems = currentItems.map((item) => {
           if (item.productId === productId) {
             return buildCartItem(item.product, quantity, tier, item.id);
           }
@@ -767,11 +706,7 @@ export const useCustomerCartStore = create<CustomerState>()(
             orderNumber: o.orderNumber || (o.id ? `ORD-${o.id}` : `ORD-${Date.now() + idx}`),
             status: o.status || 'PENDING'
           }));
-          if (!sanitized.some((o) => o.status === 'PENDING')) {
-            state.orders = [SAMPLE_PENDING_ORDER, ...sanitized];
-          } else {
-            state.orders = sanitized;
-          }
+          state.orders = sanitized;
         }
       }
     }

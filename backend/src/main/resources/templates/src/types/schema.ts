@@ -69,6 +69,8 @@ export interface Product {
   minStockThreshold: number;
   isPerishable: boolean;
   isDeleted: boolean;
+  stockQuantity?: number;
+  availableStock?: number;
   createdAt: string;
   updatedAt: string;
 }

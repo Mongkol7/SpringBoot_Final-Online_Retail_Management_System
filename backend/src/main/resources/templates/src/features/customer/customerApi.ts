@@ -175,9 +175,15 @@ export const CATEGORIES_LIST = [
   { id: 4, name: 'Nutrition & Supplements' }
 ];
 
-// Helper to get auth headers from localStorage
+// Helper to get auth headers from localStorage across personas
 function getAuthHeaders(): { headers: Record<string, string> } {
-  const token = localStorage.getItem('customer_jwt') || localStorage.getItem('jwt_token') || '';
+  const token =
+    localStorage.getItem('customer_jwt') ||
+    localStorage.getItem('admin_jwt') ||
+    localStorage.getItem('inventory_jwt') ||
+    localStorage.getItem('cashier_jwt') ||
+    localStorage.getItem('jwt_token') ||
+    '';
   if (token) {
     return {
       headers: {
@@ -213,32 +219,49 @@ function normalizeOrder(raw: any): Order {
 }
 
 export const customerApi = {
-  // Products
+  // Products (Direct from central PostgreSQL DB)
   async getProducts(): Promise<Product[]> {
     try {
       const res = await axios.get(`${API_BASE}/customer/products`);
       if (Array.isArray(res.data) && res.data.length > 0) {
-        return res.data.map((p: any) => ({
-          ...p,
-          categoryId: p.categoryId ?? p.category?.id ?? 2,
-          imageUrl: p.imageUrl || p.image_url || ''
-        }));
+        return res.data.map((p: any) => {
+          const stock = p.stockQuantity !== undefined ? Number(p.stockQuantity) : (p.availableStock !== undefined ? Number(p.availableStock) : 0);
+          return {
+            ...p,
+            categoryId: p.categoryId ?? p.category?.id ?? 2,
+            imageUrl: p.imageUrl || p.image_url || '',
+            stockQuantity: stock,
+            availableStock: stock
+          };
+        });
       }
     } catch {
       try {
         const fallbackRes = await axios.get(`${API_BASE}/products`);
-        if (Array.isArray(fallbackRes.data) && fallbackRes.data.length > 0) {
-          return fallbackRes.data.map((p: any) => ({
-            ...p,
-            categoryId: p.categoryId ?? p.category?.id ?? 2,
-            imageUrl: p.imageUrl || p.image_url || ''
-          }));
+        const list = Array.isArray(fallbackRes.data)
+          ? fallbackRes.data
+          : (fallbackRes.data?.content && Array.isArray(fallbackRes.data.content) ? fallbackRes.data.content : []);
+        if (list.length > 0) {
+          return list.map((p: any) => {
+            const stock = p.stockQuantity !== undefined ? Number(p.stockQuantity) : (p.availableStock !== undefined ? Number(p.availableStock) : 0);
+            return {
+              ...p,
+              categoryId: p.categoryId ?? p.category?.id ?? 2,
+              imageUrl: p.imageUrl || p.image_url || '',
+              stockQuantity: stock,
+              availableStock: stock
+            };
+          });
         }
       } catch {
         // Fallback to seeded products
       }
     }
-    return DEFAULT_CUSTOMER_PRODUCTS;
+    return DEFAULT_CUSTOMER_PRODUCTS.map((p) => ({
+      ...p,
+      stockQuantity: (p.minStockThreshold || 10) * 3,
+      availableStock: (p.minStockThreshold || 10) * 3
+    }));
   },
 
   // Cart

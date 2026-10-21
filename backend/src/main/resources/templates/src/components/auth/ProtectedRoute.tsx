@@ -1,9 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { AdminLoginGuard } from './AdminLoginGuard';
-import { CashierLoginGuard } from './CashierLoginGuard';
-import { StockLoginGuard } from './StockLoginGuard';
-import { CustomerLoginPage } from '../../features/customer/CustomerLoginPage';
+import { UnifiedLoginForm } from './UnifiedLoginForm';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 
 interface ProtectedRouteProps {
@@ -15,7 +12,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, ch
   const { hasAccess, refreshAuthState } = useAuth();
   const { isAuthenticated: isCustomerAuthed } = useCustomerCartStore();
 
-  const isAllowed = allowedRoles.some(role => {
+  const isAllowed = allowedRoles.some((role) => {
     if (role === 'USER') {
       return hasAccess('USER') || isCustomerAuthed;
     }
@@ -26,19 +23,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ allowedRoles, ch
     return <>{children}</>;
   }
 
-  // Render appropriate role login guard directly on the protected URL
-  if (allowedRoles.includes('ADMIN')) {
-    return <AdminLoginGuard onSuccess={refreshAuthState} />;
-  }
-
-  if (allowedRoles.includes('CASHIER')) {
-    return <CashierLoginGuard onSuccess={refreshAuthState} />;
-  }
-
-  if (allowedRoles.includes('STOCK_CONTROLLER')) {
-    return <StockLoginGuard onSuccess={refreshAuthState} />;
-  }
-
-  // Customer protection (for /orders, /checkout)
-  return <CustomerLoginPage />;
+  // Render unified login form directly using the same clean UI across the system
+  return <UnifiedLoginForm onSuccess={refreshAuthState} />;
 };
+
+export default ProtectedRoute;

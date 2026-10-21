@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import {
@@ -10,7 +10,8 @@ import {
   ShieldCheck,
   Sparkles,
   ArrowLeft,
-  PackageOpen
+  PackageOpen,
+  AlertTriangle
 } from 'lucide-react';
 
 interface CartPageProps {
@@ -44,6 +45,9 @@ export const CartPage: React.FC<CartPageProps> = ({
   const total = getTotal();
   const itemCount = getItemCount();
   const wholesaleSavings = getWholesaleSavings();
+
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ productId: number; name: string } | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -105,7 +109,7 @@ export const CartPage: React.FC<CartPageProps> = ({
 
         {items.length > 0 && (
           <button
-            onClick={clearCart}
+            onClick={() => setShowClearConfirm(true)}
             style={{
               fontSize: '12px',
               fontWeight: 700,
@@ -388,7 +392,13 @@ export const CartPage: React.FC<CartPageProps> = ({
                     }}
                   >
                     <button
-                      onClick={() => updateQuantity(item.productId, item.quantity - 1)}
+                      onClick={() => {
+                        if (item.quantity <= 1) {
+                          setDeleteConfirmItem({ productId: item.productId, name: item.product.name });
+                        } else {
+                          updateQuantity(item.productId, item.quantity - 1);
+                        }
+                      }}
                       style={{
                         background: 'transparent',
                         border: 'none',
@@ -440,7 +450,7 @@ export const CartPage: React.FC<CartPageProps> = ({
 
                   {/* Remove Button */}
                   <button
-                    onClick={() => removeFromCart(item.productId)}
+                    onClick={() => setDeleteConfirmItem({ productId: item.productId, name: item.product.name })}
                     style={{
                       background: 'transparent',
                       border: 'none',
@@ -452,7 +462,7 @@ export const CartPage: React.FC<CartPageProps> = ({
                     }}
                     onMouseEnter={(e) => (e.currentTarget.style.color = '#DC2626')}
                     onMouseLeave={(e) => (e.currentTarget.style.color = '#9CA3AF')}
-                    title="Remove item"
+                    title="Remove item from cart"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -611,6 +621,199 @@ export const CartPage: React.FC<CartPageProps> = ({
               >
                 <span>Proceed to Checkout</span>
                 <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Delete Single Item Confirmation Modal */}
+      {deleteConfirmItem && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: '20px'
+          }}
+          onClick={() => setDeleteConfirmItem(null)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '28px',
+              padding: '32px 28px',
+              maxWidth: '420px',
+              width: '100%',
+              boxShadow: '0 24px 48px rgba(0, 0, 0, 0.2)',
+              textAlign: 'center',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                backgroundColor: '#FEE2E2',
+                color: '#DC2626',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto'
+              }}
+            >
+              <Trash2 size={26} />
+            </div>
+
+            <h3 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 8px 0', color: '#111827' }}>
+              Remove Item from Cart?
+            </h3>
+            <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 24px 0', lineHeight: 1.5 }}>
+              Are you sure you want to remove <strong>'{deleteConfirmItem.name}'</strong> from your shopping cart?
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmItem(null)}
+                style={{
+                  flex: 1,
+                  padding: '12px 18px',
+                  borderRadius: '9999px',
+                  border: '1px solid rgba(0, 0, 0, 0.1)',
+                  backgroundColor: '#FFFFFF',
+                  color: '#374151',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  removeFromCart(deleteConfirmItem.productId);
+                  setDeleteConfirmItem(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '12px 18px',
+                  borderRadius: '9999px',
+                  border: 'none',
+                  backgroundColor: '#DC2626',
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(220, 38, 38, 0.35)'
+                }}
+              >
+                Yes, Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Entire Cart Confirmation Modal */}
+      {showClearConfirm && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: '20px'
+          }}
+          onClick={() => setShowClearConfirm(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '28px',
+              padding: '32px 28px',
+              maxWidth: '420px',
+              width: '100%',
+              boxShadow: '0 24px 48px rgba(0, 0, 0, 0.2)',
+              textAlign: 'center',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                backgroundColor: '#FEE2E2',
+                color: '#DC2626',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px auto'
+              }}
+            >
+              <AlertTriangle size={26} />
+            </div>
+
+            <h3 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 8px 0', color: '#111827' }}>
+              Clear Entire Cart?
+            </h3>
+            <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 24px 0', lineHeight: 1.5 }}>
+              Are you sure you want to remove all <strong>{itemCount} items</strong> from your cart? This action cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(false)}
+                style={{
+                  flex: 1,
+                  padding: '12px 18px',
+                  borderRadius: '9999px',
+                  border: '1px solid rgba(0, 0, 0, 0.1)',
+                  backgroundColor: '#FFFFFF',
+                  color: '#374151',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearCart();
+                  setShowClearConfirm(false);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '12px 18px',
+                  borderRadius: '9999px',
+                  border: 'none',
+                  backgroundColor: '#DC2626',
+                  color: '#FFFFFF',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 14px rgba(220, 38, 38, 0.35)'
+                }}
+              >
+                Yes, Clear All
               </button>
             </div>
           </div>

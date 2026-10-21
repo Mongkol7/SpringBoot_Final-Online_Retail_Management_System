@@ -6,6 +6,7 @@ import { IosBadge } from '../../components/ui/IosBadge';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import { customerApi, DEFAULT_CUSTOMER_PRODUCTS, CATEGORIES_LIST } from './customerApi';
 import { WholesaleApplyModal } from './WholesaleApplyModal';
+import { ProductDetailModal } from './ProductDetailModal';
 import { SnackStorefrontBento } from './SnackStorefrontBento';
 import { Product } from '../../types/schema';
 import {
@@ -26,6 +27,7 @@ import {
   TrendingDown,
   Info,
   CheckCircle2,
+  AlertCircle,
   X
 } from 'lucide-react';
 
@@ -65,6 +67,17 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
   const [selectedCategory, setSelectedCategory] = useState<number>(0);
   const [isWholesaleModalOpen, setIsWholesaleModalOpen] = useState(false);
   const [addedAnimationId, setAddedAnimationId] = useState<number | null>(null);
+
+  const [selectedProductForModal, setSelectedProductForModal] = useState<Product | null>(null);
+  const [toastAlert, setToastAlert] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
+
+  // Auto-dismiss toast
+  useEffect(() => {
+    if (toastAlert) {
+      const timer = setTimeout(() => setToastAlert(null), 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastAlert]);
 
   const effectiveTier = getEffectiveTier();
   const cartItemCount = getItemCount();
@@ -128,7 +141,32 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
     });
   }, [products, searchQuery, selectedCategory]);
 
-  const handleAddToCart = (product: Product) => {
+  const handleAddToCart = (product: Product, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+
+    const realStock = product.stockQuantity !== undefined
+      ? Number(product.stockQuantity)
+      : (product.availableStock !== undefined ? Number(product.availableStock) : 0);
+
+    const existingCartItem = items.find((i) => i.productId === product.id);
+    const inCartQty = existingCartItem ? existingCartItem.quantity : 0;
+
+    if (realStock <= 0) {
+      setToastAlert({
+        message: `⚠️ '${product.name}' is currently OUT OF STOCK in warehouse.`,
+        type: 'warning'
+      });
+      return;
+    }
+
+    if (inCartQty + 1 > realStock) {
+      setToastAlert({
+        message: `⚠️ Stock Limit Warning: Cannot order more than ${realStock} units for '${product.name}'. You have ${inCartQty} in cart.`,
+        type: 'warning'
+      });
+      return;
+    }
+
     if (!isAuthenticated) {
       // Remember pending product and prompt customer to sign in or register
       localStorage.setItem('pending_cart_item', JSON.stringify({ product, quantity: 1 }));
@@ -142,6 +180,10 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
 
     addToCart(product, 1);
     setAddedAnimationId(product.id);
+    setToastAlert({
+      message: `✓ Added '${product.name}' to cart! (${inCartQty + 1} total)`,
+      type: 'success'
+    });
     setTimeout(() => {
       setAddedAnimationId(null);
     }, 1200);
@@ -596,8 +638,10 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
               ((product.retailPrice - product.wholesalePrice) / product.retailPrice) * 100
             );
 
-            // Simulated stock count based on threshold or seed
-            const availableStockCount = (product.minStockThreshold || 10) * 3;
+            // Real-time stock count directly from DB
+            const availableStockCount = product.stockQuantity !== undefined
+              ? Number(product.stockQuantity)
+              : (product.availableStock !== undefined ? Number(product.availableStock) : 0);
 
             return (
               <div
@@ -668,6 +712,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
 
                   {/* Product Image Capsule from Database */}
                   <div
+                    onClick={() => setSelectedProductForModal(product)}
                     style={{
                       width: '100%',
                       aspectRatio: '1 / 1',
@@ -680,8 +725,10 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                       position: 'relative',
                       overflow: 'hidden',
                       marginBottom: '18px',
-                      padding: 0
+                      padding: 0,
+                      cursor: 'pointer'
                     }}
+                    title="Click to view product details"
                   >
                     {product.imageUrl && (
                       <img
@@ -741,15 +788,15 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                     </div>
                   </div>
 
-                  {/* Stock Availability Indicator */}
+                  {/* Stock Availability Indicator from real DB */}
                   <div
                     style={{
                       display: 'flex',
                       alignItems: 'center',
                       gap: '6px',
                       fontSize: '11px',
-                      color: '#059669',
-                      marginBottom: '10px'
+                      marginBottom: '10px',
+                      color: availableStockCount > 10 ? '#059669' : availableStockCount > 0 ? '#D97706' : '#DC2626'
                     }}
                   >
                     <div
@@ -757,21 +804,29 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                         width: '6px',
                         height: '6px',
                         borderRadius: '50%',
-                        backgroundColor: '#10B981',
-                        boxShadow: '0 0 6px #10B981'
+                        backgroundColor: availableStockCount > 10 ? '#10B981' : availableStockCount > 0 ? '#F59E0B' : '#EF4444',
+                        boxShadow: availableStockCount > 0 ? '0 0 6px currentColor' : 'none'
                       }}
                     />
-                    <span>In Stock ({availableStockCount} units)</span>
+                    <span>
+                      {availableStockCount > 10
+                        ? `In Stock (${availableStockCount} units)`
+                        : availableStockCount > 0
+                        ? `Low Stock (${availableStockCount} units left)`
+                        : 'Out of Stock (0 units)'}
+                    </span>
                   </div>
 
                   {/* Title & Description */}
                   <h3
+                    onClick={() => setSelectedProductForModal(product)}
                     style={{
                       fontSize: '16px',
                       fontWeight: 800,
                       lineHeight: 1.35,
                       color: '#111827',
-                      margin: '0 0 8px 0'
+                      margin: '0 0 8px 0',
+                      cursor: 'pointer'
                     }}
                   >
                     {product.name}
@@ -863,47 +918,86 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                     </div>
                   )}
 
-                  {/* Add to Cart Button */}
-                  <button
-                    onClick={() => handleAddToCart(product)}
-                    style={{
-                      width: '100%',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      padding: '12px 20px',
-                      borderRadius: '9999px',
-                      border: 'none',
-                      fontSize: '14px',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      backgroundColor: isJustAdded ? '#10B981' : inCartQty > 0 ? '#111827' : '#FA3E54',
-                      color: '#FFFFFF',
-                      boxShadow: isJustAdded
-                        ? '0 4px 14px rgba(16, 185, 129, 0.3)'
-                        : inCartQty > 0
-                        ? '0 4px 14px rgba(0, 0, 0, 0.15)'
-                        : '0 4px 14px rgba(250, 62, 84, 0.35)',
-                      transition: 'all 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
-                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-                  >
-                    {isJustAdded ? (
-                      <>
-                        <Check size={16} /> Added to Cart!
-                      </>
-                    ) : inCartQty > 0 ? (
-                      <>
-                        <ShoppingBag size={16} /> In Cart ({inCartQty}) +
-                      </>
-                    ) : (
-                      <>
-                        <ShoppingBag size={16} /> Add to Cart
-                      </>
-                    )}
-                  </button>
+                  {/* Card Actions: Quick Details & Add to Cart */}
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedProductForModal(product)}
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: '9999px',
+                        border: '1px solid rgba(0, 0, 0, 0.12)',
+                        backgroundColor: '#FFFFFF',
+                        color: '#111827',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#F5F5F7')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#FFFFFF')}
+                    >
+                      Details
+                    </button>
+
+                    <button
+                      onClick={(e) => handleAddToCart(product, e)}
+                      disabled={availableStockCount <= 0}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        padding: '12px 16px',
+                        borderRadius: '9999px',
+                        border: 'none',
+                        fontSize: '13px',
+                        fontWeight: 700,
+                        cursor: availableStockCount <= 0 ? 'not-allowed' : 'pointer',
+                        backgroundColor: availableStockCount <= 0
+                          ? '#9CA3AF'
+                          : isJustAdded
+                          ? '#10B981'
+                          : inCartQty > 0
+                          ? '#111827'
+                          : '#FA3E54',
+                        color: '#FFFFFF',
+                        boxShadow: availableStockCount <= 0
+                          ? 'none'
+                          : isJustAdded
+                          ? '0 4px 14px rgba(16, 185, 129, 0.3)'
+                          : inCartQty > 0
+                          ? '0 4px 14px rgba(0, 0, 0, 0.15)'
+                          : '0 4px 14px rgba(250, 62, 84, 0.35)',
+                        transition: 'all 0.15s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (availableStockCount > 0) e.currentTarget.style.transform = 'scale(1.02)';
+                      }}
+                      onMouseLeave={(e) => {
+                        if (availableStockCount > 0) e.currentTarget.style.transform = 'scale(1)';
+                      }}
+                    >
+                      {availableStockCount <= 0 ? (
+                        'Out of Stock'
+                      ) : isJustAdded ? (
+                        <>
+                          <Check size={15} /> Added!
+                        </>
+                      ) : inCartQty > 0 ? (
+                        <>
+                          <ShoppingBag size={15} /> In Cart ({inCartQty}) +
+                        </>
+                      ) : (
+                        <>
+                          <ShoppingBag size={15} /> Add to Cart
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -951,6 +1045,53 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
         isOpen={isWholesaleModalOpen}
         onClose={() => setIsWholesaleModalOpen(false)}
       />
+
+      {/* Storefront Product Detail Modal */}
+      <ProductDetailModal
+        product={selectedProductForModal}
+        isOpen={!!selectedProductForModal}
+        onClose={() => setSelectedProductForModal(null)}
+      />
+
+      {/* Real-time Floating Toast Alert */}
+      {toastAlert && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '24px',
+            right: '24px',
+            zIndex: 1200,
+            backgroundColor: toastAlert.type === 'success' ? '#10B981' : '#EF4444',
+            color: '#FFFFFF',
+            padding: '14px 22px',
+            borderRadius: '9999px',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontWeight: 800,
+            fontSize: '13px',
+            animation: 'toastSlideIn 0.25s ease'
+          }}
+        >
+          {toastAlert.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+          <span>{toastAlert.message}</span>
+          <button
+            onClick={() => setToastAlert(null)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#FFFFFF',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center'
+            }}
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
