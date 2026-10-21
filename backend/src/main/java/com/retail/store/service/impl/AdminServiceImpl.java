@@ -435,7 +435,13 @@ public class AdminServiceImpl implements AdminService {
                 }
 
                 BigDecimal totalRev = onlineRev.add(posRev);
-                series.add(new SalesSeriesPointDto(monthStr, onlineRev, posRev, totalRev, count));
+                series.add(new SalesSeriesPointDto(
+                        monthStr,
+                        onlineRev.setScale(2, RoundingMode.HALF_UP),
+                        posRev.setScale(2, RoundingMode.HALF_UP),
+                        totalRev.setScale(2, RoundingMode.HALF_UP),
+                        count
+                ));
             }
 
             return series;
@@ -479,7 +485,13 @@ public class AdminServiceImpl implements AdminService {
             }
 
             BigDecimal totalRev = onlineRev.add(posRev);
-            series.add(new SalesSeriesPointDto(dayStr, onlineRev, posRev, totalRev, count));
+            series.add(new SalesSeriesPointDto(
+                    dayStr,
+                    onlineRev.setScale(2, RoundingMode.HALF_UP),
+                    posRev.setScale(2, RoundingMode.HALF_UP),
+                    totalRev.setScale(2, RoundingMode.HALF_UP),
+                    count
+            ));
         }
 
         return series;

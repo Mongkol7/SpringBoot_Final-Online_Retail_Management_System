@@ -174,7 +174,6 @@ export const AdminDashboard: React.FC = () => {
     try {
       const [
         kpiRes,
-        seriesRes,
         appsRes,
         usersRes,
         logsRes,
@@ -184,7 +183,6 @@ export const AdminDashboard: React.FC = () => {
         spendingRes
       ] = await Promise.all([
         adminService.getDashboardSummary(),
-        adminService.getSalesSeries(salesDays),
         adminService.getWholesaleApplications(),
         adminService.getUsers(),
         adminService.getAuditLogs(auditTypeFilter),
@@ -194,7 +192,6 @@ export const AdminDashboard: React.FC = () => {
         adminService.getCustomerSpending()
       ]);
       setKpi(kpiRes);
-      setSalesSeries(seriesRes);
       setWholesaleApps(appsRes.content);
       setUsers(usersRes.content);
       setAuditLogs(logsRes.content);
@@ -202,6 +199,10 @@ export const AdminDashboard: React.FC = () => {
       setPayments(paymentsRes);
       setTaxReport(taxRes);
       setCustomerSpendingList(spendingRes);
+
+      // Compute sales series strictly via real transaction ledger
+      const seriesRes = await adminService.getSalesSeries(salesDays, salesYear, paymentsRes);
+      setSalesSeries(seriesRes);
     } catch (err) {
       console.error('Error loading admin suite:', err);
       showToast('Error refreshing data from server', 'error');
@@ -220,7 +221,7 @@ export const AdminDashboard: React.FC = () => {
     setSalesDays(days);
     setSalesYear(null);
     try {
-      const res = await adminService.getSalesSeries(days);
+      const res = await adminService.getSalesSeries(days, null, payments);
       setSalesSeries(res);
     } catch (err) {
       console.error(err);
@@ -231,7 +232,7 @@ export const AdminDashboard: React.FC = () => {
   const handleYearChange = async (year: number) => {
     setSalesYear(year);
     try {
-      const res = await adminService.getSalesSeries(365, year);
+      const res = await adminService.getSalesSeries(365, year, payments);
       setSalesSeries(res);
     } catch (err) {
       console.error(err);
@@ -731,7 +732,8 @@ export const AdminDashboard: React.FC = () => {
   // Max revenue calculation for SVG bar chart scaling
   const maxDayRevenue = useMemo(() => {
     if (!sortedSalesSeries.length) return 1000;
-    return Math.max(...sortedSalesSeries.map((s) => s.totalRevenue), 500);
+    const maxVal = Math.max(...sortedSalesSeries.map((s) => s.totalRevenue));
+    return maxVal > 0 ? maxVal : 1;
   }, [sortedSalesSeries]);
 
   const totalSeriesRevenue = useMemo(() => {
@@ -744,6 +746,10 @@ export const AdminDashboard: React.FC = () => {
 
   const totalPosSeriesRevenue = useMemo(() => {
     return sortedSalesSeries.reduce((acc, curr) => acc + curr.posRevenue, 0);
+  }, [sortedSalesSeries]);
+
+  const totalSeriesOrders = useMemo(() => {
+    return sortedSalesSeries.reduce((acc, curr) => acc + (curr.orderCount || 0), 0);
   }, [sortedSalesSeries]);
 
   return (
@@ -1417,9 +1423,10 @@ export const AdminDashboard: React.FC = () => {
               }}
             >
               {sortedSalesSeries.map((point) => {
-                const totalHeightPct = Math.min(100, Math.max(10, (point.totalRevenue / maxDayRevenue) * 100));
-                const onlinePct = point.totalRevenue > 0 ? (point.onlineRevenue / point.totalRevenue) * 100 : 50;
-                const posPct = 100 - onlinePct;
+                const isZero = point.totalRevenue === 0;
+                const totalHeightPct = isZero ? 2 : Math.min(100, Math.max(8, (point.totalRevenue / maxDayRevenue) * 100));
+                const onlinePct = isZero ? 0 : (point.onlineRevenue / point.totalRevenue) * 100;
+                const posPct = isZero ? 0 : 100 - onlinePct;
 
                 const isMonthly = point.date.length === 7; // '2026-03'
                 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -1474,29 +1481,38 @@ export const AdminDashboard: React.FC = () => {
                         overflow: 'hidden',
                         cursor: 'pointer',
                         transition: 'all 0.25s ease',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.35)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)'
+                        boxShadow: isZero ? 'none' : '0 4px 12px rgba(0,0,0,0.35)',
+                        border: isZero ? '1px dashed rgba(255, 255, 255, 0.18)' : '1px solid rgba(255, 255, 255, 0.12)',
+                        background: isZero ? 'rgba(255, 255, 255, 0.05)' : 'transparent'
                       }}
-                      title={`${fullTitleDate}\nTotal: $${point.totalRevenue.toFixed(2)}\nOnline: $${point.onlineRevenue.toFixed(2)} (${onlinePct.toFixed(1)}%)\nPOS: $${point.posRevenue.toFixed(2)} (${posPct.toFixed(1)}%)\nOrders: ${point.orderCount}`}
+                      title={
+                        isZero
+                          ? `${fullTitleDate}\nTotal: $0.00\nNo transactions recorded\nOrders: 0`
+                          : `${fullTitleDate}\nTotal: $${point.totalRevenue.toFixed(2)}\nOnline: $${point.onlineRevenue.toFixed(2)} (${onlinePct.toFixed(1)}%)\nPOS: $${point.posRevenue.toFixed(2)} (${posPct.toFixed(1)}%)\nOrders: ${point.orderCount}`
+                      }
                     >
-                      {/* Online Segment */}
-                      <div
-                        style={{
-                          height: `${onlinePct}%`,
-                          background: 'linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%)',
-                          width: '100%',
-                          transition: 'height 0.3s ease'
-                        }}
-                      />
-                      {/* POS Segment */}
-                      <div
-                        style={{
-                          height: `${posPct}%`,
-                          background: 'linear-gradient(180deg, #34D399 0%, #10B981 100%)',
-                          width: '100%',
-                          transition: 'height 0.3s ease'
-                        }}
-                      />
+                      {!isZero && (
+                        <>
+                          {/* Online Segment */}
+                          <div
+                            style={{
+                              height: `${onlinePct}%`,
+                              background: 'linear-gradient(180deg, #60A5FA 0%, #3B82F6 100%)',
+                              width: '100%',
+                              transition: 'height 0.3s ease'
+                            }}
+                          />
+                          {/* POS Segment */}
+                          <div
+                            style={{
+                              height: `${posPct}%`,
+                              background: 'linear-gradient(180deg, #34D399 0%, #10B981 100%)',
+                              width: '100%',
+                              transition: 'height 0.3s ease'
+                            }}
+                          />
+                        </>
+                      )}
                     </div>
 
                     {/* Date label with Year */}
@@ -1552,6 +1568,9 @@ export const AdminDashboard: React.FC = () => {
                 <span>
                   {salesYear ? `Year ${salesYear} Cumulative:` : `${salesDays}-Day Trajectory Total:`}{' '}
                   <strong style={{ color: '#FFFFFF' }}>${totalSeriesRevenue.toFixed(2)}</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--ios-text-muted)', marginLeft: '6px' }}>
+                    ({totalSeriesOrders} orders)
+                  </span>
                 </span>
               </div>
             </div>

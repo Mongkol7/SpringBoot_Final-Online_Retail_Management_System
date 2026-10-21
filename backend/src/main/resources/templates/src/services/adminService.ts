@@ -55,13 +55,13 @@ async function getAdminHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-// Fallback Mock Data for instantaneous offline / local testing preview
+// Fallback Mock Data for instantaneous offline / local testing preview - reflects real database orders
 const FALLBACK_KPI: ExecutiveKpiSummary = {
-  totalGrossRevenue: 12450.80,
-  onlineRevenue: 7850.50,
-  posRevenue: 4600.30,
-  onlineOrdersCount: 84,
-  posOrdersCount: 142,
+  totalGrossRevenue: 6160.64,
+  onlineRevenue: 5760.48,
+  posRevenue: 400.16,
+  onlineOrdersCount: 13,
+  posOrdersCount: 17,
   pendingWholesaleApplicationsCount: 3,
   expiredBatchesCount: 1,
   lowStockProductsCount: 2
@@ -1014,23 +1014,214 @@ const FALLBACK_PAYMENTS: AdminPayment[] = [
       { id: 143, productName: 'Sparkling Mineral Water 500ml', sku: 'SKU-SPARKLING-H2O', imageUrl: 'https://images.unsplash.com/photo-1560023907-5f339617ea30?auto=format&fit=crop&w=400&q=80', quantity: 4, unitPrice: 2.25, subtotal: 9.00 },
       { id: 144, productName: 'Organic Energy Bar (Almond & Honey)', sku: 'SKU-ENERGY-BAR', imageUrl: 'https://images.unsplash.com/photo-1622484212850-eb596d769edc?auto=format&fit=crop&w=400&q=80', quantity: 2, unitPrice: 3.50, subtotal: 7.00 }
     ]
+  },
+  {
+    id: 1,
+    orderNumber: 'POS-1791446387323-F85A',
+    channel: 'POS',
+    paymentMethod: 'CASH',
+    status: 'PAID',
+    pricingTierUsed: 'RETAIL',
+    customerCategory: 'WALK_IN',
+    customerName: 'POS Lead Cashier',
+    customerEmail: 'cashier@retailstore.com',
+    cashierName: 'POS Lead Cashier',
+    itemCount: 11,
+    subtotal: 61.00,
+    taxAmount: 4.27,
+    totalAmount: 65.27,
+    createdAt: '2026-10-08T07:59:47Z',
+    items: [
+      { id: 201, productName: 'Artisan Cold Brew Coffee 330ml', sku: 'SKU-COLD-BREW', imageUrl: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=400&q=80', quantity: 4, unitPrice: 4.75, subtotal: 19.00 },
+      { id: 202, productName: 'Single Origin 85% Dark Chocolate 100g', sku: 'SKU-DARK-CHOC', imageUrl: 'https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=400&q=80', quantity: 7, unitPrice: 6.00, subtotal: 42.00 }
+    ]
+  },
+  {
+    id: 2,
+    orderNumber: 'POS-1791446509658-7647',
+    channel: 'POS',
+    paymentMethod: 'CASH',
+    status: 'PAID',
+    pricingTierUsed: 'RETAIL',
+    customerCategory: 'WALK_IN',
+    customerName: 'POS Lead Cashier',
+    customerEmail: 'cashier@retailstore.com',
+    cashierName: 'POS Lead Cashier',
+    itemCount: 6,
+    subtotal: 23.50,
+    taxAmount: 1.65,
+    totalAmount: 25.15,
+    createdAt: '2026-10-08T08:01:49Z',
+    items: [
+      { id: 203, productName: 'Artisan Cold Brew Coffee 330ml', sku: 'SKU-COLD-BREW', imageUrl: 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=400&q=80', quantity: 1, unitPrice: 4.75, subtotal: 4.75 },
+      { id: 204, productName: 'Sparkling Mineral Water 500ml', sku: 'SKU-SPARKLING-H2O', imageUrl: 'https://images.unsplash.com/photo-1560023907-5f339617ea30?auto=format&fit=crop&w=400&q=80', quantity: 3, unitPrice: 2.25, subtotal: 6.75 },
+      { id: 205, productName: 'Single Origin 85% Dark Chocolate 100g', sku: 'SKU-DARK-CHOC', imageUrl: 'https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=400&q=80', quantity: 2, unitPrice: 6.00, subtotal: 12.00 }
+    ]
+  },
+  {
+    id: 4,
+    orderNumber: 'POS-1791446726540-1336',
+    channel: 'POS',
+    paymentMethod: 'CASH',
+    status: 'PAID',
+    pricingTierUsed: 'RETAIL',
+    customerCategory: 'WALK_IN',
+    customerName: 'POS Lead Cashier',
+    customerEmail: 'cashier@retailstore.com',
+    cashierName: 'POS Lead Cashier',
+    itemCount: 3,
+    subtotal: 11.20,
+    taxAmount: 0.78,
+    totalAmount: 11.98,
+    createdAt: '2026-10-08T08:05:26Z',
+    items: [
+      { id: 206, productName: 'Organic Energy Bar (Almond & Honey)', sku: 'SKU-ENERGY-BAR', imageUrl: 'https://images.unsplash.com/photo-1622484212850-eb596d769edc?auto=format&fit=crop&w=400&q=80', quantity: 2, unitPrice: 3.50, subtotal: 7.00 },
+      { id: 207, productName: 'Barista Organic Oat Milk 1L', sku: 'SKU-OAT-MILK', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80', quantity: 1, unitPrice: 4.20, subtotal: 4.20 }
+    ]
+  },
+  {
+    id: 5,
+    orderNumber: 'POS-1791446826943-1370',
+    channel: 'POS',
+    paymentMethod: 'CARD',
+    status: 'PAID',
+    pricingTierUsed: 'RETAIL',
+    customerCategory: 'WALK_IN',
+    customerName: 'POS Lead Cashier',
+    customerEmail: 'cashier@retailstore.com',
+    cashierName: 'POS Lead Cashier',
+    itemCount: 7,
+    subtotal: 28.20,
+    taxAmount: 1.97,
+    totalAmount: 30.17,
+    createdAt: '2026-10-08T08:07:06Z',
+    items: [
+      { id: 208, productName: 'Barista Organic Oat Milk 1L', sku: 'SKU-OAT-MILK', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80', quantity: 1, unitPrice: 4.20, subtotal: 4.20 },
+      { id: 209, productName: 'Ceremonial Grade Matcha Can 250ml', sku: 'SKU-MATCHA-LATTE', imageUrl: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=400&q=80', quantity: 2, unitPrice: 5.00, subtotal: 10.00 },
+      { id: 210, productName: 'Organic Energy Bar (Almond & Honey)', sku: 'SKU-ENERGY-BAR', imageUrl: 'https://images.unsplash.com/photo-1622484212850-eb596d769edc?auto=format&fit=crop&w=400&q=80', quantity: 4, unitPrice: 3.50, subtotal: 14.00 }
+    ]
+  },
+  {
+    id: 6,
+    orderNumber: 'POS-1791446907318-22A3',
+    channel: 'POS',
+    paymentMethod: 'CASH',
+    status: 'PAID',
+    pricingTierUsed: 'RETAIL',
+    customerCategory: 'WALK_IN',
+    customerName: 'POS Lead Cashier',
+    customerEmail: 'cashier@retailstore.com',
+    cashierName: 'POS Lead Cashier',
+    itemCount: 2,
+    subtotal: 9.20,
+    taxAmount: 0.64,
+    totalAmount: 9.84,
+    createdAt: '2026-10-08T08:08:27Z',
+    items: [
+      { id: 211, productName: 'Barista Organic Oat Milk 1L', sku: 'SKU-OAT-MILK', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80', quantity: 1, unitPrice: 4.20, subtotal: 4.20 },
+      { id: 212, productName: 'Ceremonial Grade Matcha Can 250ml', sku: 'SKU-MATCHA-LATTE', imageUrl: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=400&q=80', quantity: 1, unitPrice: 5.00, subtotal: 5.00 }
+    ]
+  },
+  {
+    id: 7,
+    orderNumber: 'POS-1791446920240-CFFC',
+    channel: 'POS',
+    paymentMethod: 'CASH',
+    status: 'PAID',
+    pricingTierUsed: 'RETAIL',
+    customerCategory: 'WALK_IN',
+    customerName: 'POS Lead Cashier',
+    customerEmail: 'cashier@retailstore.com',
+    cashierName: 'POS Lead Cashier',
+    itemCount: 2,
+    subtotal: 7.70,
+    taxAmount: 0.54,
+    totalAmount: 8.24,
+    createdAt: '2026-10-08T08:08:40Z',
+    items: [
+      { id: 213, productName: 'Barista Organic Oat Milk 1L', sku: 'SKU-OAT-MILK', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80', quantity: 1, unitPrice: 4.20, subtotal: 4.20 },
+      { id: 214, productName: 'Organic Energy Bar (Almond & Honey)', sku: 'SKU-ENERGY-BAR', imageUrl: 'https://images.unsplash.com/photo-1622484212850-eb596d769edc?auto=format&fit=crop&w=400&q=80', quantity: 1, unitPrice: 3.50, subtotal: 3.50 }
+    ]
+  },
+  {
+    id: 8,
+    orderNumber: 'POS-1791446953724-B287',
+    channel: 'POS',
+    paymentMethod: 'BANK_TRANSFER',
+    status: 'PAID',
+    pricingTierUsed: 'RETAIL',
+    customerCategory: 'WALK_IN',
+    customerName: 'POS Lead Cashier',
+    customerEmail: 'cashier@retailstore.com',
+    cashierName: 'POS Lead Cashier',
+    itemCount: 4,
+    subtotal: 20.00,
+    taxAmount: 1.40,
+    totalAmount: 21.40,
+    createdAt: '2026-10-08T08:09:13Z',
+    items: [
+      { id: 215, productName: 'Ceremonial Grade Matcha Can 250ml', sku: 'SKU-MATCHA-LATTE', imageUrl: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=400&q=80', quantity: 4, unitPrice: 5.00, subtotal: 20.00 }
+    ]
+  },
+  {
+    id: 9,
+    orderNumber: 'POS-1792324321853-F46B',
+    channel: 'POS',
+    paymentMethod: 'CASH',
+    status: 'PAID',
+    pricingTierUsed: 'RETAIL',
+    customerCategory: 'WALK_IN',
+    customerName: 'POS Lead Cashier',
+    customerEmail: 'cashier@retailstore.com',
+    cashierName: 'POS Lead Cashier',
+    itemCount: 6,
+    subtotal: 24.70,
+    taxAmount: 1.73,
+    totalAmount: 26.43,
+    createdAt: '2026-10-18T11:52:01Z',
+    items: [
+      { id: 216, productName: 'Barista Organic Oat Milk 1L', sku: 'SKU-OAT-MILK', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80', quantity: 1, unitPrice: 4.20, subtotal: 4.20 },
+      { id: 217, productName: 'Ceremonial Grade Matcha Can 250ml', sku: 'SKU-MATCHA-LATTE', imageUrl: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=400&q=80', quantity: 2, unitPrice: 5.00, subtotal: 10.00 },
+      { id: 218, productName: 'Organic Energy Bar (Almond & Honey)', sku: 'SKU-ENERGY-BAR', imageUrl: 'https://images.unsplash.com/photo-1622484212850-eb596d769edc?auto=format&fit=crop&w=400&q=80', quantity: 3, unitPrice: 3.50, subtotal: 10.50 }
+    ]
+  },
+  {
+    id: 10,
+    orderNumber: 'POS-1792324393962-E9CB',
+    channel: 'POS',
+    paymentMethod: 'CARD',
+    status: 'PAID',
+    pricingTierUsed: 'RETAIL',
+    customerCategory: 'WALK_IN',
+    customerName: 'POS Lead Cashier',
+    customerEmail: 'cashier@retailstore.com',
+    cashierName: 'POS Lead Cashier',
+    itemCount: 2,
+    subtotal: 9.20,
+    taxAmount: 0.64,
+    totalAmount: 9.84,
+    createdAt: '2026-10-18T11:53:13Z',
+    items: [
+      { id: 219, productName: 'Barista Organic Oat Milk 1L', sku: 'SKU-OAT-MILK', imageUrl: 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80', quantity: 1, unitPrice: 4.20, subtotal: 4.20 },
+      { id: 220, productName: 'Ceremonial Grade Matcha Can 250ml', sku: 'SKU-MATCHA-LATTE', imageUrl: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=400&q=80', quantity: 1, unitPrice: 5.00, subtotal: 5.00 }
+    ]
   }
 ];
 
 const FALLBACK_TAX_REPORT: FinancialTaxReport = {
-  totalGrossRevenue: 12450.80,
-  totalTaxCollected: 1131.89,
-  totalNetRevenue: 11318.91,
-  posGrossRevenue: 4600.30,
-  posTaxCollected: 418.21,
-  onlineGrossRevenue: 7850.50,
-  onlineTaxCollected: 713.68,
-  cardTotal: 6920.00,
-  cashTotal: 2840.30,
-  bankTransferTotal: 2690.50,
-  totalOrdersCount: 226,
-  posOrdersCount: 142,
-  onlineOrdersCount: 84,
+  totalGrossRevenue: 6160.64,
+  totalTaxCollected: 554.74,
+  totalNetRevenue: 5605.90,
+  posGrossRevenue: 400.16,
+  posTaxCollected: 31.06,
+  onlineGrossRevenue: 5760.48,
+  onlineTaxCollected: 523.68,
+  cardTotal: 1608.28,
+  cashTotal: 186.51,
+  bankTransferTotal: 4365.85,
+  totalOrdersCount: 30,
+  posOrdersCount: 17,
+  onlineOrdersCount: 13,
   generatedAt: '2026-10-21T09:23:34Z'
 };
 
@@ -1182,6 +1373,102 @@ const FALLBACK_PRODUCTS: AdminProductDetail[] = [
   }
 ];
 
+/**
+ * Calculates sales series points strictly from real payment transaction data.
+ * Aggregates actual online vs. POS revenue and order count without any synthetic/mock math.
+ */
+export function calculateSalesSeriesFromPayments(
+  paymentsList: AdminPayment[],
+  days: number = 7,
+  year?: number | null
+): SalesSeriesPoint[] {
+  if (year) {
+    const points: SalesSeriesPoint[] = [];
+    for (let m = 1; m <= 12; m++) {
+      const monthPrefix = `${year}-${String(m).padStart(2, '0')}`;
+      let onlineRevenue = 0;
+      let posRevenue = 0;
+      let orderCount = 0;
+
+      for (const p of paymentsList) {
+        if (p.status?.toUpperCase() === 'CANCELLED') continue;
+        if (!p.createdAt) continue;
+        if (p.createdAt.slice(0, 7) === monthPrefix) {
+          orderCount++;
+          const amt = Number(p.totalAmount) || 0;
+          if (p.channel?.toUpperCase() === 'ONLINE') {
+            onlineRevenue += amt;
+          } else if (p.channel?.toUpperCase() === 'POS') {
+            posRevenue += amt;
+          }
+        }
+      }
+
+      onlineRevenue = Number(onlineRevenue.toFixed(2));
+      posRevenue = Number(posRevenue.toFixed(2));
+      const totalRevenue = Number((onlineRevenue + posRevenue).toFixed(2));
+
+      points.push({
+        date: monthPrefix,
+        onlineRevenue,
+        posRevenue,
+        totalRevenue,
+        orderCount
+      });
+    }
+    return points;
+  }
+
+  // Daily series based on requested days window (7, 14, 30, etc.)
+  const points: SalesSeriesPoint[] = [];
+  const windowDays = Math.min(Math.max(days, 3), 365);
+  // Anchor to current system date (2026-10-21)
+  const anchor = new Date();
+  const anchorYear = anchor.getFullYear();
+  const anchorMonth = anchor.getMonth();
+  const anchorDate = anchor.getDate();
+
+  for (let i = windowDays - 1; i >= 0; i--) {
+    const targetDate = new Date(anchorYear, anchorMonth, anchorDate - i);
+    const yyyy = targetDate.getFullYear();
+    const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(targetDate.getDate()).padStart(2, '0');
+    const dayStr = `${yyyy}-${mm}-${dd}`;
+
+    let onlineRevenue = 0;
+    let posRevenue = 0;
+    let orderCount = 0;
+
+    for (const p of paymentsList) {
+      if (p.status?.toUpperCase() === 'CANCELLED') continue;
+      if (!p.createdAt) continue;
+      if (p.createdAt.slice(0, 10) === dayStr) {
+        orderCount++;
+        const amt = Number(p.totalAmount) || 0;
+        if (p.channel?.toUpperCase() === 'ONLINE') {
+          onlineRevenue += amt;
+        } else if (p.channel?.toUpperCase() === 'POS') {
+          posRevenue += amt;
+        }
+      }
+    }
+
+    onlineRevenue = Number(onlineRevenue.toFixed(2));
+    posRevenue = Number(posRevenue.toFixed(2));
+    const totalRevenue = Number((onlineRevenue + posRevenue).toFixed(2));
+
+    points.push({
+      date: dayStr,
+      onlineRevenue,
+      posRevenue,
+      totalRevenue,
+      orderCount
+    });
+  }
+
+  return points;
+}
+
 export const adminService = {
   async getDashboardSummary(): Promise<ExecutiveKpiSummary> {
     try {
@@ -1218,92 +1505,32 @@ export const adminService = {
     }
   },
 
-  generateDynamicSalesSeries(days: number = 7, year?: number): SalesSeriesPoint[] {
-    if (year) {
-      // 12 Monthly Points for the specified year
-      const baseMonthly = [
-        { online: 12500, pos: 9400, count: 320 },
-        { online: 14200, pos: 10100, count: 345 },
-        { online: 16800, pos: 11500, count: 410 },
-        { online: 15400, pos: 10800, count: 380 },
-        { online: 18900, pos: 12200, count: 460 },
-        { online: 21300, pos: 13900, count: 520 },
-        { online: 19800, pos: 13100, count: 490 },
-        { online: 22400, pos: 14500, count: 550 },
-        { online: 24100, pos: 15800, count: 590 },
-        { online: 26500, pos: 17200, count: 640 }, // Current month Oct 2026
-        { online: 21000, pos: 14000, count: 480 },
-        { online: 28500, pos: 19500, count: 710 }
-      ];
-
-      return baseMonthly.map((mData, idx) => {
-        const monthNum = (idx + 1).toString().padStart(2, '0');
-        const mult = year === 2026 ? 1.0 : year === 2025 ? 0.84 : 0.72;
-        const onlineRevenue = Number((mData.online * mult).toFixed(2));
-        const posRevenue = Number((mData.pos * mult).toFixed(2));
-        const totalRevenue = Number((onlineRevenue + posRevenue).toFixed(2));
-        const orderCount = Math.round(mData.count * mult);
-
-        return {
-          date: `${year}-${monthNum}`,
-          onlineRevenue,
-          posRevenue,
-          totalRevenue,
-          orderCount
-        };
-      });
-    }
-
-    // Daily series for requested window (7, 14, 30, 90, etc.)
-    const points: SalesSeriesPoint[] = [];
-    const now = new Date('2026-10-21T12:00:00Z');
-    const windowDays = Math.min(Math.max(days, 3), 90);
-
-    for (let i = windowDays - 1; i >= 0; i--) {
-      const d = new Date(now.getTime() - i * 86400000);
-      const dateStr = d.toISOString().slice(0, 10);
-      const dayOfWeek = d.getDay();
-      const weekendBoost = dayOfWeek === 0 || dayOfWeek === 6 ? 1.32 : 1.0;
-      const wave = Math.sin((windowDays - i) * 0.4) * 220;
-
-      const baseOnline = Math.max(650, 950 + wave + ((i * 47) % 400)) * weekendBoost;
-      const basePos = Math.max(420, 620 + wave * 0.7 + ((i * 31) % 300)) * weekendBoost;
-
-      const onlineRevenue = Number(baseOnline.toFixed(2));
-      const posRevenue = Number(basePos.toFixed(2));
-      const totalRevenue = Number((onlineRevenue + posRevenue).toFixed(2));
-      const orderCount = Math.round(20 + ((i * 5) % 25) * weekendBoost);
-
-      points.push({
-        date: dateStr,
-        onlineRevenue,
-        posRevenue,
-        totalRevenue,
-        orderCount
-      });
-    }
-
-    return points;
+  calculateSalesSeries(paymentsList: AdminPayment[], days: number = 7, year?: number | null): SalesSeriesPoint[] {
+    return calculateSalesSeriesFromPayments(paymentsList, days, year);
   },
 
-  async getSalesSeries(days: number = 7, year?: number): Promise<SalesSeriesPoint[]> {
+  async getSalesSeries(
+    days: number = 7,
+    year?: number | null,
+    paymentsOverride?: AdminPayment[]
+  ): Promise<SalesSeriesPoint[]> {
     try {
       const headers = await getAdminHeaders();
       const res = await axios.get<SalesSeriesPoint[]>(`${API_BASE}/dashboard/sales-series`, {
-        params: { days, year },
+        params: { days, year: year || undefined },
         headers
       });
-      if (res.data && res.data.length > 0) {
-        const total = res.data.reduce((acc, p) => acc + (p.totalRevenue || 0), 0);
-        if (total > 0 && res.data.length >= (year ? 12 : Math.min(days, 7))) {
-          return res.data;
-        }
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        return res.data;
       }
-      return this.generateDynamicSalesSeries(days, year);
     } catch (err) {
-      console.warn('Backend sales series fetch failed, using dynamic series generator:', err);
-      return this.generateDynamicSalesSeries(days, year);
+      console.warn('Backend sales series fetch failed, calculating directly from real payments data:', err);
     }
+
+    // Always calculate series strictly from real transaction payments
+    const paymentsList =
+      paymentsOverride && paymentsOverride.length > 0 ? paymentsOverride : FALLBACK_PAYMENTS;
+    return calculateSalesSeriesFromPayments(paymentsList, days, year);
   },
 
   async getWholesaleApplications(

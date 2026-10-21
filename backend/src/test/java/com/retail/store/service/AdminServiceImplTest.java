@@ -319,6 +319,37 @@ class AdminServiceImplTest {
     }
 
     @Test
+    @DisplayName("getSalesSeries: Generates 12 monthly points for specified year from real orders")
+    void testGetSalesSeriesWithYear() {
+        Order onlineOrder = Order.builder()
+                .channel(OrderChannel.ONLINE)
+                .totalAmount(new BigDecimal("250.00"))
+                .status(OrderStatus.PAID)
+                .build();
+        onlineOrder.setCreatedAt(LocalDateTime.of(2026, 10, 15, 10, 0));
+
+        when(orderRepository.findAll()).thenReturn(List.of(onlineOrder));
+
+        List<AdminService.SalesSeriesPointDto> series = adminService.getSalesSeries(365, 2026);
+
+        assertNotNull(series);
+        assertEquals(12, series.size());
+        // October is index 9 (month 10)
+        AdminService.SalesSeriesPointDto oct = series.get(9);
+        assertEquals("2026-10", oct.date());
+        assertEquals(new BigDecimal("250.00"), oct.onlineRevenue());
+        assertEquals(new BigDecimal("0.00"), oct.posRevenue());
+        assertEquals(new BigDecimal("250.00"), oct.totalRevenue());
+        assertEquals(1L, oct.orderCount());
+
+        // January has zero transactions
+        AdminService.SalesSeriesPointDto jan = series.get(0);
+        assertEquals("2026-01", jan.date());
+        assertEquals(new BigDecimal("0.00"), jan.totalRevenue());
+        assertEquals(0L, jan.orderCount());
+    }
+
+    @Test
     @DisplayName("getAuditLogs: Filters by transaction type and date range")
     void testGetAuditLogs() {
         Pageable pageable = PageRequest.of(0, 10);
