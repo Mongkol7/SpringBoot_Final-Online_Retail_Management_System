@@ -145,14 +145,23 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional(readOnly = true)
     public List<Order> getCustomerOrders(Long userId) {
-        return orderRepository.findByUser_Id(userId, org.springframework.data.domain.PageRequest.of(0, 50, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"))).getContent();
+        List<Order> orders = orderRepository.findByUser_Id(userId, org.springframework.data.domain.PageRequest.of(0, 50, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "createdAt"))).getContent();
+        for (Order o : orders) {
+            if (o.getItems() != null) {
+                o.getItems().size();
+            }
+        }
+        return orders;
     }
 
     @Override
     @Transactional(readOnly = true)
     public Order getOrderDetails(String orderNumber) {
-        // TODO [Person 1]: Fetch order details by orderNumber from orderRepository
-        return orderRepository.findByOrderNumber(orderNumber).orElse(null);
+        Order order = orderRepository.findByOrderNumber(orderNumber).orElse(null);
+        if (order != null && order.getItems() != null) {
+            order.getItems().size();
+        }
+        return order;
     }
 
     @Override

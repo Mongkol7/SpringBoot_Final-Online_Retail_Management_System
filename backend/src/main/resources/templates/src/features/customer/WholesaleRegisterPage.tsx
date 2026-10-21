@@ -1,9 +1,5 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { IosCardGlass } from '../../components/ui/IosCardGlass';
-import { IosButton } from '../../components/ui/IosButton';
-import { IosInput } from '../../components/ui/IosInput';
-import { IosBadge } from '../../components/ui/IosBadge';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import {
   Building2,
@@ -112,26 +108,48 @@ export const WholesaleRegisterPage: React.FC = () => {
     }
   };
 
+  React.useEffect(() => {
+    const prevBg = document.body.style.backgroundColor;
+    const prevColor = document.body.style.color;
+    document.body.style.backgroundColor = '#F5F5F7';
+    document.body.style.color = '#111827';
+    return () => {
+      document.body.style.backgroundColor = prevBg;
+      document.body.style.color = prevColor;
+    };
+  }, []);
+
   return (
     <div
       style={{
         minHeight: '100vh',
-        padding: '30px 24px 60px',
-        maxWidth: '1240px',
-        margin: '0 auto',
+        width: '100%',
+        backgroundColor: '#F5F5F7',
+        color: '#111827',
         display: 'flex',
         flexDirection: 'column'
       }}
     >
-      {/* Top Simple Brand & Back Bar (NO Catalog or Cart Tabs) */}
       <div
         style={{
+          width: '100%',
+          maxWidth: '1240px',
+          margin: '0 auto',
+          padding: '30px 24px 60px',
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '24px'
+          flexDirection: 'column',
+          flex: 1
         }}
       >
+        {/* Top Simple Brand & Back Bar */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '28px'
+          }}
+        >
         <Link
           to="/shop"
           style={{
@@ -139,28 +157,29 @@ export const WholesaleRegisterPage: React.FC = () => {
             alignItems: 'center',
             gap: '10px',
             textDecoration: 'none',
-            color: '#FFFFFF'
+            color: '#111827'
           }}
         >
           <div
             style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '10px',
-              backgroundColor: '#FFFFFF',
+              width: '36px',
+              height: '36px',
+              borderRadius: '12px',
+              backgroundColor: '#FA3E54',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#000000'
+              color: '#FFFFFF',
+              boxShadow: '0 4px 12px rgba(250, 62, 84, 0.3)'
             }}
           >
-            <Building2 size={18} />
+            <Building2 size={20} />
           </div>
           <div>
-            <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em', display: 'block' }}>
+            <span style={{ fontSize: '15px', fontWeight: 900, letterSpacing: '-0.02em', display: 'block', color: '#111827' }}>
               AURA STORE
             </span>
-            <span style={{ fontSize: '10px', color: 'var(--ios-text-subtle, #71717A)', display: 'block', letterSpacing: '0.04em' }}>
+            <span style={{ fontSize: '11px', color: '#6B7280', display: 'block', letterSpacing: '0.04em' }}>
               WHOLESALE REGISTRATION
             </span>
           </div>
@@ -172,16 +191,17 @@ export const WholesaleRegisterPage: React.FC = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
-            padding: '8px 16px',
+            padding: '10px 20px',
             borderRadius: '9999px',
             fontSize: '13px',
-            fontWeight: 600,
-            color: '#FFFFFF',
-            backgroundColor: 'rgba(255, 255, 255, 0.08)',
-            border: '1px solid var(--ios-glass-border, rgba(255, 255, 255, 0.12))',
-            textDecoration: 'none'
+            fontWeight: 700,
+            color: '#111827',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+            textDecoration: 'none',
+            transition: 'all 0.2s ease'
           }}
-          className="ios-glow-hover"
         >
           ← Back to Storefront
         </Link>
@@ -196,35 +216,55 @@ export const WholesaleRegisterPage: React.FC = () => {
           justifyContent: 'center'
         }}
       >
-        <div style={{ maxWidth: '520px', width: '100%' }}>
-          <IosCardGlass glow style={{ padding: '36px 32px' }}>
+        <div
+          style={{
+            maxWidth: '540px',
+            width: '100%',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '24px',
+            padding: '30px 30px 24px',
+            border: '1px solid rgba(0, 0, 0, 0.06)',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.06)'
+          }}
+        >
           {/* Header */}
-          <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '18px' }}>
             <div
               style={{
-                width: '54px',
-                height: '54px',
-                borderRadius: '18px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
+                width: '46px',
+                height: '46px',
+                borderRadius: '14px',
+                backgroundColor: 'rgba(250, 62, 84, 0.1)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 16px auto',
-                color: '#FFFFFF'
+                margin: '0 auto 10px auto',
+                color: '#FA3E54'
               }}
             >
-              <Building2 size={26} />
+              <Building2 size={24} />
             </div>
 
-            <div style={{ display: 'inline-flex', marginBottom: '8px' }}>
-              <IosBadge variant="wholesale">B2B WHOLESALE REGISTRATION</IosBadge>
+            <div
+              style={{
+                display: 'inline-block',
+                padding: '3px 12px',
+                borderRadius: '9999px',
+                backgroundColor: 'rgba(250, 62, 84, 0.08)',
+                color: '#FA3E54',
+                fontSize: '10px',
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+                marginBottom: '6px'
+              }}
+            >
+              B2B WHOLESALE REGISTRATION
             </div>
 
-            <h1 style={{ fontSize: '24px', fontWeight: 800, margin: '4px 0 8px 0', color: '#FFFFFF' }}>
+            <h1 style={{ fontSize: '22px', fontWeight: 900, margin: '2px 0 6px 0', color: '#111827', letterSpacing: '-0.02em' }}>
               Register for Wholesale
             </h1>
-            <p style={{ fontSize: '13px', color: 'var(--ios-text-muted, #A1A1AA)', margin: 0, lineHeight: 1.5 }}>
+            <p style={{ fontSize: '13px', color: '#6B7280', margin: 0, lineHeight: 1.45 }}>
               Register your business to unlock wholesale volume discounts and bulk batch ordering.
             </p>
           </div>
@@ -234,62 +274,68 @@ export const WholesaleRegisterPage: React.FC = () => {
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(3, 1fr)',
-              gap: '8px',
-              padding: '12px 14px',
+              gap: '6px',
+              padding: '10px 10px',
               borderRadius: '16px',
-              backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
-              marginBottom: '24px'
+              backgroundColor: '#F5F5F7',
+              border: '1px solid rgba(0, 0, 0, 0.05)',
+              marginBottom: '18px'
             }}
           >
             {/* Step 1 */}
             <div style={{ textAlign: 'center' }}>
-              <div style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: '#30D158',
-                marginBottom: '2px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '4px'
-              }}>
+              <div
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  color: '#059669',
+                  marginBottom: '2px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px'
+                }}
+              >
                 <span>✓ Step 1</span>
               </div>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#FFFFFF' }}>Customer Sign Up</div>
-              <div style={{ fontSize: '10px', color: '#A1A1AA' }}>Retail Account Active</div>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#111827' }}>Customer Sign Up</div>
+              <div style={{ fontSize: '9px', color: '#6B7280' }}>Retail Account Active</div>
             </div>
 
             {/* Step 2 */}
-            <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(255, 255, 255, 0.08)', borderRight: '1px solid rgba(255, 255, 255, 0.08)', padding: '0 4px' }}>
-              <div style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: currentStatus === 'PENDING' ? '#FF9F0A' : currentStatus === 'APPROVED' ? '#30D158' : '#0A84FF',
-                marginBottom: '2px'
-              }}>
+            <div style={{ textAlign: 'center', borderLeft: '1px solid rgba(0, 0, 0, 0.08)', borderRight: '1px solid rgba(0, 0, 0, 0.08)', padding: '0 4px' }}>
+              <div
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  color: currentStatus === 'PENDING' ? '#D97706' : currentStatus === 'APPROVED' ? '#059669' : '#2563EB',
+                  marginBottom: '2px'
+                }}
+              >
                 {currentStatus === 'APPROVED' ? '✓ Step 2' : 'Step 2'}
               </div>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#FFFFFF' }}>Apply Wholesale</div>
-              <div style={{ fontSize: '10px', color: '#A1A1AA' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#111827' }}>Apply Wholesale</div>
+              <div style={{ fontSize: '9px', color: '#6B7280' }}>
                 {currentStatus === 'PENDING' ? 'Pending Review' : 'Company & Tax ID'}
               </div>
             </div>
 
             {/* Step 3 */}
             <div style={{ textAlign: 'center' }}>
-              <div style={{
-                fontSize: '11px',
-                fontWeight: 800,
-                color: currentStatus === 'APPROVED' ? '#30D158' : '#A1A1AA',
-                marginBottom: '2px'
-              }}>
+              <div
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  color: currentStatus === 'APPROVED' ? '#059669' : '#9CA3AF',
+                  marginBottom: '2px'
+                }}
+              >
                 {currentStatus === 'APPROVED' ? '✓ Step 3' : 'Step 3'}
               </div>
-              <div style={{ fontSize: '12px', fontWeight: 700, color: currentStatus === 'APPROVED' ? '#30D158' : '#FFFFFF' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: currentStatus === 'APPROVED' ? '#059669' : '#111827' }}>
                 Admin Approval
               </div>
-              <div style={{ fontSize: '10px', color: '#A1A1AA' }}>
+              <div style={{ fontSize: '9px', color: '#6B7280' }}>
                 {currentStatus === 'APPROVED' ? 'Wholesale Unlocked' : 'Required for Bulk'}
               </div>
             </div>
@@ -297,38 +343,49 @@ export const WholesaleRegisterPage: React.FC = () => {
 
           {/* State A: Success confirmation */}
           {isSuccess ? (
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <div style={{ textAlign: 'center', padding: '16px 0' }}>
               <div
                 style={{
                   width: '64px',
                   height: '64px',
                   borderRadius: '50%',
-                  backgroundColor: 'rgba(48, 209, 88, 0.14)',
-                  border: '1px solid rgba(48, 209, 88, 0.4)',
+                  backgroundColor: '#ECFDF5',
+                  border: '1px solid #A7F3D0',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   margin: '0 auto 16px auto'
                 }}
               >
-                <CheckCircle2 size={36} color="#30D158" />
+                <CheckCircle2 size={36} color="#059669" />
               </div>
-              <div style={{ display: 'inline-flex', marginBottom: '10px' }}>
-                <IosBadge variant="info">CURRENT STATUS: RETAIL CUSTOMER</IosBadge>
+              <div
+                style={{
+                  display: 'inline-block',
+                  padding: '4px 12px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#EFF6FF',
+                  color: '#1D4ED8',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  marginBottom: '10px'
+                }}
+              >
+                CURRENT STATUS: RETAIL CUSTOMER
               </div>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#30D158', margin: '0 0 8px 0' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#059669', margin: '0 0 8px 0' }}>
                 Wholesale Application Submitted!
               </h3>
-              <p style={{ fontSize: '13px', color: '#FFFFFF', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              <p style={{ fontSize: '13px', color: '#374151', margin: '0 0 16px 0', lineHeight: 1.5 }}>
                 Your business <strong>{companyName}</strong> (Tax ID: {taxId}) is now under administrator review.
               </p>
 
               <div
                 style={{
-                  padding: '12px 14px',
-                  borderRadius: '14px',
-                  backgroundColor: 'rgba(10, 132, 255, 0.08)',
-                  border: '1px solid rgba(10, 132, 255, 0.22)',
+                  padding: '14px 16px',
+                  borderRadius: '16px',
+                  backgroundColor: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
                   marginBottom: '20px',
                   textAlign: 'left',
                   display: 'flex',
@@ -336,15 +393,29 @@ export const WholesaleRegisterPage: React.FC = () => {
                   gap: '10px'
                 }}
               >
-                <Info size={18} color="#0A84FF" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45 }}>
-                  <strong style={{ color: '#0A84FF' }}>Active on Retail:</strong> While your application is pending Admin verification, you can shop at standard retail prices immediately. Wholesale bulk pricing unlocks as soon as an Administrator approves your account.
+                <Info size={18} color="#2563EB" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ fontSize: '12px', color: '#1E40AF', lineHeight: 1.5 }}>
+                  <strong style={{ color: '#1D4ED8' }}>Active on Retail:</strong> While your application is pending Admin verification, you can shop at standard retail prices immediately. Wholesale bulk pricing unlocks as soon as an Administrator approves your account.
                 </div>
               </div>
 
-              <IosButton variant="glass" onClick={() => navigate('/shop')} style={{ width: '100%' }}>
+              <button
+                onClick={() => navigate('/shop')}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#FA3E54',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 8px 20px rgba(250, 62, 84, 0.35)'
+                }}
+              >
                 Continue Shopping as Retail
-              </IosButton>
+              </button>
             </div>
           ) : currentStatus === 'APPROVED' && !showForm ? (
             /* State B: Already an Approved Wholesale Partner */
@@ -354,57 +425,111 @@ export const WholesaleRegisterPage: React.FC = () => {
                   width: '64px',
                   height: '64px',
                   borderRadius: '50%',
-                  backgroundColor: 'rgba(48, 209, 88, 0.14)',
-                  border: '1px solid rgba(48, 209, 88, 0.4)',
+                  backgroundColor: '#ECFDF5',
+                  border: '1px solid #A7F3D0',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   margin: '0 auto 16px auto'
                 }}
               >
-                <CheckCircle2 size={36} color="#30D158" />
+                <CheckCircle2 size={36} color="#059669" />
               </div>
-              <div style={{ display: 'inline-flex', marginBottom: '8px' }}>
-                <IosBadge variant="wholesale" glow>WHOLESALE APPROVED</IosBadge>
+              <div
+                style={{
+                  display: 'inline-block',
+                  padding: '4px 12px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#ECFDF5',
+                  color: '#059669',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  marginBottom: '8px'
+                }}
+              >
+                WHOLESALE APPROVED
               </div>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#30D158', margin: '0 0 6px 0' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#059669', margin: '0 0 6px 0' }}>
                 Verified Wholesale Partner Active
               </h3>
-              <p style={{ fontSize: '13px', color: '#A1A1AA', margin: '0 0 20px 0' }}>
+              <p style={{ fontSize: '13px', color: '#4B5563', margin: '0 0 20px 0', lineHeight: 1.5 }}>
                 Your enterprise account <strong>{wholesaleApplication?.businessName || companyName}</strong> is verified. Wholesale pricing is active across all categories.
               </p>
-              <IosButton variant="primary" onClick={() => navigate('/shop')} style={{ width: '100%', padding: '14px', marginBottom: '10px' }}>
+              <button
+                onClick={() => navigate('/shop')}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#FA3E54',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 8px 20px rgba(250, 62, 84, 0.35)',
+                  marginBottom: '10px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
                 <ShoppingBag size={16} /> Open Wholesale Categories
-              </IosButton>
-              <IosButton variant="glass" onClick={() => setShowForm(true)} style={{ width: '100%' }}>
+              </button>
+              <button
+                onClick={() => setShowForm(true)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#F5F5F7',
+                  color: '#111827',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
                 ✏️ Update Company / Business Details
-              </IosButton>
+              </button>
             </div>
           ) : currentStatus === 'PENDING' && !showForm ? (
             /* State C: Currently Pending Review */
-            <div style={{ textAlign: 'center', padding: '16px 0' }}>
+            <div style={{ textAlign: 'center', padding: '4px 0 0 0' }}>
               <div
                 style={{
-                  width: '64px',
-                  height: '64px',
+                  width: '50px',
+                  height: '50px',
                   borderRadius: '50%',
-                  backgroundColor: 'rgba(255, 159, 10, 0.14)',
-                  border: '1px solid rgba(255, 159, 10, 0.4)',
+                  backgroundColor: '#FEF3C7',
+                  border: '1px solid #FCD34D',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  margin: '0 auto 16px auto'
+                  margin: '0 auto 12px auto'
                 }}
               >
-                <Clock size={36} color="#FF9F0A" />
+                <Clock size={28} color="#D97706" />
               </div>
-              <div style={{ display: 'inline-flex', marginBottom: '8px' }}>
-                <IosBadge variant="warning">STATUS: PENDING REVIEW (CURRENTLY RETAIL)</IosBadge>
+              <div
+                style={{
+                  display: 'inline-block',
+                  padding: '4px 12px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#FEF3C7',
+                  color: '#92400E',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  marginBottom: '8px'
+                }}
+              >
+                STATUS: PENDING REVIEW (CURRENTLY RETAIL)
               </div>
-              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#FF9F0A', margin: '0 0 6px 0' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: '#D97706', margin: '0 0 6px 0' }}>
                 Wholesale Application Under Review
               </h3>
-              <p style={{ fontSize: '13px', color: '#A1A1AA', margin: '0 0 16px 0', lineHeight: 1.5 }}>
+              <p style={{ fontSize: '13px', color: '#4B5563', margin: '0 0 16px 0', lineHeight: 1.5 }}>
                 Your application for <strong>{wholesaleApplication?.businessName || companyName}</strong> (Tax ID: {wholesaleApplication?.taxIdOrLicense || taxId}) is in the administrator queue.
               </p>
 
@@ -413,36 +538,64 @@ export const WholesaleRegisterPage: React.FC = () => {
                 style={{
                   padding: '14px 16px',
                   borderRadius: '16px',
-                  backgroundColor: 'rgba(255, 159, 10, 0.08)',
-                  border: '1px solid rgba(255, 159, 10, 0.25)',
+                  backgroundColor: '#FFFBEB',
+                  border: '1px solid #FDE68A',
                   textAlign: 'left',
                   marginBottom: '20px'
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', color: '#A1A1AA' }}>Current Account Tier:</span>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#FFFFFF' }}>🛒 Standard Retail</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid rgba(0, 0, 0, 0.06)', paddingBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Current Account Tier:</span>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#111827' }}>🛒 Standard Retail</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '8px' }}>
-                  <span style={{ fontSize: '12px', color: '#A1A1AA' }}>Wholesale Status:</span>
-                  <span style={{ fontSize: '12px', fontWeight: 700, color: '#FF9F0A' }}>⏳ Pending Admin Approval</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid rgba(0, 0, 0, 0.06)', paddingBottom: '8px' }}>
+                  <span style={{ fontSize: '12px', color: '#6B7280' }}>Wholesale Status:</span>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#D97706' }}>⏳ Pending Admin Approval</span>
                 </div>
-                <p style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.8)', margin: 0, lineHeight: 1.45 }}>
+                <p style={{ fontSize: '12px', color: '#78350F', margin: 0, lineHeight: 1.45 }}>
                   Until an Administrator verifies and approves your application, your catalog and cart remain on <strong>Retail Pricing</strong>. Wholesale bulk pricing activates automatically once approved.
                 </p>
               </div>
 
-              <IosButton variant="glass" onClick={() => navigate('/shop')} style={{ width: '100%', marginBottom: '10px' }}>
+              <button
+                onClick={() => navigate('/shop')}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#FA3E54',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  boxShadow: '0 8px 20px rgba(250, 62, 84, 0.35)',
+                  marginBottom: '10px'
+                }}
+              >
                 Browse Storefront as Retail
-              </IosButton>
+              </button>
 
-              <IosButton variant="glass" onClick={() => setShowForm(true)} style={{ width: '100%' }}>
+              <button
+                onClick={() => setShowForm(true)}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#F5F5F7',
+                  color: '#111827',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  fontSize: '13px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
                 ✏️ Re-submit / Edit Business Registration Form
-              </IosButton>
+              </button>
             </div>
           ) : (
-            /* State D: Registration Form (Clean: NO categories, NO industry dropdowns!) */
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            /* State D: Registration Form */
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {showForm && currentStatus !== 'NONE' && (
                 <button
                   type="button"
@@ -451,10 +604,10 @@ export const WholesaleRegisterPage: React.FC = () => {
                     alignSelf: 'flex-start',
                     background: 'none',
                     border: 'none',
-                    color: '#0A84FF',
+                    color: '#FA3E54',
                     cursor: 'pointer',
                     fontSize: '13px',
-                    fontWeight: 600,
+                    fontWeight: 700,
                     padding: '0 0 4px 0'
                   }}
                 >
@@ -464,95 +617,220 @@ export const WholesaleRegisterPage: React.FC = () => {
               {/* Explanatory Approval Notice */}
               <div
                 style={{
-                  padding: '12px 14px',
-                  borderRadius: '14px',
-                  backgroundColor: 'rgba(10, 132, 255, 0.08)',
-                  border: '1px solid rgba(10, 132, 255, 0.22)',
+                  padding: '12px 16px',
+                  borderRadius: '16px',
+                  backgroundColor: '#EFF6FF',
+                  border: '1px solid #BFDBFE',
                   display: 'flex',
                   alignItems: 'flex-start',
                   gap: '10px',
                   textAlign: 'left'
                 }}
               >
-                <Info size={18} color="#0A84FF" style={{ flexShrink: 0, marginTop: '2px' }} />
-                <div style={{ fontSize: '12px', color: 'rgba(255, 255, 255, 0.85)', lineHeight: 1.45 }}>
-                  <strong style={{ color: '#0A84FF' }}>Admin Approval Required:</strong> You will be registered as a <strong>Retail Customer</strong> immediately so you can start browsing. Once the Administrator reviews and approves your business tax ID, your tier automatically upgrades to <strong>Wholesale Pricing</strong>.
+                <Info size={18} color="#2563EB" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div style={{ fontSize: '12px', color: '#1E40AF', lineHeight: 1.5 }}>
+                  <strong style={{ color: '#1D4ED8' }}>Admin Approval Required:</strong> You will be registered as a <strong>Retail Customer</strong> immediately so you can start browsing. Once the Administrator reviews and approves your business tax ID, your tier automatically upgrades to <strong>Wholesale Pricing</strong>.
                 </div>
               </div>
-              {/* Full Name */}
-              <IosInput
-                label="Full Name (Representative) *"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="e.g. Customer Name"
-                icon={<UserIcon size={16} />}
-                required
-              />
+
+              {/* Name & Phone Row */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#374151' }}>
+                    Full Name (Representative) *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <UserIcon size={15} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="e.g. Customer Name"
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px 10px 36px',
+                        borderRadius: '10px',
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid rgba(0, 0, 0, 0.12)',
+                        fontSize: '13px',
+                        color: '#111827',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#374151' }}>
+                    Business Phone Number *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Phone size={15} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+855 12 849 201"
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px 10px 36px',
+                        borderRadius: '10px',
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid rgba(0, 0, 0, 0.12)',
+                        fontSize: '13px',
+                        color: '#111827',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* Official Business Email */}
-              <IosInput
-                label="Official Business Email *"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="sales@company.com"
-                icon={<Mail size={16} />}
-                required
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 700, color: '#374151' }}>
+                  Official Business Email *
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={15} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="sales@company.com"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px 10px 36px',
+                      borderRadius: '10px',
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid rgba(0, 0, 0, 0.12)',
+                      fontSize: '13px',
+                      color: '#111827',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
 
-              {/* Phone Number */}
-              <IosInput
-                label="Business Phone Number *"
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+855 12 849 201"
-                icon={<Phone size={16} />}
-                required
-              />
+              {/* Company & Tax ID Row */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#374151' }}>
+                    Company / Business Name *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <Building2 size={15} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="e.g. Acme Trading Co."
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px 10px 36px',
+                        borderRadius: '10px',
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid rgba(0, 0, 0, 0.12)',
+                        fontSize: '13px',
+                        color: '#111827',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                </div>
 
-              {/* Company / Business Name */}
-              <IosInput
-                label="Company / Business Name *"
-                value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                placeholder="e.g. Acme Wholesale Trading Co."
-                icon={<Building2 size={16} />}
-                required
-              />
-
-              {/* Business Registration / Tax ID */}
-              <IosInput
-                label="Business Registration / Tax ID *"
-                value={taxId}
-                onChange={(e) => setTaxId(e.target.value)}
-                placeholder="e.g. KH-VAT-90284192"
-                icon={<FileText size={16} />}
-                required
-              />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: '#374151' }}>
+                    Business Tax ID / License *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <FileText size={15} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={taxId}
+                      onChange={(e) => setTaxId(e.target.value)}
+                      placeholder="e.g. KH-VAT-90284"
+                      required
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px 10px 36px',
+                        borderRadius: '10px',
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid rgba(0, 0, 0, 0.12)',
+                        fontSize: '13px',
+                        color: '#111827',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
 
               {/* Passwords (only required for new unauthenticated visitors) */}
               {!isAuthenticated && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                  <IosInput
-                    label="Password *"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    icon={<Lock size={16} />}
-                    required
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#374151' }}>
+                      Password *
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock size={15} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px 10px 36px',
+                          borderRadius: '10px',
+                          backgroundColor: '#FFFFFF',
+                          border: '1px solid rgba(0, 0, 0, 0.12)',
+                          fontSize: '13px',
+                          color: '#111827',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
 
-                  <IosInput
-                    label="Confirm Password *"
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    icon={<Lock size={16} />}
-                    required
-                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 700, color: '#374151' }}>
+                      Confirm Password *
+                    </label>
+                    <div style={{ position: 'relative' }}>
+                      <Lock size={15} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="••••••••"
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px 10px 36px',
+                          borderRadius: '10px',
+                          backgroundColor: '#FFFFFF',
+                          border: '1px solid rgba(0, 0, 0, 0.12)',
+                          fontSize: '13px',
+                          color: '#111827',
+                          outline: 'none',
+                          boxSizing: 'border-box'
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -560,36 +838,52 @@ export const WholesaleRegisterPage: React.FC = () => {
                 <div
                   style={{
                     fontSize: '12px',
-                    color: '#FF453A',
-                    backgroundColor: 'rgba(255, 69, 58, 0.1)',
-                    padding: '8px 12px',
-                    borderRadius: '10px',
-                    border: '1px solid rgba(255, 69, 58, 0.2)'
+                    color: '#DC2626',
+                    backgroundColor: '#FEE2E2',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    border: '1px solid #FCA5A5'
                   }}
                 >
                   {error}
                 </div>
               )}
 
-              <IosButton
+              <button
                 type="submit"
-                variant="primary"
                 disabled={isLoading}
-                style={{ width: '100%', padding: '14px', fontSize: '15px', marginTop: '6px' }}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#FA3E54',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 8px 24px rgba(250, 62, 84, 0.35)',
+                  marginTop: '8px',
+                  transition: 'all 0.2s ease'
+                }}
               >
                 {isLoading ? 'Registering Wholesale...' : 'Register Wholesale Account'} <ArrowRight size={16} />
-              </IosButton>
+              </button>
             </form>
           )}
 
           {/* Links */}
           <div
             style={{
-              marginTop: '24px',
+              marginTop: '28px',
               textAlign: 'center',
               fontSize: '13px',
-              color: 'var(--ios-text-muted, #A1A1AA)',
-              borderTop: '1px solid var(--ios-glass-border, rgba(255, 255, 255, 0.12))',
+              color: '#6B7280',
+              borderTop: '1px solid rgba(0, 0, 0, 0.06)',
               paddingTop: '20px',
               display: 'flex',
               flexDirection: 'column',
@@ -598,25 +892,25 @@ export const WholesaleRegisterPage: React.FC = () => {
           >
             <div>
               Already have an account?{' '}
-              <Link to="/login" style={{ color: '#FFFFFF', fontWeight: 600, textDecoration: 'underline' }}>
+              <Link to="/login" style={{ color: '#111827', fontWeight: 700, textDecoration: 'underline' }}>
                 Sign In
               </Link>
             </div>
             <div>
               Want regular consumer purchases?{' '}
-              <Link to="/signup" style={{ color: '#A1A1AA', textDecoration: 'underline' }}>
+              <Link to="/signup" style={{ color: '#FA3E54', fontWeight: 600, textDecoration: 'none' }}>
                 Customer Sign Up
               </Link>
               {' · '}
-              <Link to="/shop" style={{ color: '#A1A1AA', textDecoration: 'underline' }}>
+              <Link to="/shop" style={{ color: '#6B7280', textDecoration: 'none' }}>
                 Browse Categories
               </Link>
             </div>
           </div>
-        </IosCardGlass>
         </div>
       </div>
     </div>
+  </div>
   );
 };
 

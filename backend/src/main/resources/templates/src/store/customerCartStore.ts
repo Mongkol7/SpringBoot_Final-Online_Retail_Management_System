@@ -106,7 +106,35 @@ const DEFAULT_USER: User = {
 };
 
 // Initial simulated orders for Customer to demonstrate order tracking
+export const SAMPLE_PENDING_ORDER: Order = {
+  id: 100,
+  orderNumber: 'ORD-20261021-1042',
+  channel: 'ONLINE',
+  userId: 1,
+  cashierId: null,
+  shippingAddress: 'No. 42, St. 271, Sangkat Boeng Tumpun, Phnom Penh, Cambodia',
+  status: 'PENDING',
+  paymentMethod: 'CARD',
+  pricingTierUsed: 'RETAIL',
+  subtotal: 7.00,
+  taxAmount: 0.49,
+  totalAmount: 7.49,
+  createdAt: '2026-10-21T09:30:00Z',
+  items: [
+    {
+      id: 10,
+      orderId: 100,
+      productId: 1,
+      quantity: 2,
+      unitPrice: 3.50,
+      subtotal: 7.00,
+      product: DEFAULT_CUSTOMER_PRODUCTS[0]
+    }
+  ]
+};
+
 const INITIAL_ORDERS: Order[] = [
+  SAMPLE_PENDING_ORDER,
   {
     id: 101,
     orderNumber: 'ORD-20260301-8401',
@@ -524,6 +552,10 @@ export const useCustomerCartStore = create<CustomerState>()(
           };
         }
 
+        if (!newOrder.orderNumber) {
+          newOrder.orderNumber = orderNumber;
+        }
+
         // Prepend to orders history and clear cart
         set((state) => ({
           orders: [newOrder, ...state.orders.filter(o => o.orderNumber !== newOrder.orderNumber)],
@@ -726,7 +758,22 @@ export const useCustomerCartStore = create<CustomerState>()(
         orders: state.orders,
         wholesaleApplication: state.wholesaleApplication,
         demoTierOverride: state.demoTierOverride
-      })
+      }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const currentOrders = Array.isArray(state.orders) ? state.orders : [];
+          const sanitized = currentOrders.map((o, idx) => ({
+            ...o,
+            orderNumber: o.orderNumber || (o.id ? `ORD-${o.id}` : `ORD-${Date.now() + idx}`),
+            status: o.status || 'PENDING'
+          }));
+          if (!sanitized.some((o) => o.status === 'PENDING')) {
+            state.orders = [SAMPLE_PENDING_ORDER, ...sanitized];
+          } else {
+            state.orders = sanitized;
+          }
+        }
+      }
     }
   )
 );

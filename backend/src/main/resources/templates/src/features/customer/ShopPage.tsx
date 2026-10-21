@@ -2,11 +2,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { IosCardGlass } from '../../components/ui/IosCardGlass';
 import { IosButton } from '../../components/ui/IosButton';
-import { IosInput } from '../../components/ui/IosInput';
 import { IosBadge } from '../../components/ui/IosBadge';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import { customerApi, DEFAULT_CUSTOMER_PRODUCTS, CATEGORIES_LIST } from './customerApi';
 import { WholesaleApplyModal } from './WholesaleApplyModal';
+import { SnackStorefrontBento } from './SnackStorefrontBento';
 import { Product } from '../../types/schema';
 import {
   Search,
@@ -265,8 +265,27 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
         </div>
       )}
 
-      {/* Hero Glass Banner */}
-      <IosCardGlass glow style={{ padding: '36px', position: 'relative' }}>
+      {/* Flagship Snack Storefront Bento & Hero Showcase */}
+      <SnackStorefrontBento
+        products={products}
+        onSelectCategory={(catId) => {
+          setSelectedCategory(catId);
+          const el = document.getElementById('catalog-grid');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }}
+      />
+
+      {/* Curated Wholesale & Retail Banner - Option 1: Clean White Card */}
+      <div
+        style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '28px',
+          padding: '36px',
+          border: '1px solid rgba(0, 0, 0, 0.06)',
+          boxShadow: '0 12px 32px -8px rgba(0, 0, 0, 0.06)',
+          position: 'relative'
+        }}
+      >
         <div
           style={{
             display: 'flex',
@@ -278,33 +297,43 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
         >
           <div style={{ maxWidth: '640px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-              <IosBadge variant={effectiveTier === 'WHOLESALE' ? 'wholesale' : 'default'} glow>
+              <span
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  padding: '4px 12px',
+                  borderRadius: '9999px',
+                  backgroundColor: effectiveTier === 'WHOLESALE' ? 'rgba(251, 192, 45, 0.15)' : 'rgba(0, 0, 0, 0.06)',
+                  color: effectiveTier === 'WHOLESALE' ? '#B45309' : '#374151',
+                  border: effectiveTier === 'WHOLESALE' ? '1px solid rgba(251, 192, 45, 0.4)' : '1px solid rgba(0, 0, 0, 0.08)'
+                }}
+              >
                 {effectiveTier === 'WHOLESALE' ? '⭐ WHOLESALE ACCOUNT ACTIVE' : 'RETAIL STOREFRONT'}
-              </IosBadge>
+              </span>
 
               {isAuthenticated && (
-                <span style={{ fontSize: '12px', color: 'var(--ios-text-muted, #A1A1AA)' }}>
+                <span style={{ fontSize: '12px', color: '#6B7280' }}>
                   Customer: <strong>{user.fullName}</strong>
                 </span>
               )}
             </div>
 
-            <h1
+            <h2
               style={{
-                fontSize: '32px',
-                fontWeight: 800,
-                letterSpacing: '-0.03em',
+                fontSize: '28px',
+                fontWeight: 900,
+                letterSpacing: '-0.02em',
                 lineHeight: 1.2,
-                margin: '0 0 12px 0',
-                color: '#FFFFFF'
+                margin: '0 0 10px 0',
+                color: '#111827'
               }}
             >
               Curated Retail & Wholesale Categories
-            </h1>
+            </h2>
             <p
               style={{
                 fontSize: '14px',
-                color: 'var(--ios-text-muted, #A1A1AA)',
+                color: '#6B7280',
                 lineHeight: 1.6,
                 margin: 0
               }}
@@ -323,16 +352,16 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  padding: '10px 18px',
+                  padding: '10px 20px',
                   borderRadius: '9999px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.25)',
-                  color: '#FFFFFF',
+                  backgroundColor: 'rgba(251, 192, 45, 0.12)',
+                  border: '1px solid rgba(251, 192, 45, 0.35)',
+                  color: '#B45309',
                   fontSize: '13px',
                   fontWeight: 700
                 }}
               >
-                <span style={{ color: '#FFD700', fontSize: '15px' }}>★</span>
+                <span style={{ color: '#D97706', fontSize: '15px' }}>★</span>
                 <span>Verified Wholesale Partner Active</span>
               </div>
             ) : wholesaleApplication?.status === 'PENDING' ? (
@@ -342,11 +371,11 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '8px',
-                  padding: '10px 18px',
+                  padding: '10px 20px',
                   borderRadius: '9999px',
-                  backgroundColor: 'rgba(255, 159, 10, 0.12)',
-                  border: '1px solid rgba(255, 159, 10, 0.4)',
-                  color: '#FF9F0A',
+                  backgroundColor: 'rgba(251, 192, 45, 0.12)',
+                  border: '1px solid rgba(251, 192, 45, 0.4)',
+                  color: '#B45309',
                   fontSize: '12px',
                   fontWeight: 700,
                   cursor: 'pointer'
@@ -362,18 +391,17 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '8px',
-                  padding: '12px 22px',
+                  padding: '12px 24px',
                   borderRadius: '9999px',
-                  backgroundColor: '#FFFFFF',
-                  color: '#000000',
+                  backgroundColor: '#111827',
+                  color: '#FFFFFF',
                   border: 'none',
                   fontSize: '13px',
                   fontWeight: 700,
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
-                  boxShadow: '0 4px 16px rgba(255, 255, 255, 0.2)'
+                  boxShadow: '0 4px 14px rgba(0, 0, 0, 0.15)'
                 }}
-                className="ios-glow-hover"
               >
                 <Building2 size={16} />
                 <span>Apply for Wholesale Pricing →</span>
@@ -381,40 +409,42 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
             )}
           </div>
         </div>
-      </IosCardGlass>
+      </div>
 
       {/* Pending Wholesale Review Banner */}
       {wholesaleApplication?.status === 'PENDING' && effectiveTier !== 'WHOLESALE' && (
         <div
           style={{
-            padding: '14px 20px',
-            borderRadius: '16px',
-            backgroundColor: 'rgba(255, 159, 10, 0.08)',
-            border: '1px solid rgba(255, 159, 10, 0.25)',
+            padding: '16px 22px',
+            borderRadius: '20px',
+            backgroundColor: '#FEF3C7',
+            border: '1px solid #FCD34D',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: '12px'
+            gap: '12px',
+            boxShadow: '0 4px 12px rgba(245, 158, 11, 0.08)'
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Clock size={18} color="#FF9F0A" style={{ flexShrink: 0 }} />
-            <span style={{ fontSize: '13px', color: '#FFFFFF', lineHeight: 1.4 }}>
-              <strong style={{ color: '#FF9F0A' }}>Wholesale Application Under Review:</strong> You are currently shopping on <strong>Standard Retail Pricing</strong>. Bulk wholesale prices unlock automatically once an Administrator approves your business application.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Clock size={20} color="#D97706" style={{ flexShrink: 0 }} />
+            <span style={{ fontSize: '13px', color: '#78350F', lineHeight: 1.5 }}>
+              <strong style={{ color: '#92400E' }}>Wholesale Application Under Review:</strong> You are currently shopping on <strong>Standard Retail Pricing</strong>. Bulk wholesale prices unlock automatically once an Administrator approves your business application.
             </span>
           </div>
           <button
             onClick={() => navigate('/wholesale-apply')}
             style={{
-              padding: '6px 14px',
+              padding: '8px 16px',
               borderRadius: '9999px',
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              color: '#FFFFFF',
-              fontSize: '11px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid #FCD34D',
+              color: '#92400E',
+              fontSize: '12px',
               fontWeight: 700,
               cursor: 'pointer',
-              whiteSpace: 'nowrap'
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)'
             }}
           >
             Check Status
@@ -424,6 +454,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
 
       {/* Filter and Search Bar */}
       <div
+        id="catalog-grid"
         style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -434,13 +465,15 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
       >
         {/* Category Pills */}
         <div
-          className="ios-glass-capsule"
           style={{
             display: 'flex',
-            gap: '4px',
-            padding: '4px',
+            gap: '6px',
+            padding: '6px',
             overflowX: 'auto',
-            maxWidth: '100%'
+            maxWidth: '100%',
+            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+            borderRadius: '9999px',
+            border: '1px solid rgba(0, 0, 0, 0.06)'
           }}
         >
           {CATEGORIES_LIST.map((cat) => (
@@ -448,16 +481,17 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
               key={cat.id}
               onClick={() => setSelectedCategory(cat.id)}
               style={{
-                padding: '8px 16px',
+                padding: '8px 18px',
                 borderRadius: '9999px',
                 fontSize: '13px',
-                fontWeight: 600,
+                fontWeight: 700,
                 border: 'none',
                 cursor: 'pointer',
                 whiteSpace: 'nowrap',
                 transition: 'all 0.2s ease',
-                backgroundColor: selectedCategory === cat.id ? '#FFFFFF' : 'transparent',
-                color: selectedCategory === cat.id ? '#000000' : 'rgba(255, 255, 255, 0.7)'
+                backgroundColor: selectedCategory === cat.id ? '#111827' : 'transparent',
+                color: selectedCategory === cat.id ? '#FFFFFF' : '#4B5563',
+                boxShadow: selectedCategory === cat.id ? '0 2px 8px rgba(0, 0, 0, 0.15)' : 'none'
               }}
             >
               {cat.name}
@@ -465,14 +499,52 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
           ))}
         </div>
 
-        {/* Search Input */}
+        {/* Search Input - Clean Apple Minimal Style */}
         <div style={{ minWidth: '280px', flex: '1 1 300px', maxWidth: '420px' }}>
-          <IosInput
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search products or SKU..."
-            icon={<Search size={16} />}
-          />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+              backgroundColor: '#FFFFFF',
+              border: '1px solid rgba(0, 0, 0, 0.08)',
+              borderRadius: '9999px',
+              padding: '10px 18px',
+              boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)'
+            }}
+          >
+            <Search size={16} color="#9CA3AF" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search snacks, chips, SKU..."
+              style={{
+                width: '100%',
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                fontSize: '13px',
+                color: '#111827'
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  color: '#9CA3AF',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -528,15 +600,28 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
             const availableStockCount = (product.minStockThreshold || 10) * 3;
 
             return (
-              <IosCardGlass
+              <div
                 key={product.id}
-                glow
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
                   justifyContent: 'space-between',
                   padding: '24px',
-                  minHeight: '390px'
+                  minHeight: '440px',
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '24px',
+                  border: '1px solid rgba(0, 0, 0, 0.06)',
+                  boxShadow: '0 12px 28px -6px rgba(0, 0, 0, 0.06)',
+                  transition: 'all 0.25s ease',
+                  position: 'relative'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.boxShadow = '0 20px 36px -8px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 12px 28px -6px rgba(0, 0, 0, 0.06)';
                 }}
               >
                 <div>
@@ -554,7 +639,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                         fontSize: '11px',
                         fontWeight: 700,
                         textTransform: 'uppercase',
-                        color: 'var(--ios-text-subtle, #71717A)',
+                        color: '#9CA3AF',
                         letterSpacing: '0.04em'
                       }}
                     >
@@ -566,53 +651,94 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                         <Clock size={10} /> Perishable (FEFO)
                       </IosBadge>
                     ) : (
-                      <IosBadge variant="default" style={{ fontSize: '9px', padding: '2px 8px' }}>
+                      <span
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                          color: '#6B7280'
+                        }}
+                      >
                         Non-Perishable
-                      </IosBadge>
+                      </span>
                     )}
                   </div>
 
-                  {/* Product Image / Visual Placeholder Capsule */}
+                  {/* Product Image Capsule from Database */}
                   <div
                     style={{
-                      height: '110px',
-                      borderRadius: 'var(--ios-radius-button, 16px)',
-                      backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                      border: '1px solid rgba(255, 255, 255, 0.06)',
+                      width: '100%',
+                      aspectRatio: '1 / 1',
+                      borderRadius: '18px',
+                      backgroundColor: '#F5F5F7',
+                      border: '1px solid rgba(0, 0, 0, 0.04)',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      flexDirection: 'column',
-                      gap: '8px',
-                      marginBottom: '18px',
                       position: 'relative',
-                      overflow: 'hidden'
+                      overflow: 'hidden',
+                      marginBottom: '18px',
+                      padding: 0
                     }}
                   >
+                    {product.imageUrl && (
+                      <img
+                        src={product.imageUrl}
+                        alt={product.name}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'contain',
+                          display: 'block',
+                          transition: 'transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1)'
+                        }}
+                        className="catalog-product-img"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          const fallback = e.currentTarget.parentElement?.querySelector('.img-fallback') as HTMLElement;
+                          if (fallback) fallback.style.display = 'flex';
+                        }}
+                      />
+                    )}
                     <div
+                      className="img-fallback"
                       style={{
-                        width: '46px',
-                        height: '46px',
-                        borderRadius: '50%',
-                        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                        display: 'flex',
+                        display: product.imageUrl ? 'none' : 'flex',
+                        flexDirection: 'column',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: '#FFFFFF'
+                        gap: '8px',
+                        width: '100%',
+                        height: '100%'
                       }}
                     >
-                      {renderCategoryIcon(product.categoryId)}
+                      <div
+                        style={{
+                          width: '46px',
+                          height: '46px',
+                          borderRadius: '50%',
+                          backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#111827'
+                        }}
+                      >
+                        {renderCategoryIcon(product.categoryId)}
+                      </div>
+                      <span
+                        style={{
+                          fontFamily: 'monospace',
+                          fontSize: '10px',
+                          letterSpacing: '0.08em',
+                          color: '#9CA3AF'
+                        }}
+                      >
+                        {product.sku}
+                      </span>
                     </div>
-                    <span
-                      style={{
-                        fontFamily: 'monospace',
-                        fontSize: '10px',
-                        letterSpacing: '0.08em',
-                        color: 'var(--ios-text-subtle, #71717A)'
-                      }}
-                    >
-                      {product.sku}
-                    </span>
                   </div>
 
                   {/* Stock Availability Indicator */}
@@ -622,7 +748,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                       alignItems: 'center',
                       gap: '6px',
                       fontSize: '11px',
-                      color: '#30D158',
+                      color: '#059669',
                       marginBottom: '10px'
                     }}
                   >
@@ -631,8 +757,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                         width: '6px',
                         height: '6px',
                         borderRadius: '50%',
-                        backgroundColor: '#30D158',
-                        boxShadow: '0 0 6px #30D158'
+                        backgroundColor: '#10B981',
+                        boxShadow: '0 0 6px #10B981'
                       }}
                     />
                     <span>In Stock ({availableStockCount} units)</span>
@@ -642,9 +768,9 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                   <h3
                     style={{
                       fontSize: '16px',
-                      fontWeight: 700,
+                      fontWeight: 800,
                       lineHeight: 1.35,
-                      color: '#FFFFFF',
+                      color: '#111827',
                       margin: '0 0 8px 0'
                     }}
                   >
@@ -653,7 +779,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                   <p
                     style={{
                       fontSize: '12px',
-                      color: 'var(--ios-text-muted, #A1A1AA)',
+                      color: '#6B7280',
                       lineHeight: 1.5,
                       margin: '0 0 16px 0',
                       display: '-webkit-box',
@@ -667,35 +793,45 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                 </div>
 
                 {/* Bottom Section: Dual Pricing & Add to Cart */}
-                <div style={{ borderTop: '1px solid var(--ios-glass-border, rgba(255, 255, 255, 0.12))', paddingTop: '16px' }}>
+                <div style={{ borderTop: '1px solid rgba(0, 0, 0, 0.06)', paddingTop: '16px' }}>
                   {effectiveTier === 'WHOLESALE' ? (
                     // WHOLESALE DUAL PRICING DISPLAY WITH MOQ THRESHOLD
                     <div style={{ marginBottom: '14px' }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF' }}>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#111827' }}>
                           ${product.wholesalePrice.toFixed(2)}
                         </span>
                         <span
                           style={{
                             fontSize: '14px',
-                            color: 'var(--ios-text-subtle, #71717A)',
+                            color: '#9CA3AF',
                             textDecoration: 'line-through'
                           }}
                         >
                           ${product.retailPrice.toFixed(2)}
                         </span>
-                        <IosBadge variant="wholesale" glow style={{ fontSize: '10px' }}>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            padding: '2px 8px',
+                            borderRadius: '9999px',
+                            backgroundColor: 'rgba(251, 192, 45, 0.15)',
+                            color: '#B45309',
+                            border: '1px solid rgba(251, 192, 45, 0.35)'
+                          }}
+                        >
                           WHOLESALE TIER
-                        </IosBadge>
+                        </span>
                       </div>
 
                       {/* Threshold Explanation */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#30D158' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#059669' }}>
                           <Sparkles size={12} />
                           <span>Wholesale Rate for <strong>{product.wholesaleMinQty || 10}+</strong> units (Save ${(product.retailPrice - product.wholesalePrice).toFixed(2)} · {savingsPercent}% off)</span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--ios-text-subtle, #71717A)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6B7280' }}>
                           <Info size={12} />
                           <span>Orders &lt; {product.wholesaleMinQty || 10} units charged at retail: <strong>${product.retailPrice.toFixed(2)}</strong></span>
                         </div>
@@ -705,21 +841,21 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                     // RETAIL PRICING WITH BULK TIER & WHOLESALE PREVIEWS
                     <div style={{ marginBottom: '14px' }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '24px', fontWeight: 800, color: '#FFFFFF' }}>
+                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#111827' }}>
                           ${product.retailPrice.toFixed(2)}
                         </span>
-                        <span style={{ fontSize: '11px', color: 'var(--ios-text-subtle, #71717A)' }}>
+                        <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
                           Standard Retail Price
                         </span>
                       </div>
 
                       {/* Bulk Retail & Wholesale Preview */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#0A84FF' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#2563EB' }}>
                           <TrendingDown size={12} />
                           <span>Bulk Tier: <strong>${(product.retailPrice * 0.95).toFixed(2)}</strong> (5% off on 10+ units)</span>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--ios-text-subtle, #71717A)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6B7280' }}>
                           <Building2 size={12} />
                           <span>B2B Wholesale: <strong>${product.wholesalePrice.toFixed(2)}</strong> (Upon Admin Approval)</span>
                         </div>
@@ -728,8 +864,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                   )}
 
                   {/* Add to Cart Button */}
-                  <IosButton
-                    variant={isJustAdded ? 'primary' : inCartQty > 0 ? 'glass' : 'glass'}
+                  <button
                     onClick={() => handleAddToCart(product)}
                     style={{
                       width: '100%',
@@ -737,9 +872,23 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                       alignItems: 'center',
                       justifyContent: 'center',
                       gap: '8px',
-                      backgroundColor: isJustAdded ? '#30D158' : undefined,
-                      color: isJustAdded ? '#000000' : undefined
+                      padding: '12px 20px',
+                      borderRadius: '9999px',
+                      border: 'none',
+                      fontSize: '14px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      backgroundColor: isJustAdded ? '#10B981' : inCartQty > 0 ? '#111827' : '#FA3E54',
+                      color: '#FFFFFF',
+                      boxShadow: isJustAdded
+                        ? '0 4px 14px rgba(16, 185, 129, 0.3)'
+                        : inCartQty > 0
+                        ? '0 4px 14px rgba(0, 0, 0, 0.15)'
+                        : '0 4px 14px rgba(250, 62, 84, 0.35)',
+                      transition: 'all 0.15s ease'
                     }}
+                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                   >
                     {isJustAdded ? (
                       <>
@@ -754,9 +903,9 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                         <ShoppingBag size={16} /> Add to Cart
                       </>
                     )}
-                  </IosButton>
+                  </button>
                 </div>
-              </IosCardGlass>
+              </div>
             );
           })}
         </div>

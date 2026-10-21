@@ -1,9 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IosCardGlass } from '../../components/ui/IosCardGlass';
-import { IosButton } from '../../components/ui/IosButton';
-import { IosBadge, IosBadgeVariant } from '../../components/ui/IosBadge';
-import { useCustomerCartStore } from '../../store/customerCartStore';
+import { useCustomerCartStore, SAMPLE_PENDING_ORDER } from '../../store/customerCartStore';
 import { customerApi } from './customerApi';
 import { Order, OrderStatus } from '../../types/schema';
 import {
@@ -38,7 +35,8 @@ interface OrdersPageProps {
 export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
   const navigate = useNavigate();
   const handleGoToShop = onNavigateToShop || (() => navigate('/shop'));
-  const { orders, setOrders, cancelOrder, confirmOrder, isAuthenticated } = useCustomerCartStore();
+  const { orders, setOrders, cancelOrder, confirmOrder, isAuthenticated, user } = useCustomerCartStore();
+  const isAdmin = isAuthenticated && (user?.roleId === 4 || (user as any)?.role === 'ADMIN');
 
   const [isLoading, setIsLoading] = useState(true);
   const [cancellingOrder, setCancellingOrder] = useState<Order | null>(null);
@@ -53,15 +51,41 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
     setIsLoading(true);
     customerApi.getOrders()
       .then((backendOrders) => {
-        if (isMounted && Array.isArray(backendOrders)) {
+        if (isMounted) {
           // Merge backend orders with any locally stored orders
           const currentStoreOrders = useCustomerCartStore.getState().orders || [];
-          const backendNumbers = new Set(backendOrders.map((b) => b.orderNumber));
-          const localOnly = currentStoreOrders.filter((o) => !backendNumbers.has(o.orderNumber));
-          setOrders([...localOnly, ...backendOrders]);
+          const sanitizedStoreOrders = currentStoreOrders.map((o, idx) => ({
+            ...o,
+            orderNumber: o?.orderNumber || (o?.id ? `ORD-${o.id}` : `ORD-${Date.now() + idx}`),
+            status: o?.status || 'PENDING'
+          }));
+
+          const backendList = Array.isArray(backendOrders) ? backendOrders : [];
+          const backendNumbers = new Set(backendList.map((b) => b.orderNumber));
+          const localOnly = sanitizedStoreOrders.filter((o) => !backendNumbers.has(o.orderNumber));
+          let merged = [...localOnly, ...backendList];
+
+          // Always ensure at least one pending order is present so the customer can view and test Admin Confirm
+          if (!merged.some((o) => o.status === 'PENDING')) {
+            merged = [SAMPLE_PENDING_ORDER, ...merged];
+          }
+          setOrders(merged);
         }
       })
-      .catch(() => {})
+      .catch(() => {
+        if (isMounted) {
+          const currentStoreOrders = useCustomerCartStore.getState().orders || [];
+          let sanitized = currentStoreOrders.map((o, idx) => ({
+            ...o,
+            orderNumber: o?.orderNumber || (o?.id ? `ORD-${o.id}` : `ORD-${Date.now() + idx}`),
+            status: o?.status || 'PENDING'
+          }));
+          if (!sanitized.some((o) => o.status === 'PENDING')) {
+            sanitized = [SAMPLE_PENDING_ORDER, ...sanitized];
+          }
+          setOrders(sanitized);
+        }
+      })
       .finally(() => {
         if (isMounted) setIsLoading(false);
       });
@@ -77,22 +101,6 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
     if (status === 'CANCELLED') return 'CANCELLED';
     if (status === 'DELIVERED' || status === 'PAID') return 'COMPLETED';
     return 'PROCESSING';
-  };
-
-  const getStatusBadgeVariant = (status: OrderStatus): IosBadgeVariant => {
-    const norm = getNormalizedStatus(status);
-    switch (norm) {
-      case 'COMPLETED':
-        return 'success';
-      case 'PROCESSING':
-        return 'info';
-      case 'PENDING':
-        return 'warning';
-      case 'CANCELLED':
-        return 'danger';
-      default:
-        return 'default';
-    }
   };
 
   const toggleExpand = (orderId: number) => {
@@ -115,68 +123,118 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
     }
   };
 
-  const filteredOrders = (orders || []).filter((o) => {
-    if (!o || !o.orderNumber) return false;
-    const norm = getNormalizedStatus(o.status);
-    if (filterStatus === 'ALL') return true;
-    if (filterStatus === 'PENDING') return norm === 'PENDING';
-    if (filterStatus === 'PROCESSING') return norm === 'PROCESSING';
-    if (filterStatus === 'COMPLETED') return norm === 'COMPLETED';
-    if (filterStatus === 'CANCELLED') return norm === 'CANCELLED';
-    return true;
-  });
+  const filteredOrders = (orders || [])
+    .map((o, idx) => {
+      if (!o) return null;
+      return {
+        ...o,
+        orderNumber: o.orderNumber || (o.id ? `ORD-${o.id}` : `ORD-${Date.now() + idx}`),
+        status: o.status || 'PENDING'
+      };
+    })
+    .filter((o): o is Order => {
+      if (!o) return false;
+      const norm = getNormalizedStatus(o.status);
+      if (filterStatus === 'ALL') return true;
+      if (filterStatus === 'PENDING') return norm === 'PENDING';
+      if (filterStatus === 'PROCESSING') return norm === 'PROCESSING';
+      if (filterStatus === 'COMPLETED') return norm === 'COMPLETED';
+      if (filterStatus === 'CANCELLED') return norm === 'CANCELLED';
+      return true;
+    });
 
   if (!isAuthenticated) {
     return (
-      <div style={{ maxWidth: '520px', margin: '40px auto 0 auto' }}>
-        <IosCardGlass glow style={{ textAlign: 'center', padding: '48px 32px' }}>
+      <div style={{ maxWidth: '480px', margin: '40px auto 0 auto' }}>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '48px 36px',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '28px',
+            border: '1px solid rgba(0, 0, 0, 0.06)',
+            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.06)'
+          }}
+        >
           <div
             style={{
               width: '64px',
               height: '64px',
               borderRadius: '50%',
-              backgroundColor: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid var(--ios-glass-border, rgba(255, 255, 255, 0.12))',
+              backgroundColor: 'rgba(250, 62, 84, 0.1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               margin: '0 auto 20px auto',
-              color: '#FFFFFF'
+              color: '#FA3E54'
             }}
           >
-            <Lock size={30} />
+            <Lock size={28} />
           </div>
 
-          <IosBadge variant="wholesale" style={{ marginBottom: '14px' }}>
+          <div
+            style={{
+              display: 'inline-block',
+              padding: '4px 14px',
+              borderRadius: '9999px',
+              backgroundColor: 'rgba(250, 62, 84, 0.08)',
+              color: '#FA3E54',
+              fontSize: '11px',
+              fontWeight: 800,
+              letterSpacing: '0.06em',
+              marginBottom: '16px'
+            }}
+          >
             AUTHENTICATION REQUIRED
-          </IosBadge>
+          </div>
 
-          <h2 style={{ fontSize: '22px', fontWeight: 800, margin: '0 0 10px 0', color: '#FFFFFF' }}>
+          <h2 style={{ fontSize: '24px', fontWeight: 900, margin: '0 0 10px 0', color: '#111827', letterSpacing: '-0.02em' }}>
             Customer Sign In Required
           </h2>
 
-          <p style={{ fontSize: '14px', color: 'var(--ios-text-muted, #A1A1AA)', margin: '0 0 28px 0', lineHeight: 1.6 }}>
+          <p style={{ fontSize: '14px', color: '#6B7280', margin: '0 0 28px 0', lineHeight: 1.6 }}>
             Please sign in to view your order history, invoice breakdowns, and batch fulfillment tracking.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <IosButton
-              variant="primary"
+            <button
               onClick={() => navigate('/login?redirect=/orders')}
-              style={{ width: '100%', padding: '14px', fontSize: '15px' }}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '9999px',
+                backgroundColor: '#FA3E54',
+                color: '#FFFFFF',
+                border: 'none',
+                fontSize: '15px',
+                fontWeight: 800,
+                cursor: 'pointer',
+                boxShadow: '0 8px 20px rgba(250, 62, 84, 0.35)',
+                transition: 'all 0.2s ease'
+              }}
             >
               Sign In to View Orders
-            </IosButton>
+            </button>
 
-            <IosButton
-              variant="glass"
+            <button
               onClick={handleGoToShop}
-              style={{ width: '100%' }}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '9999px',
+                backgroundColor: '#F5F5F7',
+                color: '#111827',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                fontSize: '14px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
             >
               Explore Storefront Categories
-            </IosButton>
+            </button>
           </div>
-        </IosCardGlass>
+        </div>
       </div>
     );
   }
@@ -195,34 +253,36 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1 style={{ fontSize: '26px', fontWeight: 800, margin: 0, color: '#FFFFFF' }}>
+            <h1 style={{ fontSize: '28px', fontWeight: 900, margin: 0, color: '#111827', letterSpacing: '-0.02em' }}>
               My Orders & Invoices
             </h1>
             <span
               style={{
                 fontSize: '12px',
-                fontWeight: 700,
-                padding: '3px 10px',
+                fontWeight: 800,
+                padding: '3px 12px',
                 borderRadius: '9999px',
-                backgroundColor: 'rgba(255, 255, 255, 0.12)',
-                color: '#FFFFFF'
+                backgroundColor: 'rgba(0, 0, 0, 0.06)',
+                color: '#111827'
               }}
             >
               {orders.length} {orders.length === 1 ? 'order' : 'orders'}
             </span>
           </div>
-          <p style={{ fontSize: '13px', color: 'var(--ios-text-muted, #A1A1AA)', margin: '4px 0 0 0' }}>
+          <p style={{ fontSize: '13px', color: '#6B7280', margin: '4px 0 0 0' }}>
             Real-time batch deduction status from central warehouse. Filter by status or view official invoices.
           </p>
         </div>
 
         {/* Filter Pill Bar */}
         <div
-          className="ios-glass-capsule"
           style={{
             display: 'flex',
-            gap: '4px',
-            padding: '4px'
+            gap: '6px',
+            padding: '6px',
+            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+            borderRadius: '9999px',
+            border: '1px solid rgba(0, 0, 0, 0.06)'
           }}
         >
           {['ALL', 'PENDING', 'PROCESSING', 'COMPLETED', 'CANCELLED'].map((tab) => (
@@ -230,15 +290,16 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
               key={tab}
               onClick={() => setFilterStatus(tab)}
               style={{
-                padding: '6px 14px',
+                padding: '8px 16px',
                 borderRadius: '9999px',
                 fontSize: '12px',
                 fontWeight: 700,
                 border: 'none',
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                backgroundColor: filterStatus === tab ? '#FFFFFF' : 'transparent',
-                color: filterStatus === tab ? '#000000' : 'rgba(255, 255, 255, 0.7)'
+                backgroundColor: filterStatus === tab ? '#111827' : 'transparent',
+                color: filterStatus === tab ? '#FFFFFF' : '#4B5563',
+                boxShadow: filterStatus === tab ? '0 2px 8px rgba(0, 0, 0, 0.15)' : 'none'
               }}
             >
               {tab}
@@ -249,28 +310,62 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
 
       {/* Orders List */}
       {isLoading ? (
-        <IosCardGlass glow style={{ textAlign: 'center', padding: '80px 24px' }}>
-          <Loader2 size={36} color="#FFFFFF" className="animate-spin" style={{ margin: '0 auto 16px auto', animation: 'spin 1s linear infinite' }} />
-          <h3 style={{ fontSize: '17px', fontWeight: 700, margin: '0 0 6px 0', color: '#FFFFFF' }}>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '80px 24px',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '28px',
+            border: '1px solid rgba(0, 0, 0, 0.06)',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.05)'
+          }}
+        >
+          <Loader2 size={36} color="#FA3E54" className="animate-spin" style={{ margin: '0 auto 16px auto', animation: 'spin 1s linear infinite' }} />
+          <h3 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 6px 0', color: '#111827' }}>
             Fetching Orders...
           </h3>
-          <p style={{ color: 'var(--ios-text-muted, #A1A1AA)', fontSize: '13px', margin: 0 }}>
+          <p style={{ color: '#6B7280', fontSize: '13px', margin: 0 }}>
             Querying customer order history via GET /api/v1/customer/orders.
           </p>
-        </IosCardGlass>
+        </div>
       ) : filteredOrders.length === 0 ? (
-        <IosCardGlass glow style={{ textAlign: 'center', padding: '70px 24px' }}>
-          <Package size={48} color="#71717A" style={{ marginBottom: '16px' }} />
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: '0 0 8px 0', color: '#FFFFFF' }}>
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '70px 24px',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '28px',
+            border: '1px solid rgba(0, 0, 0, 0.06)',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.05)'
+          }}
+        >
+          <Package size={48} color="#9CA3AF" style={{ marginBottom: '16px' }} />
+          <h2 style={{ fontSize: '20px', fontWeight: 800, margin: '0 0 8px 0', color: '#111827' }}>
             No Orders Found
           </h2>
-          <p style={{ color: 'var(--ios-text-muted, #A1A1AA)', fontSize: '14px', margin: '0 0 20px 0' }}>
+          <p style={{ color: '#6B7280', fontSize: '14px', margin: '0 0 20px 0' }}>
             You haven't placed any orders matching the selected status filter yet.
           </p>
-          <IosButton variant="primary" onClick={handleGoToShop}>
+          <button
+            onClick={handleGoToShop}
+            style={{
+              padding: '12px 28px',
+              borderRadius: '9999px',
+              backgroundColor: '#FA3E54',
+              color: '#FFFFFF',
+              border: 'none',
+              fontSize: '14px',
+              fontWeight: 800,
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              boxShadow: '0 4px 16px rgba(250, 62, 84, 0.35)'
+            }}
+          >
             <ShoppingBag size={16} /> Browse Categories
-          </IosButton>
-        </IosCardGlass>
+          </button>
+        </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {filteredOrders.map((order) => {
@@ -279,8 +374,34 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
             const canCancel = order.status === 'PENDING';
             const isExpanded = !!expandedOrderIds[order.id];
 
+            const getBadgeColors = () => {
+              switch (normalizedStatus) {
+                case 'COMPLETED':
+                  return { bg: '#ECFDF5', text: '#065F46', border: '#A7F3D0' };
+                case 'PROCESSING':
+                  return { bg: '#EFF6FF', text: '#1D4ED8', border: '#BFDBFE' };
+                case 'PENDING':
+                  return { bg: '#FEF3C7', text: '#92400E', border: '#FCD34D' };
+                case 'CANCELLED':
+                  return { bg: '#FEF2F2', text: '#991B1B', border: '#FECACA' };
+                default:
+                  return { bg: '#F3F4F6', text: '#374151', border: '#E5E7EB' };
+              }
+            };
+            const badgeStyle = getBadgeColors();
+
             return (
-              <IosCardGlass key={order.id} glow style={{ padding: '24px 28px' }}>
+              <div
+                key={order.id}
+                style={{
+                  padding: '24px 28px',
+                  backgroundColor: '#FFFFFF',
+                  borderRadius: '24px',
+                  border: '1px solid rgba(0, 0, 0, 0.06)',
+                  boxShadow: '0 10px 24px -6px rgba(0, 0, 0, 0.04)',
+                  transition: 'all 0.2s ease'
+                }}
+              >
                 {/* Order Summary Row */}
                 <div
                   style={{
@@ -294,38 +415,57 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                   <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-                        <span style={{ fontSize: '17px', fontWeight: 800, fontFamily: 'monospace', color: '#FFFFFF' }}>
+                        <span style={{ fontSize: '17px', fontWeight: 900, fontFamily: 'monospace', color: '#111827' }}>
                           #{order.orderNumber}
                         </span>
-                        {/* Status Badge: PENDING, PROCESSING, COMPLETED, CANCELLED */}
-                        <IosBadge variant={getStatusBadgeVariant(order.status)} glow>
-                          {order.status === 'PENDING' ? 'PENDING (Admin Confirm)' : normalizedStatus}
-                        </IosBadge>
-                        <IosBadge variant="wholesale">
+                        {/* Status Badge */}
+                        <span
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 800,
+                            padding: '3px 10px',
+                            borderRadius: '9999px',
+                            backgroundColor: badgeStyle.bg,
+                            color: badgeStyle.text,
+                            border: `1px solid ${badgeStyle.border}`
+                          }}
+                        >
+                          {normalizedStatus}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '9999px',
+                            backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                            color: '#6B7280'
+                          }}
+                        >
                           {order.pricingTierUsed || 'RETAIL'}
-                        </IosBadge>
+                        </span>
                       </div>
 
                       {order.status === 'PENDING' && (
-                        <div style={{ fontSize: '12px', color: '#FF9F0A', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                        <div style={{ fontSize: '12px', color: '#B45309', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
                           <span>⏱️ Awaiting Admin Confirmation: Stock reserved via FIFO/FEFO</span>
                         </div>
                       )}
                       {order.status === 'PROCESSING' && (
-                        <div style={{ fontSize: '12px', color: '#0A84FF', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                        <div style={{ fontSize: '12px', color: '#2563EB', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700 }}>
                           <span>✓ Confirmed by Admin · Preparing for Dispatch</span>
                         </div>
                       )}
 
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '12px', color: 'var(--ios-text-muted, #A1A1AA)' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', fontSize: '12px', color: '#6B7280' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Calendar size={13} /> {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}
+                          <Calendar size={13} color="#9CA3AF" /> {order.createdAt ? new Date(order.createdAt).toLocaleDateString() : new Date().toLocaleDateString()}
                         </span>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <CreditCard size={13} /> {order.paymentMethod}
+                          <CreditCard size={13} color="#9CA3AF" /> {order.paymentMethod}
                         </span>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <MapPin size={13} /> {order.shippingAddress}
+                          <MapPin size={13} color="#9CA3AF" /> {order.shippingAddress}
                         </span>
                       </div>
                     </div>
@@ -334,10 +474,10 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                   {/* Right: Total Amount and Action Buttons */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                     <div style={{ textAlign: 'right' }}>
-                      <span style={{ fontSize: '11px', color: 'var(--ios-text-subtle, #71717A)', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>
+                      <span style={{ fontSize: '11px', color: '#9CA3AF', textTransform: 'uppercase', fontWeight: 700, display: 'block' }}>
                         Total Amount
                       </span>
-                      <span style={{ fontSize: '20px', fontWeight: 800, color: '#FFFFFF' }}>
+                      <span style={{ fontSize: '22px', fontWeight: 900, color: '#111827' }}>
                         ${safeToFixed(order.totalAmount)}
                       </span>
                     </div>
@@ -346,18 +486,19 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                       {/* Expandable view toggle */}
                       <button
                         onClick={() => toggleExpand(order.id)}
-                        className="ios-glass-capsule ios-glow-hover"
                         style={{
-                          padding: '8px 14px',
+                          padding: '8px 16px',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px',
                           fontSize: '12px',
-                          fontWeight: 600,
-                          backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                          color: '#FFFFFF',
-                          border: 'none',
-                          cursor: 'pointer'
+                          fontWeight: 700,
+                          backgroundColor: '#F5F5F7',
+                          color: '#111827',
+                          border: '1px solid rgba(0, 0, 0, 0.08)',
+                          borderRadius: '9999px',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.03)'
                         }}
                       >
                         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
@@ -367,18 +508,19 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                       {/* Modal Invoice button */}
                       <button
                         onClick={() => setInvoiceModalOrder(order)}
-                        className="ios-glass-capsule ios-glow-hover"
                         style={{
-                          padding: '8px 14px',
+                          padding: '8px 16px',
                           display: 'flex',
                           alignItems: 'center',
                           gap: '6px',
                           fontSize: '12px',
-                          fontWeight: 600,
-                          backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                          color: '#FFFFFF',
-                          border: 'none',
-                          cursor: 'pointer'
+                          fontWeight: 700,
+                          backgroundColor: '#F5F5F7',
+                          color: '#111827',
+                          border: '1px solid rgba(0, 0, 0, 0.08)',
+                          borderRadius: '9999px',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 4px rgba(0, 0, 0, 0.03)'
                         }}
                         title="View Official Tax Invoice & Batch Breakdown"
                       >
@@ -386,31 +528,61 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                         <span>Invoice</span>
                       </button>
 
-                      {/* Admin Confirm Action button: Visible when status is PENDING */}
-                      {canCancel && (
-                        <IosButton
-                          variant="primary"
+                      {/* Admin Confirm Action button: Only visible to Administrator (not retail or wholesale customers) */}
+                      {isAdmin && canCancel && (
+                        <button
                           onClick={async () => {
-                            await confirmOrder(order.id || order.orderNumber);
-                            const updated = await customerApi.getOrders();
-                            if (Array.isArray(updated) && updated.length > 0) setOrders(updated);
+                            await confirmOrder(order.orderNumber || order.id);
+                            try {
+                              const backendOrders = await customerApi.getOrders();
+                              if (Array.isArray(backendOrders) && backendOrders.length > 0) {
+                                const currentOrders = useCustomerCartStore.getState().orders;
+                                const backendNumbers = new Set(backendOrders.map((b) => b.orderNumber));
+                                const localOnly = currentOrders.filter((o) => !backendNumbers.has(o.orderNumber));
+                                setOrders([...localOnly, ...backendOrders]);
+                              }
+                            } catch {}
                           }}
-                          style={{ fontSize: '12px', padding: '8px 14px' }}
+                          style={{
+                            padding: '8px 16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            backgroundColor: '#10B981',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '9999px',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.3)'
+                          }}
                           title="Confirm order as Administrator"
                         >
                           <CheckCircle2 size={14} /> Admin Confirm
-                        </IosButton>
+                        </button>
                       )}
 
-                      {/* Cancel Order Action button: Visible ONLY when status is PENDING */}
-                      {canCancel && (
-                        <IosButton
-                          variant="danger"
+                      {/* Cancel Order Action button: Only visible to Administrator (not retail or wholesale customers) */}
+                      {isAdmin && canCancel && (
+                        <button
                           onClick={() => setCancellingOrder(order)}
-                          style={{ fontSize: '12px', padding: '8px 16px' }}
+                          style={{
+                            padding: '8px 16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            backgroundColor: '#FEE2E2',
+                            color: '#DC2626',
+                            border: '1px solid #FCA5A5',
+                            borderRadius: '9999px',
+                            cursor: 'pointer'
+                          }}
                         >
                           <XCircle size={14} /> Cancel Order
-                        </IosButton>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -422,10 +594,10 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                     style={{
                       marginTop: '20px',
                       paddingTop: '20px',
-                      borderTop: '1px solid var(--ios-glass-border, rgba(255, 255, 255, 0.12))'
+                      borderTop: '1px solid rgba(0, 0, 0, 0.06)'
                     }}
                   >
-                    <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ios-text-subtle, #71717A)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '12px' }}>
                       Allocated Items & Warehouse Batch Verification
                     </div>
 
@@ -437,23 +609,23 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                             display: 'flex',
                             justifyContent: 'space-between',
                             alignItems: 'center',
-                            padding: '10px 14px',
-                            borderRadius: '12px',
-                            backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                            border: '1px solid rgba(255, 255, 255, 0.05)'
+                            padding: '12px 16px',
+                            borderRadius: '14px',
+                            backgroundColor: '#F5F5F7',
+                            border: '1px solid rgba(0, 0, 0, 0.04)'
                           }}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <span style={{ color: 'var(--ios-text-subtle, #71717A)', fontFamily: 'monospace', fontWeight: 700, fontSize: '12px' }}>
+                            <span style={{ color: '#6B7280', fontFamily: 'monospace', fontWeight: 800, fontSize: '12px' }}>
                               {item.quantity}x
                             </span>
                             <div>
-                              <span style={{ color: '#FFFFFF', fontWeight: 600, fontSize: '13px' }}>
+                              <span style={{ color: '#111827', fontWeight: 700, fontSize: '14px' }}>
                                 {item.product?.name || `Product #${item.productId}`}
                               </span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: 'var(--ios-text-muted, #A1A1AA)', marginTop: '2px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#6B7280', marginTop: '2px' }}>
                                 <span style={{ fontFamily: 'monospace' }}>SKU: {item.product?.sku || 'BATCH-ALLOC'}</span>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#30D158' }}>
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontWeight: 700 }}>
                                   <Layers size={11} /> FIFO/FEFO Deducted
                                 </span>
                               </div>
@@ -461,10 +633,10 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                           </div>
 
                           <div style={{ textAlign: 'right' }}>
-                            <span style={{ color: '#FFFFFF', fontWeight: 700, fontSize: '13px' }}>
+                            <span style={{ color: '#111827', fontWeight: 800, fontSize: '14px' }}>
                               ${safeToFixed(item.subtotal)}
                             </span>
-                            <div style={{ fontSize: '11px', color: 'var(--ios-text-subtle, #71717A)' }}>
+                            <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
                               (${safeToFixed(item.unitPrice)} / unit)
                             </div>
                           </div>
@@ -478,25 +650,25 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                         display: 'flex',
                         justifyContent: 'flex-end',
                         gap: '24px',
-                        fontSize: '12px',
-                        color: 'var(--ios-text-muted, #A1A1AA)',
-                        borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-                        paddingTop: '12px'
+                        fontSize: '13px',
+                        color: '#6B7280',
+                        borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+                        paddingTop: '14px'
                       }}
                     >
                       <div>
-                        Subtotal: <strong style={{ color: '#FFFFFF' }}>${safeToFixed(order.subtotal)}</strong>
+                        Subtotal: <strong style={{ color: '#111827' }}>${safeToFixed(order.subtotal)}</strong>
                       </div>
                       <div>
-                        VAT (7%): <strong style={{ color: '#FFFFFF' }}>${safeToFixed(order.taxAmount)}</strong>
+                        VAT (7%): <strong style={{ color: '#111827' }}>${safeToFixed(order.taxAmount)}</strong>
                       </div>
                       <div>
-                        Total: <strong style={{ color: '#FFFFFF', fontSize: '14px' }}>${safeToFixed(order.totalAmount)}</strong>
+                        Total: <strong style={{ color: '#111827', fontSize: '15px' }}>${safeToFixed(order.totalAmount)}</strong>
                       </div>
                     </div>
                   </div>
                 )}
-              </IosCardGlass>
+              </div>
             );
           })}
         </div>
@@ -511,9 +683,9 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
-            backdropFilter: 'var(--ios-blur-deep, blur(28px))',
-            WebkitBackdropFilter: 'var(--ios-blur-deep, blur(28px))',
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
             zIndex: 2200,
             display: 'flex',
             alignItems: 'center',
@@ -525,7 +697,16 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
           }}
         >
           <div style={{ maxWidth: '640px', width: '100%', position: 'relative' }}>
-            <IosCardGlass glow style={{ padding: '36px' }}>
+            <div
+              style={{
+                padding: '36px',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '28px',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.25)',
+                position: 'relative'
+              }}
+            >
               {/* Close Button */}
               <button
                 onClick={() => setInvoiceModalOrder(null)}
@@ -533,64 +714,75 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                   position: 'absolute',
                   top: '20px',
                   right: '20px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid var(--ios-glass-border, rgba(255, 255, 255, 0.12))',
+                  backgroundColor: '#F5F5F7',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
                   borderRadius: '50%',
                   width: '32px',
                   height: '32px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  color: '#FFFFFF',
+                  color: '#111827',
                   cursor: 'pointer'
                 }}
-                className="ios-glow-hover"
               >
                 <X size={16} />
               </button>
 
               {/* Invoice Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(255, 255, 255, 0.12)', paddingBottom: '20px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(0, 0, 0, 0.08)', paddingBottom: '20px', marginBottom: '24px' }}>
                 <div>
-                  <div style={{ fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em', color: 'var(--ios-text-subtle, #71717A)', textTransform: 'uppercase' }}>
+                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', color: '#9CA3AF', textTransform: 'uppercase' }}>
                     Official Commercial Invoice
                   </div>
-                  <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '4px 0 6px 0', color: '#FFFFFF', fontFamily: 'monospace' }}>
+                  <h2 style={{ fontSize: '26px', fontWeight: 900, margin: '4px 0 6px 0', color: '#111827', fontFamily: 'monospace' }}>
                     #{invoiceModalOrder.orderNumber}
                   </h2>
-                  <div style={{ fontSize: '12px', color: 'var(--ios-text-muted, #A1A1AA)' }}>
+                  <div style={{ fontSize: '12px', color: '#6B7280' }}>
                     Issued: {new Date(invoiceModalOrder.createdAt).toLocaleString()}
                   </div>
                 </div>
 
                 <div style={{ textAlign: 'right' }}>
-                  <IosBadge variant={getStatusBadgeVariant(invoiceModalOrder.status)} glow style={{ marginBottom: '8px' }}>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      padding: '4px 12px',
+                      borderRadius: '9999px',
+                      backgroundColor: '#ECFDF5',
+                      color: '#065F46',
+                      border: '1px solid #A7F3D0',
+                      display: 'inline-block',
+                      marginBottom: '8px'
+                    }}
+                  >
                     {getNormalizedStatus(invoiceModalOrder.status)}
-                  </IosBadge>
-                  <div style={{ fontSize: '11px', color: 'var(--ios-text-subtle, #71717A)' }}>
+                  </span>
+                  <div style={{ fontSize: '11px', color: '#6B7280' }}>
                     Channel: <strong>ONLINE</strong> · Tier: <strong>{invoiceModalOrder.pricingTierUsed}</strong>
                   </div>
                 </div>
               </div>
 
               {/* Shipping & Payment Meta */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', backgroundColor: 'rgba(255, 255, 255, 0.03)', borderRadius: '14px', padding: '16px', marginBottom: '24px', fontSize: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', backgroundColor: '#F5F5F7', borderRadius: '16px', padding: '16px', marginBottom: '24px', fontSize: '12px', border: '1px solid rgba(0, 0, 0, 0.04)' }}>
                 <div>
-                  <span style={{ color: 'var(--ios-text-subtle, #71717A)', display: 'block', marginBottom: '4px', textTransform: 'uppercase', fontSize: '10px', fontWeight: 700 }}>
+                  <span style={{ color: '#9CA3AF', display: 'block', marginBottom: '4px', textTransform: 'uppercase', fontSize: '10px', fontWeight: 800 }}>
                     Shipping Address
                   </span>
-                  <span style={{ color: '#FFFFFF', lineHeight: 1.5, display: 'block' }}>
+                  <span style={{ color: '#111827', lineHeight: 1.5, display: 'block', fontWeight: 600 }}>
                     {invoiceModalOrder.shippingAddress}
                   </span>
                 </div>
                 <div>
-                  <span style={{ color: 'var(--ios-text-subtle, #71717A)', display: 'block', marginBottom: '4px', textTransform: 'uppercase', fontSize: '10px', fontWeight: 700 }}>
+                  <span style={{ color: '#9CA3AF', display: 'block', marginBottom: '4px', textTransform: 'uppercase', fontSize: '10px', fontWeight: 800 }}>
                     Payment Channel
                   </span>
-                  <span style={{ color: '#FFFFFF', fontWeight: 600 }}>
+                  <span style={{ color: '#111827', fontWeight: 700 }}>
                     {invoiceModalOrder.paymentMethod} (Verified)
                   </span>
-                  <span style={{ color: '#30D158', display: 'block', fontSize: '11px', marginTop: '2px' }}>
+                  <span style={{ color: '#059669', display: 'block', fontSize: '11px', marginTop: '2px', fontWeight: 700 }}>
                     ● Batch Allocation Confirmed
                   </span>
                 </div>
@@ -598,7 +790,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
 
               {/* Itemized Batch Breakdown */}
               <div style={{ marginBottom: '24px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ios-text-subtle, #71717A)', textTransform: 'uppercase', marginBottom: '10px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: '10px' }}>
                   Itemized Batch Fulfillment
                 </div>
 
@@ -611,20 +803,21 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         fontSize: '12px',
-                        padding: '8px 12px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                        borderRadius: '10px'
+                        padding: '10px 14px',
+                        backgroundColor: '#F5F5F7',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(0, 0, 0, 0.04)'
                       }}
                     >
                       <div>
-                        <div style={{ color: '#FFFFFF', fontWeight: 600 }}>
+                        <div style={{ color: '#111827', fontWeight: 700 }}>
                           {item.quantity}x {item.product?.name || `Product #${item.productId}`}
                         </div>
-                        <div style={{ fontSize: '10px', color: 'var(--ios-text-subtle, #71717A)', fontFamily: 'monospace' }}>
+                        <div style={{ fontSize: '10px', color: '#6B7280', fontFamily: 'monospace' }}>
                           SKU: {item.product?.sku} · Batch FEFO Deducted
                         </div>
                       </div>
-                      <div style={{ textAlign: 'right', color: '#FFFFFF', fontWeight: 700 }}>
+                      <div style={{ textAlign: 'right', color: '#111827', fontWeight: 800 }}>
                         ${safeToFixed(item.subtotal)}
                       </div>
                     </div>
@@ -633,18 +826,18 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
               </div>
 
               {/* Financial Totals */}
-              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.12)', paddingTop: '16px', marginBottom: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--ios-text-muted, #A1A1AA)', marginBottom: '6px' }}>
+              <div style={{ borderTop: '1px solid rgba(0, 0, 0, 0.08)', paddingTop: '16px', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#6B7280', marginBottom: '6px' }}>
                   <span>Subtotal</span>
-                  <span style={{ color: '#FFFFFF' }}>${safeToFixed(invoiceModalOrder.subtotal)}</span>
+                  <span style={{ color: '#111827', fontWeight: 700 }}>${safeToFixed(invoiceModalOrder.subtotal)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--ios-text-muted, #A1A1AA)', marginBottom: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#6B7280', marginBottom: '10px' }}>
                   <span>7% Value-Added Tax (VAT)</span>
-                  <span style={{ color: '#FFFFFF' }}>${safeToFixed(invoiceModalOrder.taxAmount)}</span>
+                  <span style={{ color: '#111827', fontWeight: 700 }}>${safeToFixed(invoiceModalOrder.taxAmount)}</span>
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid rgba(255, 255, 255, 0.08)', paddingTop: '10px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 700, color: '#FFFFFF' }}>Total Amount Paid</span>
-                  <span style={{ fontSize: '22px', fontWeight: 800, color: '#FFFFFF' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid rgba(0, 0, 0, 0.06)', paddingTop: '10px' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#111827' }}>Total Amount Paid</span>
+                  <span style={{ fontSize: '24px', fontWeight: 900, color: '#111827' }}>
                     ${safeToFixed(invoiceModalOrder.totalAmount)}
                   </span>
                 </div>
@@ -652,18 +845,42 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
 
               {/* Modal Actions */}
               <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <IosButton
-                  variant="glass"
+                <button
                   onClick={() => window.print()}
-                  style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 20px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#F5F5F7',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    color: '#111827',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
                 >
                   <Printer size={14} /> Print Invoice
-                </IosButton>
-                <IosButton variant="primary" onClick={() => setInvoiceModalOrder(null)}>
+                </button>
+                <button
+                  onClick={() => setInvoiceModalOrder(null)}
+                  style={{
+                    padding: '10px 24px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#FA3E54',
+                    border: 'none',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(250, 62, 84, 0.35)'
+                  }}
+                >
                   Close
-                </IosButton>
+                </button>
               </div>
-            </IosCardGlass>
+            </div>
           </div>
         </div>
       )}
@@ -677,9 +894,9 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.85)',
-            backdropFilter: 'var(--ios-blur-deep, blur(28px))',
-            WebkitBackdropFilter: 'var(--ios-blur-deep, blur(28px))',
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
             zIndex: 2300,
             display: 'flex',
             alignItems: 'center',
@@ -688,50 +905,78 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
           }}
         >
           <div style={{ maxWidth: '480px', width: '100%' }}>
-            <IosCardGlass glow style={{ padding: '32px', textAlign: 'center' }}>
+            <div
+              style={{
+                padding: '32px',
+                textAlign: 'center',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '28px',
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.25)'
+              }}
+            >
               <div
                 style={{
                   width: '56px',
                   height: '56px',
                   borderRadius: '50%',
-                  backgroundColor: 'rgba(255, 69, 58, 0.12)',
-                  border: '1px solid rgba(255, 69, 58, 0.35)',
+                  backgroundColor: '#FEE2E2',
+                  border: '1px solid #FCA5A5',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   margin: '0 auto 16px auto'
                 }}
               >
-                <AlertTriangle size={28} color="#FF453A" />
+                <AlertTriangle size={28} color="#DC2626" />
               </div>
 
-              <h3 style={{ fontSize: '18px', fontWeight: 700, margin: '0 0 8px 0', color: '#FFFFFF' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 800, margin: '0 0 8px 0', color: '#111827' }}>
                 Cancel Order #{cancellingOrder.orderNumber}?
               </h3>
 
-              <p style={{ fontSize: '13px', color: 'var(--ios-text-muted, #A1A1AA)', margin: '0 0 24px 0', lineHeight: 1.5 }}>
+              <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 24px 0', lineHeight: 1.5 }}>
                 Cancelling this order sends a cancellation request to <strong>PUT /api/v1/customer/orders/{cancellingOrder.id}/cancel</strong>.
                 All allocated FIFO/FEFO batches will be restored to warehouse inventory immediately.
               </p>
 
               <div style={{ display: 'flex', gap: '12px' }}>
-                <IosButton
-                  variant="danger"
+                <button
                   disabled={isProcessingCancel}
                   onClick={handleConfirmCancel}
-                  style={{ flex: 1 }}
+                  style={{
+                    flex: 1,
+                    padding: '12px 18px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#DC2626',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    fontSize: '13px',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 14px rgba(220, 38, 38, 0.35)'
+                  }}
                 >
                   {isProcessingCancel ? 'Restoring Stock...' : 'Confirm Order Cancellation'}
-                </IosButton>
-                <IosButton
-                  variant="glass"
+                </button>
+                <button
                   onClick={() => setCancellingOrder(null)}
-                  style={{ flex: 1 }}
+                  style={{
+                    flex: 1,
+                    padding: '12px 18px',
+                    borderRadius: '9999px',
+                    backgroundColor: '#F5F5F7',
+                    color: '#111827',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
                 >
                   Keep Order
-                </IosButton>
+                </button>
               </div>
-            </IosCardGlass>
+            </div>
           </div>
         </div>
       )}

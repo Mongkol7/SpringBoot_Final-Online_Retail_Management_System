@@ -20,12 +20,14 @@ export const CustomerNavbar: React.FC = () => {
     isAuthenticated,
     logout,
     getItemCount,
-    getEffectiveTier
+    getEffectiveTier,
+    notification
   } = useCustomerCartStore();
 
   const [isWholesaleModalOpen, setIsWholesaleModalOpen] = useState(false);
   const cartCount = getItemCount();
   const effectiveTier = getEffectiveTier();
+  const topOffset = notification?.message ? '68px' : '16px';
 
   const navLinks = [
     { to: '/shop', label: 'Category', icon: <ShoppingBag size={15} /> },
@@ -43,13 +45,13 @@ export const CustomerNavbar: React.FC = () => {
       <header
         style={{
           position: 'sticky',
-          top: '68px',
+          top: topOffset,
           zIndex: 900,
-          marginBottom: '32px'
+          marginBottom: '32px',
+          transition: 'top 0.25s ease'
         }}
       >
         <div
-          className="ios-glass-panel"
           style={{
             display: 'flex',
             flexWrap: 'wrap',
@@ -57,7 +59,12 @@ export const CustomerNavbar: React.FC = () => {
             alignItems: 'center',
             padding: '12px 24px',
             gap: '16px',
-            borderRadius: 'var(--ios-radius-capsule, 9999px)'
+            borderRadius: 'var(--ios-radius-capsule, 9999px)',
+            backgroundColor: 'rgba(255, 255, 255, 0.88)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.06)'
           }}
         >
           {/* Brand Logo */}
@@ -68,7 +75,7 @@ export const CustomerNavbar: React.FC = () => {
               alignItems: 'center',
               gap: '10px',
               textDecoration: 'none',
-              color: '#FFFFFF'
+              color: '#111827'
             }}
           >
             <div
@@ -76,21 +83,21 @@ export const CustomerNavbar: React.FC = () => {
                 width: '32px',
                 height: '32px',
                 borderRadius: '10px',
-                backgroundColor: '#FFFFFF',
+                backgroundColor: '#111827',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: '#000000'
+                color: '#FFFFFF'
               }}
             >
               <ShoppingBag size={18} />
             </div>
             <div>
-              <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em', display: 'block' }}>
+              <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em', display: 'block', color: '#111827' }}>
                 AURA STORE
               </span>
-              <span style={{ fontSize: '10px', color: 'var(--ios-text-subtle, #71717A)', display: 'block', letterSpacing: '0.04em' }}>
-                CUSTOMER PORTAL
+              <span style={{ fontSize: '10px', color: '#6B7280', display: 'block', letterSpacing: '0.04em', fontWeight: 600 }}>
+                ARTISANAL CRUNCH
               </span>
             </div>
           </NavLink>
@@ -111,8 +118,8 @@ export const CustomerNavbar: React.FC = () => {
                   fontSize: '13px',
                   fontWeight: 600,
                   transition: 'all 0.2s ease',
-                  backgroundColor: isActive ? '#FFFFFF' : 'transparent',
-                  color: isActive ? '#000000' : 'rgba(255, 255, 255, 0.75)'
+                  backgroundColor: isActive ? '#111827' : 'transparent',
+                  color: isActive ? '#FFFFFF' : '#4B5563'
                 })}
               >
                 {link.icon}
@@ -124,7 +131,7 @@ export const CustomerNavbar: React.FC = () => {
                       fontWeight: 800,
                       padding: '1px 6px',
                       borderRadius: '9999px',
-                      backgroundColor: '#000000',
+                      backgroundColor: '#FA3E54',
                       color: '#FFFFFF'
                     }}
                   >
@@ -148,13 +155,14 @@ export const CustomerNavbar: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    padding: '4px 12px',
+                    padding: '6px 14px',
                     borderRadius: '9999px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.08)'
+                    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+                    border: '1px solid rgba(0, 0, 0, 0.06)'
                   }}
                 >
-                  <UserIcon size={14} color="#A1A1AA" />
-                  <span style={{ fontSize: '13px', fontWeight: 600, color: '#FFFFFF' }}>
+                  <UserIcon size={14} color="#4B5563" />
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#111827' }}>
                     {user.fullName}
                   </span>
                   <span
@@ -163,8 +171,8 @@ export const CustomerNavbar: React.FC = () => {
                       fontWeight: 800,
                       padding: '2px 8px',
                       borderRadius: '9999px',
-                      backgroundColor: effectiveTier === 'WHOLESALE' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.15)',
-                      color: effectiveTier === 'WHOLESALE' ? '#000000' : '#FFFFFF'
+                      backgroundColor: effectiveTier === 'WHOLESALE' ? '#FA3E54' : '#111827',
+                      color: '#FFFFFF'
                     }}
                   >
                     {effectiveTier}
@@ -208,11 +216,13 @@ export const CustomerNavbar: React.FC = () => {
                     textDecoration: 'none',
                     fontSize: '12px',
                     fontWeight: 700,
-                    color: '#FFFFFF',
-                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid rgba(255, 255, 255, 0.18)'
+                    color: '#FA3E54',
+                    backgroundColor: 'rgba(250, 62, 84, 0.08)',
+                    border: '1px solid rgba(250, 62, 84, 0.25)',
+                    transition: 'all 0.2s ease'
                   }}
-                  className="ios-glow-hover"
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(250, 62, 84, 0.15)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(250, 62, 84, 0.08)')}
                 >
                   <Building2 size={13} />
                   <span>Apply for Wholesale</span>
@@ -229,11 +239,13 @@ export const CustomerNavbar: React.FC = () => {
                     textDecoration: 'none',
                     fontSize: '13px',
                     fontWeight: 600,
-                    color: '#FFFFFF',
-                    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                    border: '1px solid var(--ios-glass-border, rgba(255, 255, 255, 0.12))'
+                    color: '#111827',
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    transition: 'all 0.2s ease'
                   }}
-                  className="ios-glow-hover"
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.08)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.04)')}
                 >
                   <LogIn size={14} />
                   <span>Sign In</span>
@@ -245,15 +257,19 @@ export const CustomerNavbar: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    padding: '8px 16px',
+                    padding: '8px 18px',
                     borderRadius: '9999px',
                     textDecoration: 'none',
                     fontSize: '13px',
                     fontWeight: 700,
-                    color: '#000000',
-                    backgroundColor: '#FFFFFF',
-                    border: 'none'
+                    color: '#FFFFFF',
+                    backgroundColor: '#111827',
+                    border: 'none',
+                    boxShadow: '0 4px 12px rgba(17, 24, 39, 0.18)',
+                    transition: 'all 0.2s ease'
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.02)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
                 >
                   <UserPlus size={14} />
                   <span>Sign Up</span>

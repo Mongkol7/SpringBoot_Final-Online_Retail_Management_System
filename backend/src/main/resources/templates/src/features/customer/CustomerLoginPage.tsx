@@ -1,11 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { IosCardGlass } from '../../components/ui/IosCardGlass';
-import { IosButton } from '../../components/ui/IosButton';
-import { IosInput } from '../../components/ui/IosInput';
-import { IosBadge } from '../../components/ui/IosBadge';
 import { useCustomerCartStore } from '../../store/customerCartStore';
-import { Lock, Mail, ArrowRight, AlertCircle } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, ShoppingBag } from 'lucide-react';
 
 export const CustomerLoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -52,6 +48,8 @@ export const CustomerLoginPage: React.FC = () => {
     <div
       style={{
         minHeight: '100vh',
+        backgroundColor: '#F5F5F7',
+        color: '#111827',
         padding: '30px 24px 60px',
         maxWidth: '1240px',
         margin: '0 auto',
@@ -59,13 +57,13 @@ export const CustomerLoginPage: React.FC = () => {
         flexDirection: 'column'
       }}
     >
-      {/* Top Header Capsule (Brand & Back Button) */}
+      {/* Top Header (Brand & Back Button) */}
       <div
         style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '24px'
+          marginBottom: '28px'
         }}
       >
         <Link
@@ -75,28 +73,29 @@ export const CustomerLoginPage: React.FC = () => {
             alignItems: 'center',
             gap: '10px',
             textDecoration: 'none',
-            color: '#FFFFFF'
+            color: '#111827'
           }}
         >
           <div
             style={{
-              width: '32px',
-              height: '32px',
-              borderRadius: '10px',
-              backgroundColor: '#FFFFFF',
+              width: '36px',
+              height: '36px',
+              borderRadius: '12px',
+              backgroundColor: '#FA3E54',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: '#000000'
+              color: '#FFFFFF',
+              boxShadow: '0 4px 12px rgba(250, 62, 84, 0.3)'
             }}
           >
-            <Lock size={18} />
+            <ShoppingBag size={20} />
           </div>
           <div>
-            <span style={{ fontSize: '15px', fontWeight: 800, letterSpacing: '-0.02em', display: 'block' }}>
+            <span style={{ fontSize: '15px', fontWeight: 900, letterSpacing: '-0.02em', display: 'block', color: '#111827' }}>
               AURA STORE
             </span>
-            <span style={{ fontSize: '10px', color: 'var(--ios-text-subtle, #71717A)', display: 'block', letterSpacing: '0.04em' }}>
+            <span style={{ fontSize: '11px', color: '#6B7280', display: 'block', letterSpacing: '0.04em' }}>
               CUSTOMER PORTAL
             </span>
           </div>
@@ -108,16 +107,16 @@ export const CustomerLoginPage: React.FC = () => {
             display: 'inline-flex',
             alignItems: 'center',
             gap: '6px',
-            padding: '8px 16px',
+            padding: '10px 20px',
             borderRadius: '9999px',
             fontSize: '13px',
-            fontWeight: 600,
-            color: '#FFFFFF',
-            backgroundColor: 'rgba(255, 255, 255, 0.08)',
-            border: '1px solid var(--ios-glass-border, rgba(255, 255, 255, 0.12))',
+            fontWeight: 700,
+            color: '#111827',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
             textDecoration: 'none'
           }}
-          className="ios-glow-hover"
         >
           ← Back to Storefront
         </Link>
@@ -132,76 +131,126 @@ export const CustomerLoginPage: React.FC = () => {
           justifyContent: 'center'
         }}
       >
-        <div style={{ maxWidth: '460px', width: '100%' }}>
-          <IosCardGlass glow style={{ padding: '36px 32px' }}>
+        <div style={{ maxWidth: '440px', width: '100%' }}>
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '28px',
+              padding: '40px 36px',
+              border: '1px solid rgba(0, 0, 0, 0.06)',
+              boxShadow: '0 20px 40px rgba(0, 0, 0, 0.06)'
+            }}
+          >
             {/* Header */}
             <div style={{ textAlign: 'center', marginBottom: '28px' }}>
               <div
                 style={{
-                  width: '54px',
-                  height: '54px',
+                  width: '56px',
+                  height: '56px',
                   borderRadius: '18px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backgroundColor: 'rgba(250, 62, 84, 0.1)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   margin: '0 auto 16px auto',
-                  color: '#FFFFFF'
+                  color: '#FA3E54'
                 }}
               >
                 <Lock size={26} />
               </div>
 
-              <div style={{ display: 'inline-flex', marginBottom: '8px' }}>
-                <IosBadge variant="default">
-                  CUSTOMER AUTHENTICATION
-                </IosBadge>
+              <div
+                style={{
+                  display: 'inline-block',
+                  padding: '4px 14px',
+                  borderRadius: '9999px',
+                  backgroundColor: 'rgba(250, 62, 84, 0.08)',
+                  color: '#FA3E54',
+                  fontSize: '11px',
+                  fontWeight: 800,
+                  letterSpacing: '0.06em',
+                  marginBottom: '10px'
+                }}
+              >
+                CUSTOMER AUTHENTICATION
               </div>
 
-              <h1 style={{ fontSize: '24px', fontWeight: 800, margin: '4px 0 8px 0', color: '#FFFFFF' }}>
+              <h1 style={{ fontSize: '24px', fontWeight: 900, margin: '4px 0 8px 0', color: '#111827', letterSpacing: '-0.02em' }}>
                 Customer Sign In
               </h1>
-              <p style={{ fontSize: '13px', color: 'var(--ios-text-muted, #A1A1AA)', margin: 0, lineHeight: 1.5 }}>
+              <p style={{ fontSize: '13px', color: '#6B7280', margin: 0, lineHeight: 1.5 }}>
                 Sign in to access your cart, live order tracking, and account profile.
               </p>
             </div>
 
             {/* Form */}
             <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <IosInput
-                label="Email Address"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="customer@retailstore.com"
-                icon={<Mail size={16} />}
-                required
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+                  Email Address
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Mail size={16} color="#9CA3AF" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="customer@retailstore.com"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px 12px 40px',
+                      borderRadius: '12px',
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid rgba(0, 0, 0, 0.12)',
+                      fontSize: '14px',
+                      color: '#111827',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
 
-              <IosInput
-                label="Password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                icon={<Lock size={16} />}
-                required
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: '#374151' }}>
+                  Password
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <Lock size={16} color="#9CA3AF" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    required
+                    style={{
+                      width: '100%',
+                      padding: '12px 14px 12px 40px',
+                      borderRadius: '12px',
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid rgba(0, 0, 0, 0.12)',
+                      fontSize: '14px',
+                      color: '#111827',
+                      outline: 'none',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              </div>
 
               {error && (
                 <div
                   style={{
-                    fontSize: '13px',
-                    color: '#FF453A',
-                    backgroundColor: 'rgba(255, 69, 58, 0.12)',
+                    fontSize: '12px',
+                    color: '#DC2626',
+                    backgroundColor: '#FEE2E2',
                     padding: '10px 14px',
                     borderRadius: '12px',
-                    border: '1px solid rgba(255, 69, 58, 0.3)',
-                    lineHeight: 1.4,
+                    border: '1px solid #FCA5A5',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '10px'
+                    gap: '8px'
                   }}
                 >
                   <AlertCircle size={16} style={{ flexShrink: 0 }} />
@@ -209,25 +258,42 @@ export const CustomerLoginPage: React.FC = () => {
                 </div>
               )}
 
-              <IosButton
+              <button
                 type="submit"
-                variant="primary"
                 disabled={isLoading}
-                style={{ width: '100%', padding: '14px', fontSize: '15px', marginTop: '6px' }}
+                style={{
+                  width: '100%',
+                  padding: '14px',
+                  borderRadius: '9999px',
+                  backgroundColor: '#FA3E54',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontSize: '15px',
+                  fontWeight: 800,
+                  cursor: isLoading ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 8px 20px rgba(250, 62, 84, 0.35)',
+                  marginTop: '8px',
+                  transition: 'all 0.2s ease',
+                  opacity: isLoading ? 0.7 : 1
+                }}
               >
                 {isLoading ? 'Signing In...' : 'Sign In'} <ArrowRight size={16} />
-              </IosButton>
+              </button>
             </form>
 
             {/* Links */}
             <div
               style={{
-                marginTop: '24px',
+                marginTop: '28px',
                 paddingTop: '20px',
-                borderTop: '1px solid var(--ios-glass-border, rgba(255, 255, 255, 0.12))',
+                borderTop: '1px solid rgba(0, 0, 0, 0.06)',
                 textAlign: 'center',
                 fontSize: '13px',
-                color: 'var(--ios-text-muted, #A1A1AA)',
+                color: '#6B7280',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '12px'
@@ -235,7 +301,7 @@ export const CustomerLoginPage: React.FC = () => {
             >
               <div>
                 Don't have an account?{' '}
-                <Link to={`/signup${location.search}`} style={{ color: '#FFFFFF', fontWeight: 600, textDecoration: 'underline' }}>
+                <Link to={`/signup${location.search}`} style={{ color: '#FA3E54', fontWeight: 700, textDecoration: 'none' }}>
                   Sign Up
                 </Link>
               </div>
@@ -243,7 +309,7 @@ export const CustomerLoginPage: React.FC = () => {
               <Link
                 to="/shop"
                 style={{
-                  color: 'var(--ios-text-subtle, #71717A)',
+                  color: '#9CA3AF',
                   fontSize: '12px',
                   textDecoration: 'none'
                 }}
@@ -251,7 +317,7 @@ export const CustomerLoginPage: React.FC = () => {
                 Continue browsing as guest
               </Link>
             </div>
-          </IosCardGlass>
+          </div>
         </div>
       </div>
     </div>
