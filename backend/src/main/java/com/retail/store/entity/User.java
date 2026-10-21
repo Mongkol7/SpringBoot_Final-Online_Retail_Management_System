@@ -2,9 +2,10 @@ package com.retail.store.entity;
 
 import com.retail.store.entity.enums.CustomerType;
 import jakarta.persistence.*;
-import org.hibernate.annotations.ColumnTransformer;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -37,9 +38,9 @@ public class User {
     @Column(name = "customer_type", nullable = false, length = 30)
     private CustomerType customerType = CustomerType.RETAIL;
 
-    @Column(columnDefinition = "jsonb")
-    @ColumnTransformer(write = "?::jsonb")
-    private String addresses;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "addresses", columnDefinition = "jsonb")
+    private String addresses = "[]";
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
@@ -67,7 +68,7 @@ public class User {
         this.fullName = fullName;
         this.phone = phone;
         this.customerType = customerType != null ? customerType : CustomerType.RETAIL;
-        this.addresses = addresses;
+        this.addresses = addresses != null ? addresses : "[]";
         this.isActive = isActive != null ? isActive : true;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;

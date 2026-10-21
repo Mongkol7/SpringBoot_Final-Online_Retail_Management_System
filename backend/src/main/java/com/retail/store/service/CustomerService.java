@@ -19,7 +19,9 @@ public interface CustomerService {
     List<Order> getCustomerOrders(Long userId);
     Order getOrderDetails(String orderNumber);
     void cancelOrder(Long userId, String orderNumber);
+    Order confirmOrder(String orderNumber);
 
     WholesaleApplication applyForWholesale(Long userId, String businessName, String taxId);
     WholesaleApplication getWholesaleStatus(Long userId);
+    List<com.retail.store.entity.Product> getAvailableProducts();
 }

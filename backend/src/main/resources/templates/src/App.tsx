@@ -1,17 +1,26 @@
 import React, { useState } from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import { DynamicIsland } from './components/layout/DynamicIsland';
-import { IosCardGlass } from './components/ui/IosCardGlass';
-import { IosButton } from './components/ui/IosButton';
 import { CashierPosTerminal } from './components/pos/CashierPosTerminal';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { StockWorkspace } from './features/inventory/StockWorkspace';
+import { CustomerApp } from './features/customer/CustomerApp';
 
-export const App: React.FC = () => {
-  const [activeRole, setActiveRole] = useState<'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN'>('ADMIN');
+export const AppContent: React.FC = () => {
+  const getInitialRole = (): 'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN' => {
+    const path = window.location.pathname.toLowerCase();
+    if (path.startsWith('/pos')) return 'CASHIER';
+    if (path.startsWith('/stock') || path.startsWith('/inventory')) return 'STOCK_CONTROLLER';
+    if (path.startsWith('/admin')) return 'ADMIN';
+    return 'USER';
+  };
+
+  const [activeRole, setActiveRole] = useState<'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN'>(getInitialRole);
   const isCashier = activeRole === 'CASHIER';
   const isAdmin = activeRole === 'ADMIN';
   const isStock = activeRole === 'STOCK_CONTROLLER';
-  const isWide = isCashier || isAdmin || isStock;
+  const isUser = activeRole === 'USER';
+  const isWide = isCashier || isAdmin || isStock || isUser;
 
   return (
     <div
@@ -62,30 +71,18 @@ export const App: React.FC = () => {
         ))}
       </div>
 
-      {/* Active Role Preview Panel */}
+      {/* Active Role Views */}
       {activeRole === 'USER' && (
-        <IosCardGlass glow>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 700 }}>🛒 Person 1: Online Customer Storefront (`/shop`)</h2>
-            <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '9999px', background: 'rgba(255,255,255,0.1)' }}>
-              RETAIL & WHOLESALE
-            </span>
-          </div>
-          <p style={{ color: 'var(--ios-text-muted)', marginBottom: '20px', lineHeight: 1.6 }}>
-            Online retail product discovery, dual-tier pricing (retail vs. bulk wholesale), frosted slide-over cart drawer, and 3-step checkout with live order tracking timeline.
-          </p>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <IosButton variant="primary">Browse Catalog</IosButton>
-            <IosButton variant="glass">Apply for Wholesale</IosButton>
-          </div>
-        </IosCardGlass>
+        <CustomerApp />
       )}
 
       {activeRole === 'CASHIER' && (
         <CashierPosTerminal />
       )}
 
-      {activeRole === 'STOCK_CONTROLLER' && <StockWorkspace />}
+      {activeRole === 'STOCK_CONTROLLER' && (
+        <StockWorkspace />
+      )}
 
       {activeRole === 'ADMIN' && (
         <AdminDashboard />
@@ -93,4 +90,13 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
+export const App: React.FC = () => {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
+  );
+};
+
 export default App;

@@ -62,6 +62,9 @@ public interface AdminService {
     FinancialTaxReportDto getFinancialTaxReport();
     String generateFinancialTaxCsv();
 
+    com.retail.store.entity.Order confirmOrder(Long orderId, Long adminUserId);
+    Page<com.retail.store.entity.Order> getAllOrders(String status, Pageable pageable);
+
     record ExecutiveKpiSummary(
             BigDecimal totalGrossRevenue,
             BigDecimal onlineRevenue,

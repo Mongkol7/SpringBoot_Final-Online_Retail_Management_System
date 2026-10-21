@@ -16,6 +16,7 @@ public class WholesaleApplication {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "passwordHash"})
     private User user;
 
     @Column(name = "business_name", nullable = false, length = 150)
@@ -30,6 +31,7 @@ public class WholesaleApplication {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "reviewed_by")
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "passwordHash"})
     private User reviewedBy;
 
     @Column(name = "reviewed_at")

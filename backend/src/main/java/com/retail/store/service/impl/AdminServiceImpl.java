@@ -8,6 +8,7 @@ import com.retail.store.entity.WholesaleApplication;
 import com.retail.store.entity.enums.ApplicationStatus;
 import com.retail.store.entity.enums.CustomerType;
 import com.retail.store.entity.enums.OrderChannel;
+import com.retail.store.entity.enums.OrderStatus;
 import com.retail.store.entity.enums.TransactionType;
 import com.retail.store.exception.ResourceNotFoundException;
 import com.retail.store.entity.Product;
@@ -718,6 +719,8 @@ public class AdminServiceImpl implements AdminService {
                     case CARD -> cardTotal = cardTotal.add(amount);
                     case CASH -> cashTotal = cashTotal.add(amount);
                     case BANK_TRANSFER -> bankTransferTotal = bankTransferTotal.add(amount);
+                    case QR -> cardTotal = cardTotal.add(amount);
+                    default -> {}
                 }
             }
         }
@@ -825,5 +828,26 @@ public class AdminServiceImpl implements AdminService {
             return "\"" + value.replace("\"", "\"\"") + "\"";
         }
         return value;
+    }
+
+    @Override
+    @Transactional
+    public Order confirmOrder(Long orderId, Long adminUserId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResourceNotFoundException("Order not found with id: " + orderId));
+        order.setStatus(OrderStatus.PROCESSING);
+        return orderRepository.save(order);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<Order> getAllOrders(String status, Pageable pageable) {
+        if (status != null && !status.trim().isEmpty()) {
+            try {
+                OrderStatus orderStatus = OrderStatus.valueOf(status.toUpperCase().trim());
+                return orderRepository.findByStatus(orderStatus, pageable);
+            } catch (IllegalArgumentException ignored) {}
+        }
+        return orderRepository.findAll(pageable);
     }
 }

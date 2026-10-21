@@ -76,11 +76,17 @@ public class InventoryController {
     // ================= PRODUCTS =================
     @PostMapping("/products")
     public ResponseEntity<Product> createProduct(@RequestBody CreateProductRequest request) {
-        Product product = inventoryService.createProduct(
-                request.categoryId(), request.sku(), request.name(), request.description(),
-                request.imageUrl(), request.images(), request.costPrice(), request.retailPrice(),
-                request.wholesalePrice(), request.minStockThreshold(), request.isPerishable()
-        );
+        Product product = (request.images() != null)
+                ? inventoryService.createProduct(
+                        request.categoryId(), request.sku(), request.name(), request.description(),
+                        request.imageUrl(), request.images(), request.costPrice(), request.retailPrice(),
+                        request.wholesalePrice(), request.minStockThreshold(), request.isPerishable()
+                )
+                : inventoryService.createProduct(
+                        request.categoryId(), request.sku(), request.name(), request.description(),
+                        request.imageUrl(), request.costPrice(), request.retailPrice(),
+                        request.wholesalePrice(), request.minStockThreshold(), request.isPerishable()
+                );
         return new ResponseEntity<>(product, HttpStatus.CREATED);
     }
 
