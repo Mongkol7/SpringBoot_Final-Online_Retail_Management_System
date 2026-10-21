@@ -2,6 +2,7 @@ package com.retail.store.entity;
 
 import com.retail.store.entity.enums.CustomerType;
 import jakarta.persistence.*;
+import org.hibernate.annotations.ColumnTransformer;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -36,6 +37,7 @@ public class User {
     private CustomerType customerType = CustomerType.RETAIL;
 
     @Column(columnDefinition = "jsonb")
+    @ColumnTransformer(write = "?::jsonb")
     private String addresses;
 
     @Column(name = "is_active", nullable = false)
