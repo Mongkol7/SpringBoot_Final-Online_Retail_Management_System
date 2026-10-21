@@ -210,13 +210,13 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
         className={isShaking ? 'pin-shake-anim' : ''}
         style={{
           width: '100%',
-          maxWidth: '700px',
-          maxHeight: 'min(500px, 92vh)',
-          background: 'linear-gradient(145deg, rgba(22, 30, 46, 0.96) 0%, rgba(13, 18, 30, 0.98) 100%)',
-          borderRadius: '24px',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.75), 0 0 35px rgba(59, 130, 246, 0.12)',
-          padding: '18px 22px',
+          maxWidth: '840px',
+          maxHeight: 'min(620px, 94vh)',
+          background: 'linear-gradient(145deg, rgba(22, 30, 46, 0.98) 0%, rgba(13, 18, 30, 0.99) 100%)',
+          borderRadius: '28px',
+          border: '1px solid rgba(255, 255, 255, 0.14)',
+          boxShadow: '0 30px 70px rgba(0, 0, 0, 0.8), 0 0 45px rgba(59, 130, 246, 0.15)',
+          padding: '22px 28px',
           color: '#FFFFFF',
           display: 'flex',
           flexDirection: 'column',
@@ -282,7 +282,7 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
           style={{
             display: 'grid',
             gridTemplateColumns: '1.05fr 0.95fr',
-            gap: '18px',
+            gap: '24px',
             alignItems: 'stretch',
             flex: 1,
             minHeight: 0
@@ -299,27 +299,27 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
             }}
           >
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
                 <div
                   style={{
-                    width: '26px',
-                    height: '26px',
+                    width: '32px',
+                    height: '32px',
                     borderRadius: '50%',
-                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                    border: '1px solid rgba(59, 130, 246, 0.3)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.18)',
+                    border: '1px solid rgba(59, 130, 246, 0.35)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#60A5FA'
                   }}
                 >
-                  <Lock size={13} />
+                  <Lock size={16} />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: '14px', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
+                  <h3 style={{ fontSize: '15px', fontWeight: 800, margin: 0, lineHeight: 1.2 }}>
                     1. Select Cashier Staff
                   </h3>
-                  <span style={{ fontSize: '10px', color: '#94A3B8' }}>Tap your profile to unlock register</span>
+                  <span style={{ fontSize: '11px', color: '#94A3B8' }}>Tap your profile to unlock register</span>
                 </div>
               </div>
 
@@ -328,10 +328,10 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                 style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '6px',
-                  maxHeight: '235px',
+                  gap: '8px',
+                  maxHeight: '280px',
                   overflowY: 'auto',
-                  paddingRight: '4px'
+                  paddingRight: '6px'
                 }}
               >
                 {cashierStaffList.map((staff) => {
@@ -350,12 +350,12 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        gap: '8px',
-                        padding: '6px 10px',
-                        borderRadius: '12px',
-                        border: isSelected ? '1.5px solid #38BDF8' : '1px solid rgba(255, 255, 255, 0.06)',
-                        backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.14)' : 'rgba(255, 255, 255, 0.03)',
-                        boxShadow: isSelected ? '0 0 12px rgba(56, 189, 248, 0.2)' : 'none',
+                        gap: '10px',
+                        padding: '9px 12px',
+                        borderRadius: '14px',
+                        border: isSelected ? '2px solid #38BDF8' : '1px solid rgba(255, 255, 255, 0.08)',
+                        backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.16)' : 'rgba(255, 255, 255, 0.03)',
+                        boxShadow: isSelected ? '0 0 16px rgba(56, 189, 248, 0.25)' : 'none',
                         cursor: 'pointer',
                         transition: 'all 0.15s ease',
                         textAlign: 'left'
@@ -363,15 +363,15 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                     >
                       <div
                         style={{
-                          width: '28px',
-                          height: '28px',
+                          width: '34px',
+                          height: '34px',
                           borderRadius: '50%',
                           backgroundColor: staff.avatarColor || '#3B82F6',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           fontWeight: 800,
-                          fontSize: '11px',
+                          fontSize: '12px',
                           color: '#FFFFFF',
                           flexShrink: 0
                         }}
@@ -379,15 +379,15 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                         {initials}
                       </div>
                       <div style={{ overflow: 'hidden', flex: 1 }}>
-                        <div style={{ fontSize: '12px', fontWeight: 700, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {staff.fullName}
                         </div>
-                        <div style={{ fontSize: '10px', color: isSelected ? '#38BDF8' : '#94A3B8' }}>
+                        <div style={{ fontSize: '11px', color: isSelected ? '#38BDF8' : '#94A3B8' }}>
                           Staff #{staff.id} • {staff.role}
                         </div>
                       </div>
                       {isSelected && (
-                        <CheckCircle2 size={15} color="#38BDF8" style={{ flexShrink: 0 }} />
+                        <CheckCircle2 size={17} color="#38BDF8" style={{ flexShrink: 0 }} />
                       )}
                     </button>
                   );
@@ -398,21 +398,21 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
             {/* Quick Demo PIN Chips */}
             <div
               style={{
-                marginTop: '8px',
-                padding: '6px 10px',
-                borderRadius: '10px',
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                border: '1px dashed rgba(255, 255, 255, 0.1)',
+                marginTop: '10px',
+                padding: '8px 12px',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                border: '1px dashed rgba(255, 255, 255, 0.12)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                gap: '6px',
-                fontSize: '10px',
+                gap: '8px',
+                fontSize: '11px',
                 color: '#94A3B8'
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <KeyRound size={11} color="#F59E0B" />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <KeyRound size={13} color="#F59E0B" />
                 <span>Demo PIN: <strong>1234</strong></span>
               </div>
               <button
@@ -422,20 +422,20 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                   handleVerifyPin(demoPin);
                 }}
                 style={{
-                  padding: '3px 8px',
-                  borderRadius: '6px',
+                  padding: '4px 10px',
+                  borderRadius: '8px',
                   border: 'none',
-                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                  backgroundColor: 'rgba(16, 185, 129, 0.22)',
                   color: '#34D399',
-                  fontSize: '10px',
+                  fontSize: '11px',
                   fontWeight: 700,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '3px'
+                  gap: '4px'
                 }}
               >
-                <Sparkles size={10} />
+                <Sparkles size={12} />
                 Auto-Fill PIN
               </button>
             </div>
@@ -448,10 +448,10 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: 'rgba(0, 0, 0, 0.25)',
-              borderRadius: '16px',
-              padding: '12px 10px',
-              border: '1px solid rgba(255, 255, 255, 0.06)'
+              backgroundColor: 'rgba(0, 0, 0, 0.28)',
+              borderRadius: '20px',
+              padding: '16px 14px',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
             }}
           >
             {/* Active Cashier Pill */}
@@ -459,39 +459,39 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                padding: '2px 8px',
+                gap: '6px',
+                padding: '4px 12px',
                 borderRadius: '9999px',
-                backgroundColor: 'rgba(56, 189, 248, 0.12)',
-                border: '1px solid rgba(56, 189, 248, 0.25)',
-                fontSize: '11px',
+                backgroundColor: 'rgba(56, 189, 248, 0.14)',
+                border: '1px solid rgba(56, 189, 248, 0.3)',
+                fontSize: '12px',
                 color: '#38BDF8',
-                marginBottom: '8px',
+                marginBottom: '10px',
                 maxWidth: '100%',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap'
               }}
             >
-              <UserCheck size={11} color="#10B981" />
+              <UserCheck size={13} color="#10B981" />
               <span><strong>{selectedStaff?.fullName || 'Select Staff'}</strong></span>
             </div>
 
             {/* 4 PIN Dots */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '6px' }}>
+            <div style={{ display: 'flex', gap: '14px', marginBottom: '8px' }}>
               {[0, 1, 2, 3].map((idx) => {
                 const isFilled = pin.length > idx;
                 return (
                   <div
                     key={idx}
                     style={{
-                      width: '12px',
-                      height: '12px',
+                      width: '16px',
+                      height: '16px',
                       borderRadius: '50%',
                       backgroundColor: isFilled ? '#10B981' : 'transparent',
-                      border: isFilled ? '2px solid #10B981' : '1.5px solid rgba(255, 255, 255, 0.3)',
-                      boxShadow: isFilled ? '0 0 10px #10B981' : 'none',
-                      transform: isFilled ? 'scale(1.15)' : 'scale(1)',
+                      border: isFilled ? '2px solid #10B981' : '1.5px solid rgba(255, 255, 255, 0.35)',
+                      boxShadow: isFilled ? '0 0 12px #10B981' : 'none',
+                      transform: isFilled ? 'scale(1.2)' : 'scale(1)',
                       transition: 'all 0.15s cubic-bezier(0.34, 1.56, 0.64, 1)'
                     }}
                   />
@@ -500,25 +500,25 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
             </div>
 
             {/* Error or Hint */}
-            <div style={{ height: '16px', marginBottom: '6px', display: 'flex', alignItems: 'center' }}>
+            <div style={{ height: '20px', marginBottom: '10px', display: 'flex', alignItems: 'center' }}>
               {errorMessage ? (
-                <div style={{ fontSize: '10px', color: '#F87171', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                  <AlertCircle size={11} />
+                <div style={{ fontSize: '11px', color: '#F87171', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <AlertCircle size={13} />
                   <span>{errorMessage}</span>
                 </div>
               ) : (
-                <span style={{ fontSize: '10px', color: '#64748B' }}>
+                <span style={{ fontSize: '11px', color: '#94A3B8' }}>
                   Enter 4-digit code (keyboard enabled)
                 </span>
               )}
             </div>
 
-            {/* Compact Keypad (58px wide x 36px high, total keypad height only 162px!) */}
+            {/* Keypad with generous touch-friendly sizing (78px x 48px) */}
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, 58px)',
-                gap: '6px',
+                gridTemplateColumns: 'repeat(3, 78px)',
+                gap: '8px',
                 justifyContent: 'center'
               }}
             >
@@ -530,23 +530,23 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                       onClick={handleClear}
                       disabled={isLoading || pin.length === 0}
                       style={{
-                        width: '58px',
-                        height: '36px',
-                        borderRadius: '10px',
+                        width: '78px',
+                        height: '48px',
+                        borderRadius: '12px',
                         border: '1px solid rgba(255, 255, 255, 0.08)',
-                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                        color: pin.length > 0 ? '#94A3B8' : 'rgba(255, 255, 255, 0.2)',
-                        fontSize: '10px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        color: pin.length > 0 ? '#94A3B8' : 'rgba(255, 255, 255, 0.25)',
+                        fontSize: '11px',
                         fontWeight: 700,
                         cursor: pin.length > 0 ? 'pointer' : 'default',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '2px',
+                        gap: '4px',
                         transition: 'all 0.12s ease'
                       }}
                     >
-                      <RotateCcw size={11} />
+                      <RotateCcw size={12} />
                       <span>Clr</span>
                     </button>
                   );
@@ -559,13 +559,13 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                       onClick={handleBackspace}
                       disabled={isLoading || pin.length === 0}
                       style={{
-                        width: '58px',
-                        height: '36px',
-                        borderRadius: '10px',
+                        width: '78px',
+                        height: '48px',
+                        borderRadius: '12px',
                         border: '1px solid rgba(255, 255, 255, 0.08)',
-                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                        color: pin.length > 0 ? '#F43F5E' : 'rgba(255, 255, 255, 0.2)',
-                        fontSize: '13px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        color: pin.length > 0 ? '#F43F5E' : 'rgba(255, 255, 255, 0.25)',
+                        fontSize: '15px',
                         cursor: pin.length > 0 ? 'pointer' : 'default',
                         display: 'flex',
                         alignItems: 'center',
@@ -573,7 +573,7 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                         transition: 'all 0.12s ease'
                       }}
                     >
-                      <Delete size={15} />
+                      <Delete size={17} />
                     </button>
                   );
                 }
@@ -584,11 +584,11 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                     onClick={() => handleDigit(k.num!)}
                     disabled={isLoading}
                     style={{
-                      width: '58px',
-                      height: '36px',
-                      borderRadius: '10px',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      backgroundColor: 'rgba(255, 255, 255, 0.07)',
+                      width: '78px',
+                      height: '48px',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
                       color: '#FFFFFF',
                       cursor: 'pointer',
                       display: 'flex',
@@ -599,21 +599,21 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                       userSelect: 'none'
                     }}
                     onMouseDown={(e) => {
-                      e.currentTarget.style.transform = 'scale(0.92)';
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                      e.currentTarget.style.transform = 'scale(0.93)';
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.22)';
                     }}
                     onMouseUp={(e) => {
                       e.currentTarget.style.transform = 'scale(1)';
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.07)';
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.transform = 'scale(1)';
-                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.07)';
+                      e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
                     }}
                   >
-                    <span style={{ fontSize: '15px', fontWeight: 700, lineHeight: 1 }}>{k.num}</span>
+                    <span style={{ fontSize: '19px', fontWeight: 700, lineHeight: 1 }}>{k.num}</span>
                     {k.sub && (
-                      <span style={{ fontSize: '7px', fontWeight: 600, letterSpacing: '0.06em', color: '#94A3B8', marginTop: '1px' }}>
+                      <span style={{ fontSize: '8px', fontWeight: 600, letterSpacing: '0.08em', color: '#94A3B8', marginTop: '2px' }}>
                         {k.sub}
                       </span>
                     )}
