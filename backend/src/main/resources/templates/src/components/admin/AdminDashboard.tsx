@@ -42,7 +42,8 @@ import {
   ShieldCheck,
   Briefcase,
   XCircle,
-  ArrowUpDown
+  ArrowUpDown,
+  LogOut
 } from 'lucide-react';
 import {
   ExecutiveKpiSummary,
@@ -58,7 +59,7 @@ import {
 import { adminService } from '../../services/adminService';
 import { IosCardGlass } from '../ui/IosCardGlass';
 
-export const AdminDashboard: React.FC = () => {
+export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   // Navigation Tabs
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'PRODUCTS' | 'PAYMENTS' | 'WHOLESALE' | 'USERS' | 'AUDIT'>('OVERVIEW');
 
@@ -912,6 +913,33 @@ export const AdminDashboard: React.FC = () => {
           >
             <RefreshCw size={14} />
             {refreshing ? 'Syncing...' : 'Sync Live'}
+          </button>
+
+          <button
+            onClick={() => {
+              if (window.confirm('Lock Executive HUD and sign out from Administrator session?')) {
+                localStorage.removeItem('admin_jwt');
+                onLogout?.();
+              }
+            }}
+            title="Sign Out / Lock Executive HUD"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 18px',
+              borderRadius: '9999px',
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#FCA5A5',
+              fontSize: '13px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <LogOut size={14} />
+            <span>Sign Out</span>
           </button>
         </div>
       </div>

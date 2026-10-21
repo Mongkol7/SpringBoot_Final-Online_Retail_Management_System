@@ -80,7 +80,7 @@ public class SecurityConfig {
                 .requestMatchers("/", "/index.html", "/static/**", "/assets/**", "/templates/**", "/favicon.ico").permitAll()
 
                 // Role-Specific Access Controls
-                .requestMatchers("/customer/**", "/api/v1/customer/**", "/cart/**", "/api/v1/cart/**").hasRole("USER")
+                .requestMatchers("/customer/**", "/api/v1/customer/**", "/cart/**", "/api/v1/cart/**").hasAnyRole("USER", "CUSTOMER", "ADMIN")
                 .requestMatchers("/pos/**", "/api/v1/pos/**", "/cashier/**", "/api/v1/cashier/**").hasAnyRole("CASHIER", "ADMIN")
                 .requestMatchers("/inventory/**", "/api/v1/inventory/**", "/batches/**", "/api/v1/batches/**").hasAnyRole("STOCK_CONTROLLER", "ADMIN")
                 .requestMatchers("/admin/**", "/api/v1/admin/**").hasRole("ADMIN")

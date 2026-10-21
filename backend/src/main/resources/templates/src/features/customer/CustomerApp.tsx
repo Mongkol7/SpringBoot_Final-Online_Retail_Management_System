@@ -11,17 +11,44 @@ import {
   ShoppingCart,
   CreditCard,
   ClipboardList,
-  Building2
+  Building2,
+  Shield,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 
 export type CustomerRoute = 'shop' | 'cart' | 'checkout' | 'orders' | 'wholesale';
 
-export const CustomerApp: React.FC = () => {
-  const [currentRoute, setCurrentRoute] = useState<CustomerRoute>('shop');
+interface CustomerAppProps {
+  initialRoute?: CustomerRoute;
+}
+
+export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
+  const getInitial = (): CustomerRoute => {
+    if (initialRoute) return initialRoute;
+    const p = window.location.pathname.toLowerCase();
+    if (p.startsWith('/cart')) return 'cart';
+    if (p.startsWith('/checkout')) return 'checkout';
+    if (p.startsWith('/orders')) return 'orders';
+    if (p.startsWith('/wholesale')) return 'wholesale';
+    return 'shop';
+  };
+
+  const [currentRoute, setCurrentRouteState] = useState<CustomerRoute>(getInitial);
   const [isWholesaleModalOpen, setIsWholesaleModalOpen] = useState(false);
+
+  const setCurrentRoute = (route: CustomerRoute) => {
+    setCurrentRouteState(route);
+    const path = route === 'shop' ? '/' : `/${route}`;
+    if (window.location.pathname !== path) {
+      window.history.pushState(null, '', path);
+    }
+  };
 
   const {
     user,
+    isAuthenticated,
+    logout,
     getItemCount,
     getEffectiveTier
   } = useCustomerCartStore();
@@ -121,28 +148,107 @@ export const CustomerApp: React.FC = () => {
           ))}
         </div>
 
-        {/* Quick Wholesale Page Trigger Button */}
-        <button
-          onClick={() => setCurrentRoute('wholesale')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '6px 14px',
-            borderRadius: '9999px',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
-            backgroundColor: currentRoute === 'wholesale' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.06)',
-            color: currentRoute === 'wholesale' ? '#000000' : '#FFFFFF',
-            fontSize: '11px',
-            fontWeight: 700,
-            cursor: 'pointer',
-            transition: 'all 0.2s ease'
-          }}
-          className="ios-glow-hover"
-        >
-          <Building2 size={13} />
-          <span>Wholesale Portal</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Quick Wholesale Page Trigger Button */}
+          <button
+            onClick={() => setCurrentRoute('wholesale')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 14px',
+              borderRadius: '9999px',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              backgroundColor: currentRoute === 'wholesale' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.06)',
+              color: currentRoute === 'wholesale' ? '#000000' : '#FFFFFF',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+            className="ios-glow-hover"
+          >
+            <Building2 size={13} />
+            <span>Wholesale</span>
+          </button>
+
+          {/* Customer Auth Button */}
+          {isAuthenticated ? (
+            <button
+              onClick={() => {
+                if (window.confirm('Sign out from customer account?')) {
+                  logout();
+                }
+              }}
+              title="Sign Out"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '6px 12px',
+                borderRadius: '9999px',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                color: '#FCA5A5',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <LogOut size={12} />
+              <span>Sign Out</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                window.location.href = '/login';
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '6px 14px',
+                borderRadius: '9999px',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                color: '#FFFFFF',
+                fontSize: '11px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <LogIn size={12} />
+              <span>Sign In</span>
+            </button>
+          )}
+
+          {/* Discreet Staff & Admin Gateway */}
+          <button
+            onClick={() => {
+              window.location.href = '/login?role=admin';
+            }}
+            title="Enterprise Staff & Admin Gateway"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '6px 10px',
+              borderRadius: '9999px',
+              border: '1px solid rgba(96, 165, 250, 0.3)',
+              backgroundColor: 'rgba(59, 130, 246, 0.1)',
+              color: '#93C5FD',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Shield size={12} />
+            <span>Staff Portal</span>
+          </button>
+        </div>
       </div>
 
       {/* Main View Display */}
