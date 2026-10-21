@@ -10,13 +10,15 @@ import {
   Check,
   AlertTriangle,
   X,
-  Clock
+  Clock,
+  FileText
 } from 'lucide-react';
 import { useInventoryStore, StockTab } from '../../store/useInventoryStore';
 import { StockOverviewPage } from './pages/StockOverviewPage';
 import { StockCatalogPage } from './pages/StockCatalogPage';
 import { BatchExpiryRadar } from './components/BatchExpiryRadar';
 import { SupplierDirectoryPage } from './pages/SupplierDirectoryPage';
+import { WarehouseLedgerPage } from './pages/WarehouseLedgerPage';
 
 // Modals
 import { ProductModal } from './components/ProductModal';
@@ -79,7 +81,8 @@ export const StockWorkspace: React.FC = () => {
     { id: 'overview', label: 'Overview', icon: <Layers3 size={15} /> },
     { id: 'catalog', label: 'Catalog & Tiers', icon: <Package size={15} /> },
     { id: 'batches', label: 'FIFO/FEFO Radar', icon: <Boxes size={15} />, badge: soonCount > 0 ? soonCount : undefined },
-    { id: 'suppliers', label: 'Vendors & Ledger', icon: <Truck size={15} /> }
+    { id: 'ledger', label: 'Movement Ledger', icon: <FileText size={15} /> },
+    { id: 'suppliers', label: 'Supplier Directory', icon: <Truck size={15} /> }
   ];
 
   return (
@@ -343,6 +346,7 @@ export const StockWorkspace: React.FC = () => {
         {visibleTab === 'overview' && <StockOverviewPage />}
         {visibleTab === 'catalog' && <StockCatalogPage />}
         {visibleTab === 'batches' && <BatchExpiryRadar />}
+        {visibleTab === 'ledger' && <WarehouseLedgerPage />}
         {visibleTab === 'suppliers' && <SupplierDirectoryPage />}
       </main>
 

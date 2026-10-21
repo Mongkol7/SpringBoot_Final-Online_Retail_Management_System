@@ -22,7 +22,8 @@ export const StockOverviewPage: React.FC = () => {
     transactions,
     lowStockProducts,
     soonExpiringCount,
-    setTab
+    setTab,
+    setRadarFilter
   } = useInventoryStore();
 
   const activeProducts = products.filter((p) => !p.isDeleted);
@@ -79,7 +80,10 @@ export const StockOverviewPage: React.FC = () => {
 
         {/* Card 3: Low Stock Alerts */}
         <div
-          onClick={() => setTab('catalog')}
+          onClick={() => {
+            setRadarFilter('low-stock');
+            setTab('batches');
+          }}
           className="ios-glass-panel ios-glow-hover"
           style={{
             padding: '20px',
@@ -108,13 +112,16 @@ export const StockOverviewPage: React.FC = () => {
             {lowStock.length}
           </div>
           <div style={{ fontSize: '11px', color: '#71717A', marginTop: '2px' }}>
-            {lowStock.length > 0 ? 'Items below reorder point' : 'All stock levels healthy'}
+            {lowStock.length > 0 ? 'Items below reorder point (Click to inspect)' : 'All stock levels healthy'}
           </div>
         </div>
 
         {/* Card 4: Expiry Watch */}
         <div
-          onClick={() => setTab('batches')}
+          onClick={() => {
+            setRadarFilter('expired');
+            setTab('batches');
+          }}
           className="ios-glass-panel ios-glow-hover"
           style={{
             padding: '20px',
@@ -124,7 +131,7 @@ export const StockOverviewPage: React.FC = () => {
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: '#A1A1AA' }}>
-            <span style={{ fontSize: '11px', fontWeight: 600 }}>Expiry Watch (7d)</span>
+            <span style={{ fontSize: '11px', fontWeight: 600 }}>Expiry Watch</span>
             <div
               style={{
                 width: '32px',
@@ -143,7 +150,7 @@ export const StockOverviewPage: React.FC = () => {
             {soonCount}
           </div>
           <div style={{ fontSize: '11px', color: '#71717A', marginTop: '2px' }}>
-            {soonCount > 0 ? 'Batches expiring within 7 days' : 'No near-term expirations'}
+            {soonCount > 0 ? 'Batches expiring within 7 days (Click to inspect)' : 'No near-term expirations'}
           </div>
         </div>
       </div>
@@ -260,7 +267,7 @@ export const StockOverviewPage: React.FC = () => {
               </h3>
             </div>
             <button
-              onClick={() => setTab('suppliers')}
+              onClick={() => setTab('ledger')}
               style={{ background: 'transparent', border: 'none', color: '#A1A1AA', fontSize: '11px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}
             >
               Full Ledger <ChevronRight size={14} />

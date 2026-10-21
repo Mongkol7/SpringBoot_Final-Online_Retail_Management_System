@@ -28,8 +28,11 @@ public class Product {
     @Column(columnDefinition = "text")
     private String description;
 
-    @Column(name = "image_url", length = 500)
+    @Column(name = "image_url", columnDefinition = "text")
     private String imageUrl;
+
+    @Column(name = "images", columnDefinition = "text")
+    private String images;
 
     @Column(name = "cost_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal costPrice;
@@ -63,12 +66,20 @@ public class Product {
                    String imageUrl, BigDecimal costPrice, BigDecimal retailPrice,
                    BigDecimal wholesalePrice, Integer minStockThreshold, Boolean isPerishable,
                    Boolean isDeleted, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(id, category, sku, name, description, imageUrl, null, costPrice, retailPrice, wholesalePrice, minStockThreshold, isPerishable, isDeleted, createdAt, updatedAt);
+    }
+
+    public Product(Long id, Category category, String sku, String name, String description,
+                   String imageUrl, String images, BigDecimal costPrice, BigDecimal retailPrice,
+                   BigDecimal wholesalePrice, Integer minStockThreshold, Boolean isPerishable,
+                   Boolean isDeleted, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.category = category;
         this.sku = sku;
         this.name = name;
         this.description = description;
         this.imageUrl = imageUrl;
+        this.images = images;
         this.costPrice = costPrice;
         this.retailPrice = retailPrice;
         this.wholesalePrice = wholesalePrice;
@@ -96,6 +107,9 @@ public class Product {
 
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+
+    public String getImages() { return images; }
+    public void setImages(String images) { this.images = images; }
 
     public BigDecimal getCostPrice() { return costPrice; }
     public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice; }
@@ -130,6 +144,7 @@ public class Product {
         private String name;
         private String description;
         private String imageUrl;
+        private String images;
         private BigDecimal costPrice;
         private BigDecimal retailPrice;
         private BigDecimal wholesalePrice;
@@ -143,6 +158,7 @@ public class Product {
         public Builder name(String name) { this.name = name; return this; }
         public Builder description(String description) { this.description = description; return this; }
         public Builder imageUrl(String imageUrl) { this.imageUrl = imageUrl; return this; }
+        public Builder images(String images) { this.images = images; return this; }
         public Builder costPrice(BigDecimal costPrice) { this.costPrice = costPrice; return this; }
         public Builder retailPrice(BigDecimal retailPrice) { this.retailPrice = retailPrice; return this; }
         public Builder wholesalePrice(BigDecimal wholesalePrice) { this.wholesalePrice = wholesalePrice; return this; }
@@ -151,7 +167,7 @@ public class Product {
         public Builder isDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; return this; }
 
         public Product build() {
-            return new Product(id, category, sku, name, description, imageUrl, costPrice, retailPrice, wholesalePrice, minStockThreshold, isPerishable, isDeleted, null, null);
+            return new Product(id, category, sku, name, description, imageUrl, images, costPrice, retailPrice, wholesalePrice, minStockThreshold, isPerishable, isDeleted, null, null);
         }
     }
 }

@@ -340,7 +340,7 @@ class InventoryServiceImplTest {
     }
 
     @Test
-    @DisplayName("Category Management: Update and Delete Category")
+    @DisplayName("Category Management: Update and Delete Category (Soft Delete)")
     void testCategoryUpdateAndDelete() {
         when(categoryRepository.findById(1)).thenReturn(Optional.of(testCategory));
         when(categoryRepository.save(any(Category.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -350,11 +350,12 @@ class InventoryServiceImplTest {
         assertEquals("Updated description", updated.getDescription());
 
         inventoryService.deleteCategory(1);
-        verify(categoryRepository).delete(testCategory);
+        assertTrue(testCategory.getIsDeleted());
+        verify(categoryRepository, atLeastOnce()).save(testCategory);
     }
 
     @Test
-    @DisplayName("Supplier Management: Update and Delete Supplier")
+    @DisplayName("Supplier Management: Update and Delete Supplier (Soft Delete)")
     void testSupplierUpdateAndDelete() {
         when(supplierRepository.findById(1)).thenReturn(Optional.of(testSupplier));
         when(supplierRepository.save(any(Supplier.class))).thenAnswer(inv -> inv.getArgument(0));
@@ -364,7 +365,8 @@ class InventoryServiceImplTest {
         assertEquals("Jane Doe", updated.getContactName());
 
         inventoryService.deleteSupplier(1);
-        verify(supplierRepository).delete(testSupplier);
+        assertTrue(testSupplier.getIsDeleted());
+        verify(supplierRepository, atLeastOnce()).save(testSupplier);
     }
 
     @Test

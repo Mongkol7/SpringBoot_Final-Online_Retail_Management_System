@@ -1,4 +1,5 @@
 import React, { useState, FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Check } from 'lucide-react';
 import { useInventoryStore } from '../../../store/useInventoryStore';
 
@@ -38,18 +39,26 @@ export const AdjustmentModal: React.FC = () => {
     setIsSubmitting(false);
   };
 
-  return (
+  return createPortal(
     <div
       style={{
         position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        background: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(20px)',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 99999,
+        background: 'rgba(0, 0, 0, 0.78)',
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px'
+        padding: '20px',
+        boxSizing: 'border-box',
+        overflowY: 'auto'
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) closeModal();
@@ -60,10 +69,13 @@ export const AdjustmentModal: React.FC = () => {
         style={{
           width: '100%',
           maxWidth: '460px',
+          margin: 'auto',
+          maxHeight: 'min(90vh, 750px)',
+          overflowY: 'auto',
           borderRadius: '24px',
           padding: '28px',
           boxShadow: '0 24px 60px rgba(0,0,0,0.8), 0 0 1px 1px rgba(255,255,255,0.15)',
-          animation: 'stock-enter 0.25s ease'
+          animation: 'stock-enter 0.22s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
@@ -233,6 +245,7 @@ export const AdjustmentModal: React.FC = () => {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

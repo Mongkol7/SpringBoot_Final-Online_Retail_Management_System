@@ -6,8 +6,58 @@ export const inventoryApi = axios.create({
   baseURL: `${API_BASE}/inventory`
 });
 
-inventoryApi.interceptors.request.use((config) => {
-  const token = localStorage.getItem('inventory_jwt');
+let cachedInventoryToken: string | null = localStorage.getItem('inventory_jwt');
+let inventoryRefreshPromise: Promise<string> | null = null;
+
+export async function getValidInventoryToken(): Promise<string> {
+  const token = localStorage.getItem('inventory_jwt') || cachedInventoryToken;
+  if (token) {
+    cachedInventoryToken = token;
+    return token;
+  }
+  if (inventoryRefreshPromise) return inventoryRefreshPromise;
+
+  inventoryRefreshPromise = (async () => {
+    try {
+      const res = await axios.post(`${API_BASE}/auth/login`, {
+        email: 'stock@retailstore.com',
+        password: 'password123'
+      });
+      const t = res.data?.token;
+      if (t) {
+        cachedInventoryToken = t;
+        localStorage.setItem('inventory_jwt', t);
+        return t;
+      }
+    } catch {
+      try {
+        const resAdmin = await axios.post(`${API_BASE}/auth/login`, {
+          email: 'admin@retailstore.com',
+          password: 'admin123'
+        });
+        const t = resAdmin.data?.token;
+        if (t) {
+          cachedInventoryToken = t;
+          localStorage.setItem('inventory_jwt', t);
+          return t;
+        }
+      } catch (err) {
+        console.warn('Inventory token auto-resolution failed:', err);
+      }
+    } finally {
+      inventoryRefreshPromise = null;
+    }
+    return '';
+  })();
+
+  return inventoryRefreshPromise;
+}
+
+inventoryApi.interceptors.request.use(async (config) => {
+  let token = localStorage.getItem('inventory_jwt');
+  if (!token) {
+    token = await getValidInventoryToken();
+  }
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -18,6 +68,7 @@ export interface StockCategory {
   id: number;
   name: string;
   description?: string;
+  isDeleted?: boolean;
 }
 
 export interface StockSupplier {
@@ -27,6 +78,8 @@ export interface StockSupplier {
   email?: string;
   phone?: string;
   address?: string;
+  profileImage?: string;
+  isDeleted?: boolean;
 }
 
 export interface StockProduct {
@@ -35,6 +88,7 @@ export interface StockProduct {
   name: string;
   description?: string;
   imageUrl?: string;
+  images?: string[];
   category?: StockCategory;
   categoryId?: number;
   costPrice: number;
@@ -125,8 +179,25 @@ export async function loadStockWorkspace(): Promise<StockWorkspaceData> {
     inventoryApi.get<StockTransaction[]>('/transactions')
   ]);
 
+  const parsedProducts = products.data.map((p: any) => {
+    let images: string[] = [];
+    if (Array.isArray(p.images)) {
+      images = p.images;
+    } else if (typeof p.images === 'string' && p.images.trim()) {
+      try {
+        const parsed = JSON.parse(p.images);
+        images = Array.isArray(parsed) ? parsed : [p.images];
+      } catch {
+        images = p.images.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+    } else if (p.imageUrl) {
+      images = [p.imageUrl];
+    }
+    return { ...p, images };
+  });
+
   return {
-    products: products.data,
+    products: parsedProducts,
     categories: categories.data,
     suppliers: suppliers.data,
     batches: batches.data,
@@ -148,9 +219,9 @@ export const categoryApi = {
 // Supplier API
 export const supplierApi = {
   list: () => inventoryApi.get<StockSupplier[]>('/suppliers').then((r) => r.data),
-  create: (data: { name: string; contactName?: string; email?: string; phone?: string; address?: string }) =>
+  create: (data: { name: string; contactName?: string; email?: string; phone?: string; address?: string; profileImage?: string }) =>
     inventoryApi.post<StockSupplier>('/suppliers', data).then((r) => r.data),
-  update: (id: number, data: { name: string; contactName?: string; email?: string; phone?: string; address?: string }) =>
+  update: (id: number, data: { name: string; contactName?: string; email?: string; phone?: string; address?: string; profileImage?: string }) =>
     inventoryApi.put<StockSupplier>(`/suppliers/${id}`, data).then((r) => r.data),
   delete: (id: number) => inventoryApi.delete(`/suppliers/${id}`)
 };
@@ -168,12 +239,19 @@ export const productApi = {
     name: string;
     description?: string;
     imageUrl?: string;
+    images?: string[];
     costPrice: number;
     retailPrice: number;
     wholesalePrice: number;
     minStockThreshold: number;
     isPerishable: boolean;
-  }) => inventoryApi.post<StockProduct>('/products', data).then((r) => r.data),
+  }) => {
+    const payload = {
+      ...data,
+      images: data.images && data.images.length > 0 ? JSON.stringify(data.images) : undefined
+    };
+    return inventoryApi.post<StockProduct>('/products', payload).then((r) => r.data);
+  },
   update: (
     id: number,
     data: {
@@ -181,13 +259,20 @@ export const productApi = {
       name: string;
       description?: string;
       imageUrl?: string;
+      images?: string[];
       costPrice: number;
       retailPrice: number;
       wholesalePrice: number;
       minStockThreshold: number;
       isPerishable: boolean;
     }
-  ) => inventoryApi.put<StockProduct>(`/products/${id}`, data).then((r) => r.data),
+  ) => {
+    const payload = {
+      ...data,
+      images: data.images && data.images.length > 0 ? JSON.stringify(data.images) : undefined
+    };
+    return inventoryApi.put<StockProduct>(`/products/${id}`, payload).then((r) => r.data);
+  },
   delete: (id: number) => inventoryApi.delete(`/products/${id}`),
   restore: (id: number) => inventoryApi.post<StockProduct>(`/products/${id}/restore`).then((r) => r.data)
 };

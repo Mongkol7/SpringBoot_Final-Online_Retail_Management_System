@@ -97,7 +97,7 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(readOnly = true)
     public List<Category> getAllCategories() {
-        return categoryRepository.findAll();
+        return categoryRepository.findByIsDeletedFalseOrderByNameAsc();
     }
 
     @Override
@@ -123,27 +123,28 @@ public class InventoryServiceImpl implements InventoryService {
     public void deleteCategory(Integer categoryId) {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + categoryId));
-        categoryRepository.delete(category);
+        category.setIsDeleted(true);
+        categoryRepository.save(category);
     }
 
     @Override
     @Transactional
-    public Supplier createSupplier(String name, String contactName, String email, String phone, String address) {
+    public Supplier createSupplier(String name, String contactName, String email, String phone, String address, String profileImage) {
         if (name == null || name.trim().isEmpty()) {
             throw new BadRequestException("Supplier name cannot be empty");
         }
-        return supplierRepository.save(new Supplier(null, name.trim(), contactName, email, phone, address));
+        return supplierRepository.save(new Supplier(null, name.trim(), contactName, email, phone, address, profileImage, false));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<Supplier> getAllSuppliers() {
-        return supplierRepository.findAll();
+        return supplierRepository.findByIsDeletedFalseOrderByNameAsc();
     }
 
     @Override
     @Transactional
-    public Supplier updateSupplier(Integer supplierId, String name, String contactName, String email, String phone, String address) {
+    public Supplier updateSupplier(Integer supplierId, String name, String contactName, String email, String phone, String address, String profileImage) {
         Supplier supplier = supplierRepository.findById(supplierId)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found with id: " + supplierId));
         if (name != null && !name.trim().isEmpty()) {
@@ -161,6 +162,9 @@ public class InventoryServiceImpl implements InventoryService {
         if (address != null) {
             supplier.setAddress(address.trim());
         }
+        if (profileImage != null) {
+            supplier.setProfileImage(profileImage.trim());
+        }
         return supplierRepository.save(supplier);
     }
 
@@ -169,13 +173,14 @@ public class InventoryServiceImpl implements InventoryService {
     public void deleteSupplier(Integer supplierId) {
         Supplier supplier = supplierRepository.findById(supplierId)
                 .orElseThrow(() -> new ResourceNotFoundException("Supplier not found with id: " + supplierId));
-        supplierRepository.delete(supplier);
+        supplier.setIsDeleted(true);
+        supplierRepository.save(supplier);
     }
 
     @Override
     @Transactional
     public Product createProduct(Integer categoryId, String sku, String name, String description,
-                                 String imageUrl, BigDecimal costPrice, BigDecimal retailPrice,
+                                 String imageUrl, String images, BigDecimal costPrice, BigDecimal retailPrice,
                                  BigDecimal wholesalePrice, Integer minThreshold, Boolean isPerishable) {
         if (name == null || name.trim().isEmpty()) {
             throw new BadRequestException("Product name cannot be empty");
@@ -197,13 +202,19 @@ public class InventoryServiceImpl implements InventoryService {
             throw new BadRequestException("Product with SKU '" + trimmedSku + "' already exists");
         }
 
+        String effectiveImageUrl = imageUrl;
+        if ((effectiveImageUrl == null || effectiveImageUrl.isBlank()) && images != null && !images.isBlank()) {
+            effectiveImageUrl = extractFirstImage(images);
+        }
+
         Product product = new Product(
                 null,
                 category,
                 trimmedSku,
                 trimmedName,
                 description,
-                imageUrl,
+                effectiveImageUrl,
+                images,
                 costPrice,
                 retailPrice,
                 wholesalePrice,
@@ -235,7 +246,7 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional
     public Product updateProduct(Long productId, Integer categoryId, String name, String description,
-                                 String imageUrl, BigDecimal costPrice, BigDecimal retailPrice,
+                                 String imageUrl, String images, BigDecimal costPrice, BigDecimal retailPrice,
                                  BigDecimal wholesalePrice, Integer minThreshold, Boolean isPerishable) {
         Product product = productRepository.findByIdAndIsDeletedFalse(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product not found with id: " + productId));
@@ -248,6 +259,12 @@ public class InventoryServiceImpl implements InventoryService {
         }
         if (imageUrl != null) {
             product.setImageUrl(imageUrl);
+        }
+        if (images != null) {
+            product.setImages(images);
+            if (product.getImageUrl() == null || product.getImageUrl().isBlank()) {
+                product.setImageUrl(extractFirstImage(images));
+            }
         }
         if (categoryId != null) {
             Category category = categoryRepository.findById(categoryId)
@@ -272,6 +289,27 @@ public class InventoryServiceImpl implements InventoryService {
         }
 
         return productRepository.save(product);
+    }
+
+    private String extractFirstImage(String images) {
+        if (images == null || images.isBlank()) return null;
+        try {
+            String trimmed = images.trim();
+            if (trimmed.startsWith("[")) {
+                int firstQuote = trimmed.indexOf("\"");
+                if (firstQuote != -1) {
+                    int nextQuote = trimmed.indexOf("\"", firstQuote + 1);
+                    if (nextQuote != -1) {
+                        return trimmed.substring(firstQuote + 1, nextQuote);
+                    }
+                }
+            } else if (trimmed.contains(",")) {
+                return trimmed.split(",")[0].trim();
+            }
+            return trimmed;
+        } catch (Exception e) {
+            return images;
+        }
     }
 
     @Override

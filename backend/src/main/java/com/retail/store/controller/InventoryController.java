@@ -53,7 +53,7 @@ public class InventoryController {
     @PostMapping("/suppliers")
     public ResponseEntity<Supplier> createSupplier(@RequestBody CreateSupplierRequest request) {
         return new ResponseEntity<>(inventoryService.createSupplier(
-                request.name(), request.contactName(), request.email(), request.phone(), request.address()), HttpStatus.CREATED);
+                request.name(), request.contactName(), request.email(), request.phone(), request.address(), request.profileImage()), HttpStatus.CREATED);
     }
 
     @GetMapping("/suppliers")
@@ -64,7 +64,7 @@ public class InventoryController {
     @PutMapping("/suppliers/{id}")
     public ResponseEntity<Supplier> updateSupplier(@PathVariable Integer id, @RequestBody CreateSupplierRequest request) {
         return ResponseEntity.ok(inventoryService.updateSupplier(
-                id, request.name(), request.contactName(), request.email(), request.phone(), request.address()));
+                id, request.name(), request.contactName(), request.email(), request.phone(), request.address(), request.profileImage()));
     }
 
     @DeleteMapping("/suppliers/{id}")
@@ -78,7 +78,7 @@ public class InventoryController {
     public ResponseEntity<Product> createProduct(@RequestBody CreateProductRequest request) {
         Product product = inventoryService.createProduct(
                 request.categoryId(), request.sku(), request.name(), request.description(),
-                request.imageUrl(), request.costPrice(), request.retailPrice(),
+                request.imageUrl(), request.images(), request.costPrice(), request.retailPrice(),
                 request.wholesalePrice(), request.minStockThreshold(), request.isPerishable()
         );
         return new ResponseEntity<>(product, HttpStatus.CREATED);
@@ -98,7 +98,7 @@ public class InventoryController {
     public ResponseEntity<Product> updateProduct(@PathVariable Long id, @RequestBody UpdateProductRequest request) {
         Product updated = inventoryService.updateProduct(
                 id, request.categoryId(), request.name(), request.description(),
-                request.imageUrl(), request.costPrice(), request.retailPrice(),
+                request.imageUrl(), request.images(), request.costPrice(), request.retailPrice(),
                 request.wholesalePrice(), request.minStockThreshold(), request.isPerishable()
         );
         return ResponseEntity.ok(updated);
@@ -194,19 +194,35 @@ public class InventoryController {
     // ================= DTO RECORDS =================
     public record CreateCategoryRequest(String name, String description) {}
 
-    public record CreateSupplierRequest(String name, String contactName, String email, String phone, String address) {}
+    public record CreateSupplierRequest(String name, String contactName, String email, String phone, String address, String profileImage) {
+        public CreateSupplierRequest(String name, String contactName, String email, String phone, String address) {
+            this(name, contactName, email, phone, address, null);
+        }
+    }
 
     public record CreateProductRequest(
-            Integer categoryId, String sku, String name, String description, String imageUrl,
+            Integer categoryId, String sku, String name, String description, String imageUrl, String images,
             BigDecimal costPrice, BigDecimal retailPrice, BigDecimal wholesalePrice,
             Integer minStockThreshold, Boolean isPerishable
-    ) {}
+    ) {
+        public CreateProductRequest(Integer categoryId, String sku, String name, String description, String imageUrl,
+                                    BigDecimal costPrice, BigDecimal retailPrice, BigDecimal wholesalePrice,
+                                    Integer minStockThreshold, Boolean isPerishable) {
+            this(categoryId, sku, name, description, imageUrl, null, costPrice, retailPrice, wholesalePrice, minStockThreshold, isPerishable);
+        }
+    }
 
     public record UpdateProductRequest(
-            Integer categoryId, String name, String description, String imageUrl,
+            Integer categoryId, String name, String description, String imageUrl, String images,
             BigDecimal costPrice, BigDecimal retailPrice, BigDecimal wholesalePrice,
             Integer minStockThreshold, Boolean isPerishable
-    ) {}
+    ) {
+        public UpdateProductRequest(Integer categoryId, String name, String description, String imageUrl,
+                                    BigDecimal costPrice, BigDecimal retailPrice, BigDecimal wholesalePrice,
+                                    Integer minStockThreshold, Boolean isPerishable) {
+            this(categoryId, name, description, imageUrl, null, costPrice, retailPrice, wholesalePrice, minStockThreshold, isPerishable);
+        }
+    }
 
     public record StockInRequest(
             Long productId, Integer supplierId, String batchCode, String batchNumber,

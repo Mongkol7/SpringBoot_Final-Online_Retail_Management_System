@@ -4,7 +4,7 @@ import { useInventoryStore } from '../../../store/useInventoryStore';
 import { StockProduct } from '../../../services/inventoryService';
 
 export const LowStockAlertBanner: React.FC = () => {
-  const { products, productStock, openModal, setTab } = useInventoryStore();
+  const { products, productStock, openModal, setTab, setRadarFilter } = useInventoryStore();
 
   const lowStockItems = products.filter((p) => {
     if (p.isDeleted) return false;
@@ -81,7 +81,10 @@ export const LowStockAlertBanner: React.FC = () => {
         </div>
 
         <button
-          onClick={() => setTab('catalog')}
+          onClick={() => {
+            setRadarFilter('low-stock');
+            setTab('batches');
+          }}
           style={{
             background: 'transparent',
             border: 'none',

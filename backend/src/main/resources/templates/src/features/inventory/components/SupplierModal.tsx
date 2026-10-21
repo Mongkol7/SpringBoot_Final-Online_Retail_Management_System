@@ -1,22 +1,48 @@
-import React, { useState, FormEvent } from 'react';
-import { X, Check } from 'lucide-react';
+import React, { useState, FormEvent, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { X, Check, Upload, Image as ImageIcon, Trash2, Building2 } from 'lucide-react';
 import { useInventoryStore } from '../../../store/useInventoryStore';
 
 export const SupplierModal: React.FC = () => {
   const { editingSupplier, closeModal, saveSupplier } = useInventoryStore();
 
   const [name, setName] = useState(editingSupplier?.name || '');
+  const [profileImage, setProfileImage] = useState(editingSupplier?.profileImage || '');
   const [contactName, setContactName] = useState(editingSupplier?.contactName || '');
   const [email, setEmail] = useState(editingSupplier?.email || '');
   const [phone, setPhone] = useState(editingSupplier?.phone || '');
   const [address, setAddress] = useState(editingSupplier?.address || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file (PNG, JPG, SVG, WebP).');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result;
+      if (typeof result === 'string') {
+        setProfileImage(result);
+      }
+    };
+    reader.readAsDataURL(file);
+    // Reset file input so selecting the same file triggers change if needed
+    e.target.value = '';
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     await saveSupplier({
       name: name.trim(),
+      profileImage: profileImage.trim(),
       contactName: contactName.trim(),
       email: email.trim(),
       phone: phone.trim(),
@@ -25,18 +51,26 @@ export const SupplierModal: React.FC = () => {
     setIsSubmitting(false);
   };
 
-  return (
+  return createPortal(
     <div
       style={{
         position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        background: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(20px)',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 99999,
+        background: 'rgba(0, 0, 0, 0.78)',
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px'
+        padding: '20px',
+        boxSizing: 'border-box',
+        overflowY: 'auto'
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) closeModal();
@@ -46,11 +80,14 @@ export const SupplierModal: React.FC = () => {
         className="ios-glass-panel"
         style={{
           width: '100%',
-          maxWidth: '480px',
+          maxWidth: '520px',
+          margin: 'auto',
+          maxHeight: 'min(90vh, 800px)',
+          overflowY: 'auto',
           borderRadius: '24px',
           padding: '28px',
           boxShadow: '0 24px 60px rgba(0,0,0,0.8), 0 0 1px 1px rgba(255,255,255,0.15)',
-          animation: 'stock-enter 0.25s ease'
+          animation: 'stock-enter 0.22s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
@@ -81,6 +118,122 @@ export const SupplierModal: React.FC = () => {
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Profile Photo / Logo Uploader */}
+          <div
+            style={{
+              padding: '14px',
+              borderRadius: '16px',
+              background: 'rgba(255, 255, 255, 0.03)',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}
+          >
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#A1A1AA', marginBottom: '8px' }}>
+              SUPPLIER PROFILE PHOTO / LOGO
+            </label>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              {/* Avatar Preview */}
+              <div
+                style={{
+                  width: '64px',
+                  height: '64px',
+                  borderRadius: '16px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  overflow: 'hidden',
+                  display: 'grid',
+                  placeItems: 'center',
+                  flexShrink: 0
+                }}
+              >
+                {profileImage ? (
+                  <img
+                    src={profileImage}
+                    alt="Supplier preview"
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <Building2 size={24} color="#71717A" />
+                )}
+              </div>
+
+              {/* Upload & Link Controls */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                />
+
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    style={{
+                      padding: '7px 12px',
+                      borderRadius: '8px',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#FFFFFF',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px'
+                    }}
+                  >
+                    <Upload size={12} />
+                    Upload from Device
+                  </button>
+
+                  {profileImage && (
+                    <button
+                      type="button"
+                      onClick={() => setProfileImage('')}
+                      style={{
+                        padding: '7px 10px',
+                        borderRadius: '8px',
+                        background: 'rgba(255, 59, 48, 0.12)',
+                        border: '1px solid rgba(255, 59, 48, 0.25)',
+                        color: '#FF453A',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Trash2 size={12} />
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <ImageIcon size={12} color="#71717A" />
+                  <input
+                    value={profileImage.startsWith('data:') ? '' : profileImage}
+                    onChange={(e) => setProfileImage(e.target.value)}
+                    placeholder={profileImage.startsWith('data:') ? 'Local file uploaded' : 'Or paste web image URL…'}
+                    style={{
+                      width: '100%',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: '1px solid rgba(255, 255, 255, 0.15)',
+                      color: '#FFFFFF',
+                      fontSize: '11px',
+                      padding: '3px 0',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#A1A1AA', marginBottom: '6px' }}>
               COMPANY / VENDOR NAME <span style={{ color: '#FFFFFF' }}>*</span>
@@ -241,6 +394,7 @@ export const SupplierModal: React.FC = () => {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

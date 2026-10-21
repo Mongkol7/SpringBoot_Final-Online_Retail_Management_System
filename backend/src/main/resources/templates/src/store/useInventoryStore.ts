@@ -14,7 +14,8 @@ import {
   batchApi,
   supplierApi,
   categoryApi,
-  getInventoryError
+  getInventoryError,
+  getValidInventoryToken
 } from '../services/inventoryService';
 import {
   MOCK_BATCHES,
@@ -24,8 +25,8 @@ import {
   MOCK_TRANSACTIONS
 } from '../features/inventory/mocks/mockInventoryData';
 
-export type StockTab = 'overview' | 'catalog' | 'batches' | 'intake' | 'suppliers';
-export type RadarFilter = 'all' | 'healthy' | 'soon' | 'expired';
+export type StockTab = 'overview' | 'catalog' | 'batches' | 'ledger' | 'suppliers' | 'intake';
+export type RadarFilter = 'all' | 'healthy' | 'low-stock' | 'expired';
 
 export interface BatchStatusInfo {
   label: string;
@@ -117,6 +118,7 @@ interface InventoryState {
     name: string;
     description: string;
     imageUrl: string;
+    images?: string[];
     categoryId: number;
     costPrice: number;
     retailPrice: number;
@@ -133,6 +135,7 @@ interface InventoryState {
     email: string;
     phone: string;
     address: string;
+    profileImage?: string;
   }) => Promise<boolean>;
   deleteSupplier: (supplier: StockSupplier) => Promise<void>;
 
@@ -248,12 +251,9 @@ export const useInventoryStore = create<InventoryState>()(persist((set, get) => 
     }),
 
   refresh: async () => {
-    if (!hasInventorySession()) {
-      set({ isConnected: false, syncError: null });
-      return;
-    }
     set({ isSyncing: true });
     try {
+      await getValidInventoryToken();
       const data = await loadStockWorkspace();
       set({
         products: data.products,

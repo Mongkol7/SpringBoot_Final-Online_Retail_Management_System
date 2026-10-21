@@ -262,8 +262,8 @@
 .stock-transaction-list.detailed .stock-transaction-row > strong { width: 27px; font-size: 10px; }
 .stock-transaction-list.detailed .stock-transaction-row time { width: 65px; font-size: 7px; }
 .stock-transaction-list.detailed .stock-transaction-main small { max-width: 150px; }
-.stock-modal-backdrop { position: fixed; z-index: 1200; inset: 0; display: flex; align-items: center; justify-content: center; padding: 22px; overflow: auto; background: rgba(0,0,0,.73); backdrop-filter: blur(13px); animation: stock-enter .16s ease both; }
-.stock-modal { width: min(100%, 650px); max-height: min(91vh, 860px); overflow: auto; padding: 21px; color: #eeeef1; border: 1px solid rgba(255,255,255,.15); border-radius: 17px; background: linear-gradient(145deg, rgba(29,29,32,.98), rgba(13,13,15,.98)); box-shadow: 0 22px 80px rgba(0,0,0,.7); }
+.stock-modal-backdrop { position: fixed; z-index: 99999; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box; overflow-y: auto; background: rgba(0,0,0,.78); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
+.stock-modal { width: min(100%, 650px); margin: auto; max-height: min(91vh, 860px); overflow-y: auto; padding: 21px; color: #eeeef1; border: 1px solid rgba(255,255,255,.15); border-radius: 17px; background: linear-gradient(145deg, rgba(29,29,32,.98), rgba(13,13,15,.98)); box-shadow: 0 22px 80px rgba(0,0,0,.7); }
 .stock-compact-modal { width: min(100%, 430px); }
 .stock-modal-heading { justify-content: space-between; margin-bottom: 17px; }
 .stock-modal-heading h2 { font-size: 19px; }
@@ -363,8 +363,8 @@
   .stock-transaction-type { display: none; }
   .stock-transaction-row time { width: 69px; font-size: 8px; }
   .stock-transaction-main small { max-width: 190px; }
-  .stock-modal-backdrop { align-items: flex-end; padding: 8px; }
-  .stock-modal { max-height: 92vh; padding: 17px; border-radius: 17px 17px 12px 12px; }
+  .stock-modal-backdrop { align-items: center; justify-content: center; padding: 12px; }
+  .stock-modal { max-height: 92vh; padding: 17px; border-radius: 17px; margin: auto; }
   .stock-modal-form { gap: 11px 8px; }
   .stock-modal-heading h2 { font-size: 17px; }
   .stock-toast { right: 12px; bottom: 12px; }
