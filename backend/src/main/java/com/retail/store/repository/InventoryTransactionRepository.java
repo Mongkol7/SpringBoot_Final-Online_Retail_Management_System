@@ -13,5 +13,6 @@ import java.time.LocalDateTime;
 public interface InventoryTransactionRepository extends JpaRepository<InventoryTransaction, Long> {
     Page<InventoryTransaction> findByType(TransactionType type, Pageable pageable);
     Page<InventoryTransaction> findByCreatedAtBetween(LocalDateTime start, LocalDateTime end, Pageable pageable);
+    Page<InventoryTransaction> findByTypeAndCreatedAtBetween(TransactionType type, LocalDateTime start, LocalDateTime end, Pageable pageable);
     Page<InventoryTransaction> findByBatch_Id(Long batchId, Pageable pageable);
 }

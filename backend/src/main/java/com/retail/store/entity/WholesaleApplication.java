@@ -14,7 +14,7 @@ public class WholesaleApplication {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
@@ -28,7 +28,7 @@ public class WholesaleApplication {
     @Column(nullable = false, length = 30)
     private ApplicationStatus status = ApplicationStatus.PENDING;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "reviewed_by")
     private User reviewedBy;
 

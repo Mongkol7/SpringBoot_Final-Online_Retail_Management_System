@@ -3,17 +3,20 @@ import { DynamicIsland } from './components/layout/DynamicIsland';
 import { IosCardGlass } from './components/ui/IosCardGlass';
 import { IosButton } from './components/ui/IosButton';
 import { CashierPosTerminal } from './components/pos/CashierPosTerminal';
+import { AdminDashboard } from './components/admin/AdminDashboard';
 
 export const App: React.FC = () => {
-  const [activeRole, setActiveRole] = useState<'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN'>('CASHIER');
+  const [activeRole, setActiveRole] = useState<'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN'>('ADMIN');
   const isCashier = activeRole === 'CASHIER';
+  const isAdmin = activeRole === 'ADMIN';
+  const isWide = isCashier || isAdmin;
 
   return (
     <div
       style={{
         minHeight: '100vh',
-        padding: isCashier ? '76px 20px 36px' : '90px 24px 60px',
-        maxWidth: isCashier ? '100%' : '1200px',
+        padding: isWide ? '76px 20px 36px' : '90px 24px 60px',
+        maxWidth: isWide ? '100%' : '1200px',
         width: '100%',
         margin: '0 auto',
         boxSizing: 'border-box',
@@ -31,7 +34,7 @@ export const App: React.FC = () => {
           gap: '8px',
           padding: '6px',
           maxWidth: '680px',
-          margin: isCashier ? '0 auto 24px auto' : '0 auto 40px auto'
+          margin: isWide ? '0 auto 24px auto' : '0 auto 40px auto'
         }}
       >
         {(['USER', 'CASHIER', 'STOCK_CONTROLLER', 'ADMIN'] as const).map((role) => (
@@ -99,21 +102,7 @@ export const App: React.FC = () => {
       )}
 
       {activeRole === 'ADMIN' && (
-        <IosCardGlass glow>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 700 }}>📊 Person 4: Administrator Executive HUD (`/admin`)</h2>
-            <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '9999px', background: 'rgba(255,255,255,0.1)' }}>
-              GOVERNANCE & ANALYTICS
-            </span>
-          </div>
-          <p style={{ color: 'var(--ios-text-muted)', marginBottom: '20px', lineHeight: 1.6 }}>
-            Executive revenue HUD, wholesale customer application verification queue with one-click approve/reject, user directory access controls, and system audit log.
-          </p>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <IosButton variant="primary">Review Wholesale Queue</IosButton>
-            <IosButton variant="glass">User Governance</IosButton>
-          </div>
-        </IosCardGlass>
+        <AdminDashboard />
       )}
     </div>
   );

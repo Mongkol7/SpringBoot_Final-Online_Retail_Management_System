@@ -228,11 +228,22 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(readOnly = true)
     public List<Product> getLowStockAlerts() {
-        return Collections.emptyList();
+        return productRepository.findByIsDeletedFalseOrderByNameAsc().stream()
+                .filter(p -> {
+                    int available = getAvailableStock(p.getId());
+                    int threshold = p.getMinStockThreshold() != null ? p.getMinStockThreshold() : 10;
+                    return available <= threshold;
+                })
+                .toList();
     }
 
     @Override
     @Transactional
     public void markExpiredBatches() {
+        List<ProductBatch> expired = batchRepository.findByIsExpiredFalseAndExpiryDateLessThanEqual(LocalDate.now());
+        for (ProductBatch b : expired) {
+            b.setIsExpired(true);
+            batchRepository.save(b);
+        }
     }
 }

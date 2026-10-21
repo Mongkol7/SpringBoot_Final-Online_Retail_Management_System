@@ -10,6 +10,7 @@ export const IosCardGlass: React.FC<IosCardGlassProps> = ({
   children,
   className = '',
   glow = false,
+  style,
   ...props
 }) => {
   return (
@@ -18,7 +19,8 @@ export const IosCardGlass: React.FC<IosCardGlassProps> = ({
       style={{
         padding: '24px',
         position: 'relative',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        ...style
       }}
       {...props}
     >

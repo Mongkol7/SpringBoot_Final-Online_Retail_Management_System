@@ -212,3 +212,209 @@ export interface PosSaleSummary {
   items: PosSaleItem[];
 }
 
+export interface ExecutiveKpiSummary {
+  totalGrossRevenue: number;
+  onlineRevenue: number;
+  posRevenue: number;
+  onlineOrdersCount: number;
+  posOrdersCount: number;
+  pendingWholesaleApplicationsCount: number;
+  expiredBatchesCount: number;
+  lowStockProductsCount: number;
+}
+
+export interface SalesSeriesPoint {
+  date: string;
+  onlineRevenue: number;
+  posRevenue: number;
+  totalRevenue: number;
+  orderCount: number;
+}
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  fullName: string;
+  phone?: string;
+  role: { id: number; name: string };
+  customerType: CustomerType;
+  isActive: boolean;
+  address?: string;
+  addresses?: string;
+  createdAt?: string;
+}
+
+export interface CreateUserRequest {
+  fullName: string;
+  email: string;
+  password?: string;
+  phone?: string;
+  roleName: string;
+  customerType?: CustomerType;
+}
+
+export interface UpdateUserRequest {
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  roleName?: string;
+  customerType?: CustomerType;
+  isActive?: boolean;
+  password?: string;
+}
+
+export interface AdminWholesaleApp {
+  id: number;
+  businessName: string;
+  taxIdOrLicense: string;
+  status: ApplicationStatus;
+  user?: {
+    id: number;
+    fullName: string;
+    email: string;
+    phone?: string;
+    customerType?: CustomerType;
+    isActive?: boolean;
+    createdAt?: string;
+    addresses?: string;
+    role?: { id: number; name: string };
+  };
+  contactPhone?: string;
+  businessAddress?: string;
+  businessCategory?: string;
+  estimatedMonthlyVolume?: string;
+  tradeLicenseType?: string;
+  reviewedBy?: { id: number; fullName: string };
+  reviewedAt?: string;
+  adminNotes?: string;
+  createdAt: string;
+}
+
+export interface AdminAuditLog {
+  id: number;
+  type: TransactionType;
+  quantityDelta: number;
+  reason?: string;
+  cause?: string;
+  unitPrice?: number;
+  totalValue?: number;
+  referenceDoc?: string;
+  location?: string;
+  batch?: {
+    id: number;
+    batchCode: string;
+    expiryDate?: string;
+    supplierName?: string;
+    currentQuantity?: number;
+    product?: {
+      id?: number;
+      name: string;
+      sku: string;
+      imageUrl?: string;
+      costPrice?: number;
+      retailPrice?: number;
+      wholesalePrice?: number;
+      categoryName?: string;
+    };
+  };
+  user?: {
+    id: number;
+    fullName: string;
+    email: string;
+    role?: { id: number; name: string } | string;
+  };
+  createdAt: string;
+}
+
+export interface AdminBatchItem {
+  id: number;
+  batchCode: string;
+  initialQuantity: number;
+  currentQuantity: number;
+  expiryDate?: string;
+  isExpired: boolean;
+  receivedAt: string;
+}
+
+export interface AdminProductDetail {
+  id: number;
+  sku: string;
+  name: string;
+  description?: string;
+  categoryName?: string;
+  imageUrl?: string;
+  costPrice: number;
+  retailPrice: number;
+  wholesalePrice: number;
+  retailMarginPercent: number;
+  wholesaleMarginPercent: number;
+  availableStock: number;
+  minStockThreshold: number;
+  isPerishable: boolean;
+  currentBatchCode?: string;
+  currentBatchExpiryDate?: string;
+  batches?: AdminBatchItem[];
+}
+
+export interface AdminPaymentItem {
+  id: number;
+  productName: string;
+  sku: string;
+  imageUrl?: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+export interface AdminPayment {
+  id: number;
+  orderNumber: string;
+  channel: 'POS' | 'ONLINE' | string;
+  paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER' | string;
+  status: string;
+  pricingTierUsed: 'RETAIL' | 'WHOLESALE' | string;
+  customerCategory?: 'WALK_IN' | 'ONLINE' | 'WHOLESALE' | string;
+  customerName?: string;
+  customerEmail?: string;
+  cashierName?: string;
+  itemCount: number;
+  subtotal: number;
+  taxAmount: number;
+  totalAmount: number;
+  createdAt: string;
+  items?: AdminPaymentItem[];
+}
+
+export interface CustomerSpendingSummary {
+  customerName: string;
+  customerEmail?: string;
+  customerCategory: 'WALK_IN' | 'ONLINE' | 'WHOLESALE' | string;
+  pricingTier: 'RETAIL' | 'WHOLESALE' | string;
+  totalOrders: number;
+  totalItemsPurchased: number;
+  totalSpending: number;
+  totalNet: number;
+  totalTax: number;
+  averageOrderValue: number;
+  lastOrderDate?: string;
+  payments: AdminPayment[];
+}
+
+export interface FinancialTaxReport {
+  totalGrossRevenue: number;
+  totalTaxCollected: number;
+  totalNetRevenue: number;
+  posGrossRevenue: number;
+  posTaxCollected: number;
+  onlineGrossRevenue: number;
+  onlineTaxCollected: number;
+  cardTotal: number;
+  cashTotal: number;
+  bankTransferTotal: number;
+  totalOrdersCount: number;
+  posOrdersCount: number;
+  onlineOrdersCount: number;
+  generatedAt: string;
+}
+
+
