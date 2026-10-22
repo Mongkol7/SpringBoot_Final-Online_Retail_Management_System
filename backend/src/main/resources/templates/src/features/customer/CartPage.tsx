@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import {
@@ -12,7 +12,9 @@ import {
   ArrowLeft,
   PackageOpen,
   AlertTriangle,
-  Building2
+  Building2,
+  Lock,
+  LogIn
 } from 'lucide-react';
 
 interface CartPageProps {
@@ -32,24 +34,45 @@ export const CartPage: React.FC<CartPageProps> = ({
     updateQuantity,
     removeFromCart,
     clearCart,
+    setBatchPreference,
+    refreshCartPrices,
     getSubtotal,
     getTax,
     getTotal,
     getItemCount,
     getWholesaleSavings,
     getEffectiveTier,
-    isAuthenticated
+    isAuthenticated,
+    setNotification
   } = useCustomerCartStore();
 
   const effectiveTier = getEffectiveTier();
+
+  // Automatically synchronize line prices with current wholesale/retail tier & batch preferences
+  useEffect(() => {
+    refreshCartPrices();
+  }, [effectiveTier, isAuthenticated, refreshCartPrices]);
   const subtotal = getSubtotal();
   const tax = getTax();
   const total = getTotal();
   const itemCount = getItemCount();
   const wholesaleSavings = getWholesaleSavings();
 
-  const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ productId: number; name: string } | null>(null);
+  const [deleteConfirmItem, setDeleteConfirmItem] = useState<{ cartItemId: number; productId: number; name: string } | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState<boolean>(false);
+  const [showGuestCheckoutAlert, setShowGuestCheckoutAlert] = useState<boolean>(false);
+
+  const handleProceedToCheckout = () => {
+    if (!isAuthenticated) {
+      setNotification({
+        message: 'Store Guest: Sign in required to proceed to checkout. Your cart is saved!',
+        badge: 'GUEST CHECKOUT'
+      });
+      setShowGuestCheckoutAlert(true);
+      return;
+    }
+    handleGoToCheckout();
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
@@ -390,6 +413,82 @@ export const CartPage: React.FC<CartPageProps> = ({
                       )}
                     </div>
 
+                    {/* Multi-Batch & Clearance Allocation Badge */}
+                    {item.batchAllocationSummary && (
+                      <div
+                        style={{
+                          fontSize: '11px',
+                          color: '#B45309',
+                          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                          border: '1px solid rgba(245, 158, 11, 0.25)',
+                          borderRadius: '8px',
+                          padding: '4px 8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          marginTop: '2px'
+                        }}
+                      >
+                        <Sparkles size={12} color="#D97706" />
+                        <span>{item.batchAllocationSummary}</span>
+                      </div>
+                    )}
+
+                    {/* In-Cart Batch Switcher (Available for both Wholesale and Retail shoppers) */}
+                    {item.canChooseBatch && (
+                      <div
+                        style={{
+                          marginTop: '6px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          backgroundColor: '#F3F4F6',
+                          padding: '3px 4px',
+                          borderRadius: '9999px',
+                          border: '1px solid rgba(0, 0, 0, 0.08)'
+                        }}
+                      >
+                        <button
+                          onClick={() => setBatchPreference(item.id, 'FRESH')}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '9999px',
+                            border: 'none',
+                            backgroundColor: item.batchPreference === 'FRESH' ? '#10B981' : 'transparent',
+                            color: item.batchPreference === 'FRESH' ? '#FFFFFF' : '#4B5563',
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          ✨ Fresh (${(effectiveTier === 'WHOLESALE' ? item.product.wholesalePrice : item.product.retailPrice).toFixed(2)})
+                        </button>
+                        <button
+                          onClick={() => setBatchPreference(item.id, 'CLEARANCE')}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '9999px',
+                            border: 'none',
+                            backgroundColor: item.batchPreference === 'CLEARANCE' ? '#F59E0B' : 'transparent',
+                            color: item.batchPreference === 'CLEARANCE' ? '#FFFFFF' : '#4B5563',
+                            fontSize: '10.5px',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            transition: 'all 0.15s ease'
+                          }}
+                        >
+                          🔥 Clearance 25% OFF (${(effectiveTier === 'WHOLESALE' ? (item.product.wholesaleClearancePrice || item.product.wholesalePrice * 0.75) : (item.product.clearancePrice || item.product.retailPrice * 0.75)).toFixed(2)})
+                        </button>
+                      </div>
+                    )}
+
                     {/* Quantity Threshold Unlock Helper */}
                     {effectiveTier === 'WHOLESALE' && item.neededForWholesale > 0 && (
                       <div
@@ -404,7 +503,7 @@ export const CartPage: React.FC<CartPageProps> = ({
                       >
                         <span>Add {item.neededForWholesale} more to unlock Wholesale Price (${item.product.wholesalePrice.toFixed(2)})</span>
                         <button
-                          onClick={() => updateQuantity(item.productId, item.minQty || 10)}
+                          onClick={() => updateQuantity(item.id, item.minQty || 10)}
                           style={{
                             padding: '2px 8px',
                             borderRadius: '9999px',
@@ -446,9 +545,9 @@ export const CartPage: React.FC<CartPageProps> = ({
                     <button
                       onClick={() => {
                         if (item.quantity <= 1) {
-                          setDeleteConfirmItem({ productId: item.productId, name: item.product.name });
+                          setDeleteConfirmItem({ cartItemId: item.id, productId: item.productId, name: item.product.name });
                         } else {
-                          updateQuantity(item.productId, item.quantity - 1);
+                          updateQuantity(item.id, item.quantity - 1);
                         }
                       }}
                       style={{
@@ -471,7 +570,7 @@ export const CartPage: React.FC<CartPageProps> = ({
                     </span>
 
                     <button
-                      onClick={() => updateQuantity(item.productId, item.quantity + 1)}
+                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
                       style={{
                         background: 'transparent',
                         border: 'none',
@@ -502,7 +601,7 @@ export const CartPage: React.FC<CartPageProps> = ({
 
                   {/* Remove Button */}
                   <button
-                    onClick={() => setDeleteConfirmItem({ productId: item.productId, name: item.product.name })}
+                    onClick={() => setDeleteConfirmItem({ cartItemId: item.id, productId: item.productId, name: item.product.name })}
                     style={{
                       background: 'transparent',
                       border: 'none',
@@ -649,7 +748,7 @@ export const CartPage: React.FC<CartPageProps> = ({
 
               {/* Checkout Button */}
               <button
-                onClick={handleGoToCheckout}
+                onClick={handleProceedToCheckout}
                 disabled={items.length === 0}
                 style={{
                   width: '100%',
@@ -673,6 +772,147 @@ export const CartPage: React.FC<CartPageProps> = ({
               >
                 <span>Proceed to Checkout</span>
                 <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Store Guest Checkout Alert Modal */}
+      {showGuestCheckoutAlert && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.65)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: '20px'
+          }}
+          onClick={() => setShowGuestCheckoutAlert(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: '28px',
+              padding: '36px 30px',
+              maxWidth: '440px',
+              width: '100%',
+              boxShadow: '0 24px 48px rgba(0, 0, 0, 0.2)',
+              textAlign: 'center',
+              position: 'relative'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(250, 62, 84, 0.1)',
+                color: '#FA3E54',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 18px auto'
+              }}
+            >
+              <Lock size={28} />
+            </div>
+
+            <div
+              style={{
+                display: 'inline-block',
+                padding: '4px 12px',
+                borderRadius: '9999px',
+                backgroundColor: 'rgba(250, 62, 84, 0.08)',
+                color: '#FA3E54',
+                fontSize: '11px',
+                fontWeight: 800,
+                letterSpacing: '0.04em',
+                marginBottom: '10px'
+              }}
+            >
+              STORE GUEST CHECKOUT
+            </div>
+
+            <h3 style={{ fontSize: '20px', fontWeight: 900, margin: '0 0 10px 0', color: '#111827', letterSpacing: '-0.02em' }}>
+              Sign In to Proceed to Checkout
+            </h3>
+
+            <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 20px 0', lineHeight: 1.5 }}>
+              You are shopping as a <strong>Store Guest</strong>. To complete your order and reserve warehouse stock, please sign in or register a customer account.
+            </p>
+
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: '14px',
+                backgroundColor: '#F3F4F6',
+                border: '1px solid rgba(0, 0, 0, 0.06)',
+                fontSize: '12px',
+                color: '#374151',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginBottom: '24px'
+              }}
+            >
+              <ShieldCheck size={16} color="#059669" style={{ flexShrink: 0 }} />
+              <span>
+                Don't worry! All <strong>{itemCount} item{itemCount > 1 ? 's' : ''}</strong> and batch choices in your cart will remain saved when you sign in.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowGuestCheckoutAlert(false);
+                  navigate('/login?redirect=/checkout&reason=guest_checkout');
+                }}
+                style={{
+                  width: '100%',
+                  padding: '14px 20px',
+                  borderRadius: '9999px',
+                  border: 'none',
+                  backgroundColor: '#FA3E54',
+                  color: '#FFFFFF',
+                  fontWeight: 800,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 6px 20px rgba(250, 62, 84, 0.35)'
+                }}
+              >
+                <LogIn size={16} />
+                <span>Sign In / Create Account to Pay</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowGuestCheckoutAlert(false)}
+                style={{
+                  width: '100%',
+                  padding: '11px 18px',
+                  borderRadius: '9999px',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
+                  backgroundColor: 'transparent',
+                  color: '#6B7280',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                Continue Browsing
               </button>
             </div>
           </div>
@@ -752,7 +992,7 @@ export const CartPage: React.FC<CartPageProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  removeFromCart(deleteConfirmItem.productId);
+                  removeFromCart(deleteConfirmItem.cartItemId);
                   setDeleteConfirmItem(null);
                 }}
                 style={{

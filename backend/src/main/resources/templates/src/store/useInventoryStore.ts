@@ -51,8 +51,8 @@ export function computeBatchState(batch: StockBatch): BatchStatusInfo {
   if (batch.isExpired || (days !== null && days < 0)) {
     return { label: 'Expired · Locked', className: 'expired', days };
   }
-  if (days !== null && days <= 7) {
-    return { label: days === 0 ? 'Expires today' : `${days}d left · Soon`, className: 'soon', days };
+  if (days !== null && days <= 30) {
+    return { label: days === 0 ? 'Expires today' : `${days}d left · Soon (< 1 mo)`, className: 'soon', days };
   }
   return { label: 'Active · Healthy', className: 'healthy', days };
 }

@@ -19,6 +19,21 @@ public interface BatchAllocationService {
     );
 
     /**
+     * Executes batch deduction with optional fresh batch preference.
+     * When preferFreshBatch is true, fresh batches (> 30 days) are prioritized before near-expiry batches.
+     */
+    default List<FulfillmentResultDto> allocateAndDeductBatches(
+            Long orderItemId,
+            Long productId,
+            int requestedQuantity,
+            Long actorUserId,
+            String transactionType,
+            boolean preferFreshBatch
+    ) {
+        return allocateAndDeductBatches(orderItemId, productId, requestedQuantity, actorUserId, transactionType);
+    }
+
+    /**
      * Enum overload for convenience and type-safety across service boundaries.
      */
     default List<FulfillmentResultDto> allocateAndDeductBatches(

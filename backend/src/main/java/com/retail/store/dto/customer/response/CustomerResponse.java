@@ -24,6 +24,8 @@ public class CustomerResponse {
     private CustomerType customerType;
     private String addresses;
     private Boolean isActive;
+    private String avatarUrl;
+    private String companyName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -32,6 +34,14 @@ public class CustomerResponse {
     public CustomerResponse(Long id, String fullName, String email, String phone,
                             Integer roleId, String roleName, CustomerType customerType,
                             String addresses, Boolean isActive,
+                            LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(id, fullName, email, phone, roleId, roleName, customerType, addresses, isActive, null, null, createdAt, updatedAt);
+    }
+
+    public CustomerResponse(Long id, String fullName, String email, String phone,
+                            Integer roleId, String roleName, CustomerType customerType,
+                            String addresses, Boolean isActive,
+                            String avatarUrl, String companyName,
                             LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.fullName = fullName;
@@ -42,6 +52,8 @@ public class CustomerResponse {
         this.customerType = customerType;
         this.addresses = addresses;
         this.isActive = isActive;
+        this.avatarUrl = avatarUrl;
+        this.companyName = companyName;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
     }
@@ -63,6 +75,8 @@ public class CustomerResponse {
                 user.getCustomerType(),
                 user.getAddresses(),
                 user.getIsActive(),
+                user.getAvatarUrl(),
+                user.getCompanyName(),
                 user.getCreatedAt(),
                 user.getUpdatedAt()
         );
@@ -140,6 +154,22 @@ public class CustomerResponse {
         isActive = active;
     }
 
+    public String getAvatarUrl() {
+        return avatarUrl;
+    }
+
+    public void setAvatarUrl(String avatarUrl) {
+        this.avatarUrl = avatarUrl;
+    }
+
+    public String getCompanyName() {
+        return companyName;
+    }
+
+    public void setCompanyName(String companyName) {
+        this.companyName = companyName;
+    }
+
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
@@ -170,6 +200,8 @@ public class CustomerResponse {
         private CustomerType customerType = CustomerType.RETAIL;
         private String addresses;
         private Boolean isActive = true;
+        private String avatarUrl;
+        private String companyName;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;
 
@@ -218,6 +250,16 @@ public class CustomerResponse {
             return this;
         }
 
+        public Builder avatarUrl(String avatarUrl) {
+            this.avatarUrl = avatarUrl;
+            return this;
+        }
+
+        public Builder companyName(String companyName) {
+            this.companyName = companyName;
+            return this;
+        }
+
         public Builder createdAt(LocalDateTime createdAt) {
             this.createdAt = createdAt;
             return this;
@@ -229,7 +271,7 @@ public class CustomerResponse {
         }
 
         public CustomerResponse build() {
-            return new CustomerResponse(id, fullName, email, phone, roleId, roleName, customerType, addresses, isActive, createdAt, updatedAt);
+            return new CustomerResponse(id, fullName, email, phone, roleId, roleName, customerType, addresses, isActive, avatarUrl, companyName, createdAt, updatedAt);
         }
     }
 
@@ -245,6 +287,8 @@ public class CustomerResponse {
                 ", customerType=" + customerType +
                 ", addresses='" + addresses + '\'' +
                 ", isActive=" + isActive +
+                ", avatarUrl='" + avatarUrl + '\'' +
+                ", companyName='" + companyName + '\'' +
                 ", createdAt=" + createdAt +
                 ", updatedAt=" + updatedAt +
                 '}';

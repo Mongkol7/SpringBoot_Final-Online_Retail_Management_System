@@ -25,6 +25,8 @@ public interface OrderService {
      */
     BigDecimal calculateUnitPrice(Product product, int quantity, CustomerType customerType);
 
+    BigDecimal calculateUnitPrice(Product product, int quantity, CustomerType customerType, String batchPreference, int totalProductQuantity);
+
     /**
      * Creates an online customer order from the active cart items.
      * Enforces server-side recalculation of line items, subtotal, 7% VAT, and totalAmount,
@@ -39,6 +41,11 @@ public interface OrderService {
 
     record OrderItemRequestDto(
             Long productId,
-            int quantity
-    ) {}
+            int quantity,
+            String batchPreference
+    ) {
+        public OrderItemRequestDto(Long productId, int quantity) {
+            this(productId, quantity, null);
+        }
+    }
 }

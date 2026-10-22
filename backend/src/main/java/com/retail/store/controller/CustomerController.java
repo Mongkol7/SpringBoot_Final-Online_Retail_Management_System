@@ -16,7 +16,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
-@RequestMapping("/customer")
+@RequestMapping({"/customer", "/api/v1/customer"})
 public class CustomerController {
 
     private final CustomerService customerService;
@@ -119,6 +119,60 @@ public class CustomerController {
     @GetMapping("/products/{id}")
     public ResponseEntity<com.retail.store.entity.Product> getProductById(@PathVariable Long id) {
         return ResponseEntity.ok(customerService.getProductById(id));
+    }
+
+    @GetMapping({"/profile", "/me"})
+    public ResponseEntity<com.retail.store.dto.customer.response.CustomerResponse> getProfile(@AuthenticationPrincipal UserDetailsImpl user) {
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        com.retail.store.entity.User u = customerService.getCustomerProfile(user.getId());
+        return ResponseEntity.ok(com.retail.store.dto.customer.response.CustomerResponse.from(u));
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<com.retail.store.dto.customer.response.CustomerResponse> updateProfile(
+            @AuthenticationPrincipal UserDetailsImpl user,
+            @RequestBody UpdateProfileRequest request) {
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String addressesJson = null;
+        if (request.addresses() != null && !request.addresses().isNull()) {
+            if (request.addresses().isArray()) {
+                addressesJson = request.addresses().toString();
+            } else if (request.addresses().isTextual()) {
+                String text = request.addresses().asText().trim();
+                if (text.startsWith("[") && text.endsWith("]")) {
+                    addressesJson = text;
+                } else if (!text.isEmpty()) {
+                    addressesJson = "[\"" + text.replace("\"", "\\\"") + "\"]";
+                }
+            }
+        }
+        com.retail.store.entity.User updated = customerService.updateCustomerProfile(
+                user.getId(),
+                request.fullName(),
+                request.phone(),
+                addressesJson,
+                request.password(),
+                request.avatarUrl(),
+                request.companyName()
+        );
+        return ResponseEntity.ok(com.retail.store.dto.customer.response.CustomerResponse.from(updated));
+    }
+
+    public record UpdateProfileRequest(
+        String fullName,
+        String phone,
+        com.fasterxml.jackson.databind.JsonNode addresses,
+        String password,
+        String avatarUrl,
+        String companyName
+    ) {
+        public UpdateProfileRequest(String fullName, String phone, com.fasterxml.jackson.databind.JsonNode addresses, String password) {
+            this(fullName, phone, addresses, password, null, null);
+        }
     }
 
     public record AddCartItemRequest(Long productId, int quantity) {}

@@ -418,6 +418,12 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional
     public List<FulfillmentResultDto> allocateAndDeductBatches(Long orderItemId, Long productId, int requestedQuantity, Long actorUserId, String transactionType) {
+        return allocateAndDeductBatches(orderItemId, productId, requestedQuantity, actorUserId, transactionType, false);
+    }
+
+    @Override
+    @Transactional
+    public List<FulfillmentResultDto> allocateAndDeductBatches(Long orderItemId, Long productId, int requestedQuantity, Long actorUserId, String transactionType, boolean preferFreshBatch) {
         if (requestedQuantity <= 0) {
             throw new BadRequestException("Requested quantity must be greater than zero");
         }
@@ -437,6 +443,18 @@ public class InventoryServiceImpl implements InventoryService {
         } else {
             // FIFO: First-In First-Out
             candidateBatches = batchRepository.findActiveBatchesFIFO(productId);
+        }
+
+        if (preferFreshBatch && candidateBatches != null && !candidateBatches.isEmpty()) {
+            LocalDate freshCutoff = LocalDate.now().plusDays(30);
+            candidateBatches = new ArrayList<>(candidateBatches);
+            candidateBatches.sort((b1, b2) -> {
+                boolean b1Fresh = b1.getExpiryDate() == null || b1.getExpiryDate().isAfter(freshCutoff);
+                boolean b2Fresh = b2.getExpiryDate() == null || b2.getExpiryDate().isAfter(freshCutoff);
+                if (b1Fresh && !b2Fresh) return -1;
+                if (!b1Fresh && b2Fresh) return 1;
+                return 0;
+            });
         }
 
         OrderItem orderItem = (orderItemId != null) ? orderItemRepository.findById(orderItemId).orElse(null) : null;

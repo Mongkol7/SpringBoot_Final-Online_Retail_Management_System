@@ -49,6 +49,36 @@ public class Product {
     @Transient
     private Integer stockQuantity;
 
+    @Transient
+    private String currentBatchExpiryDate;
+
+    @Transient
+    private Integer daysUntilExpiry;
+
+    @Transient
+    private Integer nearExpiryQuantity;
+
+    @Transient
+    private BigDecimal clearanceDiscountPercent;
+
+    @Transient
+    private BigDecimal clearancePrice;
+
+    @Transient
+    private BigDecimal wholesaleClearancePrice;
+
+    @Transient
+    private Integer freshStockQuantity;
+
+    @Transient
+    private String freshBatchExpiryDate;
+
+    @Transient
+    private String freshBatchCode;
+
+    @Transient
+    private String batchCode;
+
     @Column(name = "min_stock_threshold", nullable = false)
     private Integer minStockThreshold = 10;
 
@@ -135,6 +165,36 @@ public class Product {
 
     public Integer getStockQuantity() { return stockQuantity; }
     public void setStockQuantity(Integer stockQuantity) { this.stockQuantity = stockQuantity; }
+
+    public String getCurrentBatchExpiryDate() { return currentBatchExpiryDate; }
+    public void setCurrentBatchExpiryDate(String currentBatchExpiryDate) { this.currentBatchExpiryDate = currentBatchExpiryDate; }
+
+    public Integer getDaysUntilExpiry() { return daysUntilExpiry; }
+    public void setDaysUntilExpiry(Integer daysUntilExpiry) { this.daysUntilExpiry = daysUntilExpiry; }
+
+    public Integer getNearExpiryQuantity() { return nearExpiryQuantity; }
+    public void setNearExpiryQuantity(Integer nearExpiryQuantity) { this.nearExpiryQuantity = nearExpiryQuantity; }
+
+    public BigDecimal getClearanceDiscountPercent() { return clearanceDiscountPercent; }
+    public void setClearanceDiscountPercent(BigDecimal clearanceDiscountPercent) { this.clearanceDiscountPercent = clearanceDiscountPercent; }
+
+    public BigDecimal getClearancePrice() { return clearancePrice; }
+    public void setClearancePrice(BigDecimal clearancePrice) { this.clearancePrice = clearancePrice; }
+
+    public BigDecimal getWholesaleClearancePrice() { return wholesaleClearancePrice; }
+    public void setWholesaleClearancePrice(BigDecimal wholesaleClearancePrice) { this.wholesaleClearancePrice = wholesaleClearancePrice; }
+
+    public Integer getFreshStockQuantity() { return freshStockQuantity; }
+    public void setFreshStockQuantity(Integer freshStockQuantity) { this.freshStockQuantity = freshStockQuantity; }
+
+    public String getFreshBatchExpiryDate() { return freshBatchExpiryDate; }
+    public void setFreshBatchExpiryDate(String freshBatchExpiryDate) { this.freshBatchExpiryDate = freshBatchExpiryDate; }
+
+    public String getFreshBatchCode() { return freshBatchCode; }
+    public void setFreshBatchCode(String freshBatchCode) { this.freshBatchCode = freshBatchCode; }
+
+    public String getBatchCode() { return batchCode; }
+    public void setBatchCode(String batchCode) { this.batchCode = batchCode; }
 
     public Integer getMinStockThreshold() { return minStockThreshold; }
     public void setMinStockThreshold(Integer minStockThreshold) { this.minStockThreshold = minStockThreshold; }

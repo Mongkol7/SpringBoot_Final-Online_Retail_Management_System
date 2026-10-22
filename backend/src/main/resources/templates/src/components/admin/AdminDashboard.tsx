@@ -43,7 +43,8 @@ import {
   Briefcase,
   XCircle,
   ArrowUpDown,
-  LogOut
+  LogOut,
+  Upload
 } from 'lucide-react';
 import {
   ExecutiveKpiSummary,
@@ -59,6 +60,51 @@ import {
 import { adminService } from '../../services/adminService';
 import { IosCardGlass } from '../ui/IosCardGlass';
 import { LogoutConfirmModal } from '../ui/LogoutConfirmModal';
+import { UserProfileModal } from '../ui/UserProfileModal';
+
+// Helper to resize uploaded avatar to compact data URL
+const resizeImageToDataUrl = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (file.size > 5 * 1024 * 1024) {
+      reject(new Error('Selected image exceeds 5MB. Please choose a smaller image.'));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 400;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        } else {
+          resolve(event.target?.result as string);
+        }
+      };
+      img.onerror = () => reject(new Error('Failed to parse image file'));
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Failed to read selected image'));
+    reader.readAsDataURL(file);
+  });
+};
 
 export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }) => {
   // Navigation Tabs
@@ -69,6 +115,54 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showAdminProfileModal, setShowAdminProfileModal] = useState(false);
+
+  // Executive Admin Profile State with LocalStorage persistence
+  const [adminProfile, setAdminProfile] = useState(() => {
+    const userKey = 'admin_user';
+    const saved = localStorage.getItem(`aura_profile_${userKey}`);
+    const savedAvatar = localStorage.getItem(`aura_avatar_${userKey}`) || localStorage.getItem('aura_avatar_admin') || '';
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          id: 1,
+          fullName: parsed.fullName || 'Executive Administrator',
+          email: 'admin@aura.store',
+          role: 'ADMIN' as any,
+          phone: parsed.phone || '+855 23 888 999',
+          avatarUrl: savedAvatar || parsed.avatarUrl || ''
+        };
+      } catch {}
+    }
+    return {
+      id: 1,
+      fullName: 'Executive Administrator',
+      email: 'admin@aura.store',
+      role: 'ADMIN' as any,
+      phone: '+855 23 888 999',
+      avatarUrl: savedAvatar
+    };
+  });
+
+  const handleSaveAdminProfile = (updated: {
+    fullName: string;
+    phone?: string;
+    avatarUrl?: string;
+    addresses?: string[];
+    companyName?: string;
+  }) => {
+    const newProfile = { ...adminProfile, ...updated };
+    setAdminProfile(newProfile);
+    localStorage.setItem('aura_profile_admin_user', JSON.stringify(newProfile));
+    if (updated.avatarUrl) {
+      localStorage.setItem('aura_avatar_admin_user', updated.avatarUrl);
+      localStorage.setItem('aura_avatar_admin', updated.avatarUrl);
+    } else {
+      localStorage.removeItem('aura_avatar_admin_user');
+      localStorage.removeItem('aura_avatar_admin');
+    }
+  };
 
   // Executive Data State
   const [kpi, setKpi] = useState<ExecutiveKpiSummary | null>(null);
@@ -81,7 +175,7 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   const [products, setProducts] = useState<AdminProductDetail[]>([]);
   const [productSearchQuery, setProductSearchQuery] = useState<string>('');
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('ALL');
-  const [productStockFilter, setProductStockFilter] = useState<'ALL' | 'HEALTHY' | 'LOW' | 'OUT' | 'PERISHABLE'>('ALL');
+  const [productStockFilter, setProductStockFilter] = useState<'ALL' | 'HEALTHY' | 'LOW' | 'OUT' | 'PERISHABLE' | 'EXPIRING_SOON'>('ALL');
   const [selectedProductModal, setSelectedProductModal] = useState<AdminProductDetail | null>(null);
   const [loadingDetailId, setLoadingDetailId] = useState<number | null>(null);
 
@@ -132,6 +226,8 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
   // User CRUD Modals State
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState<boolean>(false);
+  const [newUserImageMode, setNewUserImageMode] = useState<'LOCAL' | 'LINK'>('LOCAL');
+  const [newUserLinkInput, setNewUserLinkInput] = useState<string>('');
   const [newUserData, setNewUserData] = useState<{
     fullName: string;
     email: string;
@@ -139,15 +235,19 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     phone: string;
     roleName: string;
     customerType: 'RETAIL' | 'WHOLESALE';
+    avatarUrl: string;
   }>({
     fullName: '',
     email: '',
     password: '',
     phone: '',
     roleName: 'USER',
-    customerType: 'RETAIL'
+    customerType: 'RETAIL',
+    avatarUrl: ''
   });
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [editUserImageMode, setEditUserImageMode] = useState<'LOCAL' | 'LINK'>('LOCAL');
+  const [editUserLinkInput, setEditUserLinkInput] = useState<string>('');
   const [editUserData, setEditUserData] = useState<{
     fullName: string;
     email: string;
@@ -156,6 +256,7 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     customerType: 'RETAIL' | 'WHOLESALE';
     isActive: boolean;
     password: string;
+    avatarUrl: string;
   }>({
     fullName: '',
     email: '',
@@ -163,7 +264,8 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     roleName: 'USER',
     customerType: 'RETAIL',
     isActive: true,
-    password: ''
+    password: '',
+    avatarUrl: ''
   });
   const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
   const [userFormSubmitting, setUserFormSubmitting] = useState<boolean>(false);
@@ -225,6 +327,30 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
   useEffect(() => {
     loadDashboardData();
+  }, []);
+
+  // Guarantee instant update when navigating to USERS tab
+  useEffect(() => {
+    if (activeTab === 'USERS') {
+      adminService.getUsers().then((res) => {
+        if (res && res.content) {
+          setUsers(res.content);
+        }
+      }).catch((err) => {
+        console.warn('Auto-refresh users on tab switch failed:', err);
+      });
+    }
+  }, [activeTab]);
+
+  // Listen to cross-tab/local profile modifications from storefront
+  useEffect(() => {
+    const handleStorageChange = () => {
+      adminService.getUsers().then((res) => {
+        if (res && res.content) setUsers(res.content);
+      }).catch(() => {});
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   // Handle Sales Days Change
@@ -358,8 +484,11 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
       password: '',
       phone: '',
       roleName: 'USER',
-      customerType: 'RETAIL'
+      customerType: 'RETAIL',
+      avatarUrl: ''
     });
+    setNewUserImageMode('LOCAL');
+    setNewUserLinkInput('');
     setIsAddUserModalOpen(true);
   };
 
@@ -371,15 +500,30 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     }
     setUserFormSubmitting(true);
     try {
+      const avatarToSave = newUserData.avatarUrl.trim();
       const created = await adminService.createUser({
         fullName: newUserData.fullName.trim(),
         email: newUserData.email.trim(),
         password: newUserData.password,
         phone: newUserData.phone.trim() || undefined,
         roleName: newUserData.roleName,
-        customerType: newUserData.roleName === 'USER' ? newUserData.customerType : undefined
+        customerType: newUserData.roleName === 'USER' ? newUserData.customerType : undefined,
+        avatarUrl: avatarToSave || undefined,
+        profileImg: avatarToSave || undefined
       });
-      setUsers((prev) => [created, ...prev]);
+      if (avatarToSave) {
+        localStorage.setItem(`aura_avatar_user_${created.id}`, avatarToSave);
+        localStorage.setItem(`aura_avatar_${created.id}`, avatarToSave);
+        localStorage.setItem(`aura_avatar_${created.email.toLowerCase()}`, avatarToSave);
+        localStorage.setItem('aura_avatar_current', avatarToSave);
+        window.dispatchEvent(new Event('storage'));
+      }
+      const userWithAvatar: AdminUser = {
+        ...created,
+        avatarUrl: avatarToSave || created.avatarUrl,
+        profileImg: avatarToSave || created.profileImg
+      };
+      setUsers((prev) => [userWithAvatar, ...prev]);
       showToast(`User ${created.fullName} successfully registered!`);
       setIsAddUserModalOpen(false);
     } catch (err: any) {
@@ -391,7 +535,16 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
   // Handle User Edit
   const handleStartEditUser = (user: AdminUser) => {
+    const existingAvatar =
+      user.avatarUrl ||
+      user.profileImg ||
+      localStorage.getItem(`aura_avatar_user_${user.id}`) ||
+      localStorage.getItem(`aura_avatar_${user.id}`) ||
+      localStorage.getItem(`aura_avatar_${user.email.toLowerCase()}`) ||
+      '';
     setEditingUser(user);
+    setEditUserImageMode(existingAvatar.startsWith('data:') ? 'LOCAL' : 'LINK');
+    setEditUserLinkInput(existingAvatar.startsWith('data:') ? '' : existingAvatar);
     setEditUserData({
       fullName: user.fullName || '',
       email: user.email || '',
@@ -399,7 +552,8 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
       roleName: user.role?.name || 'USER',
       customerType: user.customerType || 'RETAIL',
       isActive: user.isActive,
-      password: ''
+      password: '',
+      avatarUrl: existingAvatar
     });
   };
 
@@ -412,6 +566,7 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     }
     setUserFormSubmitting(true);
     try {
+      const avatarToSave = editUserData.avatarUrl.trim();
       const updated = await adminService.updateUser(editingUser.id, {
         fullName: editUserData.fullName.trim(),
         email: editUserData.email.trim(),
@@ -419,9 +574,27 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         roleName: editUserData.roleName,
         customerType: editUserData.roleName === 'USER' ? editUserData.customerType : undefined,
         isActive: editUserData.isActive,
-        password: editUserData.password.trim() ? editUserData.password : undefined
+        password: editUserData.password.trim() ? editUserData.password : undefined,
+        avatarUrl: avatarToSave || undefined,
+        profileImg: avatarToSave || undefined
       });
-      setUsers((prev) => prev.map((u) => (u.id === editingUser.id ? updated : u)));
+      if (avatarToSave) {
+        localStorage.setItem(`aura_avatar_user_${editingUser.id}`, avatarToSave);
+        localStorage.setItem(`aura_avatar_${editingUser.id}`, avatarToSave);
+        localStorage.setItem(`aura_avatar_${editUserData.email.toLowerCase()}`, avatarToSave);
+        localStorage.setItem('aura_avatar_current', avatarToSave);
+      } else {
+        localStorage.removeItem(`aura_avatar_user_${editingUser.id}`);
+        localStorage.removeItem(`aura_avatar_${editingUser.id}`);
+        localStorage.removeItem(`aura_avatar_${editUserData.email.toLowerCase()}`);
+      }
+      window.dispatchEvent(new Event('storage'));
+      const userWithAvatar: AdminUser = {
+        ...updated,
+        avatarUrl: avatarToSave || updated.avatarUrl,
+        profileImg: avatarToSave || updated.profileImg
+      };
+      setUsers((prev) => prev.map((u) => (u.id === editingUser.id ? userWithAvatar : u)));
       showToast(`User ${updated.fullName} updated successfully!`);
       setEditingUser(null);
     } catch (err: any) {
@@ -589,6 +762,17 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         if (p.availableStock > 0) return false;
       } else if (productStockFilter === 'PERISHABLE') {
         if (!p.isPerishable) return false;
+      } else if (productStockFilter === 'EXPIRING_SOON') {
+        const hasExpiringBatch = p.batches && p.batches.some((b) => {
+          if (b.isExpired || b.currentQuantity <= 0 || !b.expiryDate) return false;
+          const diffDays = Math.ceil((new Date(b.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          return diffDays >= 0 && diffDays <= 30;
+        });
+        const currentBatchExpiring = p.currentBatchExpiryDate ? (() => {
+          const diffDays = Math.ceil((new Date(p.currentBatchExpiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+          return diffDays >= 0 && diffDays <= 30;
+        })() : false;
+        if (!hasExpiringBatch && !currentBatchExpiring) return false;
       }
       return true;
     });
@@ -815,95 +999,120 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
         </div>
       )}
 
-      {/* Header Banner */}
+      {/* Header Banner (Ultra-Slim Executive Glass Navbar) */}
       <div
         style={{
+          position: 'sticky',
+          top: '12px',
+          zIndex: 900,
           display: 'flex',
           flexWrap: 'wrap',
           justifyContent: 'space-between',
           alignItems: 'center',
-          gap: '16px',
-          marginBottom: '28px',
-          padding: '24px 28px',
-          borderRadius: '24px',
-          background: 'linear-gradient(135deg, rgba(30, 30, 36, 0.8) 0%, rgba(18, 18, 22, 0.6) 100%)',
-          border: '1px solid var(--ios-glass-border)',
-          backdropFilter: 'var(--ios-blur-deep)',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)'
+          gap: '12px',
+          marginBottom: '20px',
+          padding: '8px 18px',
+          borderRadius: '18px',
+          background: 'linear-gradient(135deg, rgba(26, 26, 34, 0.90) 0%, rgba(16, 16, 22, 0.96) 100%)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          backdropFilter: 'blur(28px)',
+          WebkitBackdropFilter: 'blur(28px)',
+          boxShadow: '0 12px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+        {/* Left Side: Brand Icon, Title, Live Status in a Single Slim Row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '10px',
+              background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(37, 99, 235, 0.45))',
+              border: '1px solid rgba(96, 165, 250, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#60A5FA',
+              flexShrink: 0,
+              boxShadow: '0 2px 8px rgba(59, 130, 246, 0.3)'
+            }}
+          >
+            <Shield size={16} />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: '16px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: '#FFFFFF', whiteSpace: 'nowrap' }}>
+              Enterprise Operations
+            </h1>
+
             <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '4px 12px',
+                gap: '4px',
+                padding: '2px 8px',
                 borderRadius: '9999px',
-                fontSize: '11px',
+                fontSize: '10px',
                 fontWeight: 700,
-                letterSpacing: '0.06em',
+                letterSpacing: '0.04em',
                 background: 'rgba(59, 130, 246, 0.15)',
                 color: '#60A5FA',
                 border: '1px solid rgba(59, 130, 246, 0.3)'
               }}
             >
-              <Shield size={12} />
-              EXECUTIVE GOVERNANCE HUD
+              HUD
             </span>
+
             <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '6px',
-                padding: '4px 10px',
+                gap: '5px',
+                padding: '2px 8px',
                 borderRadius: '9999px',
-                fontSize: '11px',
+                fontSize: '10px',
                 fontWeight: 600,
                 background: 'rgba(16, 185, 129, 0.12)',
                 color: '#34D399',
                 border: '1px solid rgba(16, 185, 129, 0.25)'
               }}
             >
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34D399' }} />
-              LIVE POSTGRESQL 18
+              <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#34D399' }} />
+              PostgreSQL 18 Live
             </span>
+
             {loading && (
               <span style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
-                Loading metrics...
+                Syncing...
               </span>
             )}
           </div>
-          <h1 style={{ fontSize: '28px', fontWeight: 800, letterSpacing: '-0.02em', margin: 0 }}>
-            Enterprise Omnichannel Operations
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: '13px', color: 'var(--ios-text-muted)' }}>
-            Real-time multi-tier revenue analytics, wholesale authorization queue, user directory, and tamper-evident audit ledger.
-          </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+        {/* Right Side: Compact Action Buttons & Profile Capsule */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <button
             onClick={handleDownloadCsv}
             disabled={downloadingCsv}
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '10px 16px',
+              gap: '6px',
+              padding: '6px 12px',
               borderRadius: '9999px',
               background: 'rgba(255, 255, 255, 0.08)',
               border: '1px solid var(--ios-glass-border)',
               color: '#FFFFFF',
-              fontSize: '13px',
+              fontSize: '12px',
               fontWeight: 600,
               cursor: downloadingCsv ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              height: '32px'
             }}
           >
-            <Download size={14} />
-            {downloadingCsv ? 'Exporting...' : 'Export Tax CSV'}
+            <Download size={13} />
+            <span>{downloadingCsv ? 'Exporting...' : 'Export CSV'}</span>
           </button>
 
           <button
@@ -911,20 +1120,21 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '10px 18px',
+              gap: '6px',
+              padding: '6px 14px',
               borderRadius: '9999px',
               background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.3))',
               border: '1px solid rgba(96, 165, 250, 0.4)',
               color: '#93C5FD',
-              fontSize: '13px',
+              fontSize: '12px',
               fontWeight: 700,
               cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              height: '32px'
             }}
           >
-            <FileSpreadsheet size={14} />
-            Tax & Financial Statement
+            <FileSpreadsheet size={13} />
+            <span>Tax Statement</span>
           </button>
 
           <button
@@ -933,20 +1143,21 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              padding: '10px 18px',
+              gap: '6px',
+              padding: '6px 12px',
               borderRadius: '9999px',
               background: 'rgba(255, 255, 255, 0.08)',
               border: '1px solid var(--ios-glass-border)',
               color: '#FFFFFF',
-              fontSize: '13px',
+              fontSize: '12px',
               fontWeight: 600,
               cursor: refreshing ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              height: '32px'
             }}
           >
-            <RefreshCw size={14} />
-            {refreshing ? 'Syncing...' : 'Sync Live'}
+            <RefreshCw size={13} />
+            <span>{refreshing ? 'Syncing...' : 'Sync'}</span>
           </button>
 
           <button
@@ -955,20 +1166,80 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '6px',
-              padding: '10px 18px',
+              gap: '5px',
+              padding: '6px 12px',
               borderRadius: '9999px',
               background: 'rgba(239, 68, 68, 0.15)',
               border: '1px solid rgba(239, 68, 68, 0.3)',
               color: '#FCA5A5',
-              fontSize: '13px',
+              fontSize: '12px',
               fontWeight: 700,
               cursor: 'pointer',
-              transition: 'all 0.2s ease'
+              transition: 'all 0.2s ease',
+              height: '32px'
             }}
           >
-            <LogOut size={14} />
+            <LogOut size={13} />
             <span>Sign Out</span>
+          </button>
+
+          {/* Admin Profile Capsule */}
+          <button
+            onClick={() => setShowAdminProfileModal(true)}
+            title="Edit Administrator Profile & Avatar"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '2px 10px 2px 3px',
+              borderRadius: '9999px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: '#FFFFFF',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              height: '32px'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.14)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)')}
+          >
+            <div
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                background: 'linear-gradient(135deg, #3B82F6, #1D4ED8)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#FFFFFF',
+                fontWeight: 800,
+                fontSize: '10px',
+                boxShadow: '0 2px 6px rgba(59, 130, 246, 0.4)'
+              }}
+            >
+              {adminProfile.avatarUrl ? (
+                <img
+                  src={adminProfile.avatarUrl}
+                  alt={adminProfile.fullName}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={() => setAdminProfile((prev) => ({ ...prev, avatarUrl: '' }))}
+                />
+              ) : (
+                'AD'
+              )}
+            </div>
+            <div style={{ textAlign: 'left', lineHeight: 1.1 }}>
+              <span style={{ display: 'block', fontSize: '11px', fontWeight: 700 }}>
+                {adminProfile.fullName}
+              </span>
+              <span style={{ display: 'block', fontSize: '9px', color: '#93C5FD' }}>
+                ADMIN
+              </span>
+            </div>
           </button>
         </div>
       </div>
@@ -983,6 +1254,14 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
           setShowLogoutConfirm(false);
           onLogout?.();
         }}
+      />
+
+      <UserProfileModal
+        isOpen={showAdminProfileModal}
+        user={adminProfile}
+        roleLabel="Executive Administrator"
+        onClose={() => setShowAdminProfileModal(false)}
+        onSave={handleSaveAdminProfile}
       />
 
       {/* Top KPI Cards Grid */}
@@ -1049,8 +1328,12 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
           </div>
         </IosCardGlass>
 
-        {/* Card 2: Omnichannel Orders */}
-        <IosCardGlass glow>
+        {/* Card 2: Omnichannel Orders -> Click redirects to PAYMENTS */}
+        <IosCardGlass
+          glow
+          style={{ cursor: 'pointer', padding: '24px' }}
+          onClick={() => setActiveTab('PAYMENTS')}
+        >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
               <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ios-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -1076,7 +1359,7 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
               <ShoppingBag size={20} />
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '8px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', gap: '8px', fontSize: '12px', marginBottom: '8px' }}>
             <span
               style={{
                 flex: 1,
@@ -1101,6 +1384,21 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             >
               POS Register: <strong>{kpi?.posOrdersCount || 0}</strong>
             </span>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '11px',
+              color: '#818CF8',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              background: 'rgba(99, 102, 241, 0.1)'
+            }}
+          >
+            <span>View Payments & Revenue Ledger</span>
+            <ChevronRight size={13} />
           </div>
         </IosCardGlass>
 
@@ -1229,6 +1527,154 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             }}
           >
             <span>Inspect Product Stock & Expirations</span>
+            <ChevronRight size={13} />
+          </div>
+        </IosCardGlass>
+
+        {/* Card 5: Entire Stock Valuation */}
+        <IosCardGlass
+          glow
+          style={{ cursor: 'pointer', padding: '24px' }}
+          onClick={() => setActiveTab('PRODUCTS')}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ios-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Entire Stock Valuation
+              </span>
+              <div style={{ fontSize: '32px', fontWeight: 800, margin: '6px 0 10px', color: '#FFFFFF', letterSpacing: '-0.03em' }}>
+                ${kpi?.totalStockValuation ? kpi.totalStockValuation.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+              </div>
+            </div>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'rgba(6, 182, 212, 0.15)',
+                border: '1px solid rgba(6, 182, 212, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#22D3EE'
+              }}
+            >
+              <Layers size={20} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', fontSize: '12px', marginBottom: '8px' }}>
+            <span
+              style={{
+                flex: 1,
+                padding: '6px 10px',
+                borderRadius: '8px',
+                background: 'rgba(6, 182, 212, 0.1)',
+                color: '#67E8F9',
+                border: '1px solid rgba(6, 182, 212, 0.2)'
+              }}
+            >
+              Cost Basis: <strong>${kpi?.totalStockValuation?.toFixed(2) || '0.00'}</strong>
+            </span>
+            <span
+              style={{
+                flex: 1,
+                padding: '6px 10px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.05)',
+                color: 'var(--ios-text-muted)',
+                border: '1px solid var(--ios-glass-border)'
+              }}
+            >
+              Retail Value: <strong>${kpi?.totalStockRetailValue?.toFixed(2) || '0.00'}</strong>
+            </span>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '11px',
+              color: '#22D3EE',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              background: 'rgba(6, 182, 212, 0.08)'
+            }}
+          >
+            <span>Inspect Catalog & Stock Pricing</span>
+            <ChevronRight size={13} />
+          </div>
+        </IosCardGlass>
+
+        {/* Card 6: Net Loss & Write-Offs */}
+        <IosCardGlass
+          glow
+          style={{ cursor: 'pointer', padding: '24px' }}
+          onClick={() => setActiveTab('AUDIT')}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--ios-text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Net Loss & Write-Offs
+              </span>
+              <div style={{ fontSize: '32px', fontWeight: 800, margin: '6px 0 10px', color: (kpi?.netLoss || 0) > 0 ? '#F87171' : '#FFFFFF', letterSpacing: '-0.03em' }}>
+                ${kpi?.netLoss ? kpi.netLoss.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+              </div>
+            </div>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '12px',
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#F87171'
+              }}
+            >
+              <AlertTriangle size={20} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px', fontSize: '12px', marginBottom: '8px' }}>
+            <span
+              style={{
+                flex: 1,
+                padding: '6px 10px',
+                borderRadius: '8px',
+                background: (kpi?.expiredBatchesCount || 0) > 0 ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                color: (kpi?.expiredBatchesCount || 0) > 0 ? '#FCA5A5' : 'var(--ios-text-muted)',
+                border: '1px solid rgba(239, 68, 68, 0.2)'
+              }}
+            >
+              Expired: <strong>{kpi?.expiredBatchesCount || 0} batches</strong>
+            </span>
+            <span
+              style={{
+                flex: 1,
+                padding: '6px 10px',
+                borderRadius: '8px',
+                background: (kpi?.soonExpiringBatchesCount || 0) > 0 ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                color: (kpi?.soonExpiringBatchesCount || 0) > 0 ? '#FCD34D' : 'var(--ios-text-muted)',
+                border: '1px solid rgba(245, 158, 11, 0.2)'
+              }}
+            >
+              Soon (&lt; 1 mo): <strong>{kpi?.soonExpiringBatchesCount || 0}</strong>
+            </span>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: '11px',
+              color: '#F87171',
+              padding: '4px 8px',
+              borderRadius: '6px',
+              background: 'rgba(239, 68, 68, 0.08)'
+            }}
+          >
+            <span>Review Audit Log Shrinkage</span>
             <ChevronRight size={13} />
           </div>
         </IosCardGlass>
@@ -2011,6 +2457,25 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                     {products.filter((p) => p.isPerishable).length}
                   </div>
                 </div>
+
+                <div
+                  onClick={() => setProductStockFilter(productStockFilter === 'EXPIRING_SOON' ? 'ALL' : 'EXPIRING_SOON')}
+                  title="Click to filter products expiring within 30 days"
+                  style={{
+                    padding: '8px 14px',
+                    borderRadius: '12px',
+                    background: (kpi?.soonExpiringBatchesCount || 0) > 0 ? 'rgba(245, 158, 11, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                    border: (kpi?.soonExpiringBatchesCount || 0) > 0 ? '1px solid rgba(245, 158, 11, 0.35)' : '1px solid var(--ios-glass-border)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ fontSize: '10px', color: '#FCD34D', textTransform: 'uppercase', fontWeight: 700 }}>
+                    Expiring Soon (&lt; 1 mo)
+                  </div>
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#FCD34D', marginTop: '2px' }}>
+                    {kpi?.soonExpiringBatchesCount || 0}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -2080,7 +2545,8 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                     { key: 'HEALTHY', label: 'Optimal Stock' },
                     { key: 'LOW', label: 'Low Stock' },
                     { key: 'OUT', label: 'Depleted' },
-                    { key: 'PERISHABLE', label: 'Perishable Only' }
+                    { key: 'PERISHABLE', label: 'Perishable Only' },
+                    { key: 'EXPIRING_SOON', label: 'Expiring Soon (< 1 mo)' }
                   ].map((f) => (
                     <button
                       key={f.key}
@@ -2473,18 +2939,50 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                           <span
                             style={{
                               fontWeight: 700,
-                              color: p.isPerishable ? '#FCD34D' : '#94A3B8'
+                              color: p.isPerishable ? '#FCD34D' : '#94A3B8',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px'
                             }}
                           >
-                            {p.isPerishable && p.currentBatchExpiryDate
-                              ? new Date(p.currentBatchExpiryDate).toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'short',
-                                  day: 'numeric'
-                                })
-                              : p.isPerishable
-                              ? 'Active Intake (N/A)'
-                              : 'Non-Perishable (Shelf Stable)'}
+                            {(() => {
+                              if (!p.isPerishable) return 'Non-Perishable (Shelf Stable)';
+                              if (!p.currentBatchExpiryDate) return 'Active Intake (N/A)';
+                              const diffDays = Math.ceil((new Date(p.currentBatchExpiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                              const dateStr = new Date(p.currentBatchExpiryDate).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              });
+                              if (diffDays < 0) {
+                                return (
+                                  <>
+                                    <span>{dateStr}</span>
+                                    <span style={{ padding: '1px 6px', borderRadius: '4px', fontSize: '10px', background: 'rgba(239, 68, 68, 0.2)', color: '#F87171' }}>
+                                      Expired
+                                    </span>
+                                  </>
+                                );
+                              }
+                              if (diffDays <= 30) {
+                                return (
+                                  <>
+                                    <span>{dateStr}</span>
+                                    <span style={{ padding: '1px 6px', borderRadius: '4px', fontSize: '10px', background: 'rgba(245, 158, 11, 0.2)', color: '#FCD34D' }}>
+                                      Soon ({diffDays}d)
+                                    </span>
+                                  </>
+                                );
+                              }
+                              return (
+                                <>
+                                  <span>{dateStr}</span>
+                                  <span style={{ padding: '1px 6px', borderRadius: '4px', fontSize: '10px', background: 'rgba(16, 185, 129, 0.15)', color: '#34D399' }}>
+                                    {diffDays}d
+                                  </span>
+                                </>
+                              );
+                            })()}
                           </span>
                         </div>
                       </div>
@@ -4147,30 +4645,53 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                           {/* User Identity */}
                           <td style={{ padding: '16px 18px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <div
-                                style={{
-                                  width: '38px',
-                                  height: '38px',
-                                  borderRadius: '50%',
-                                  background:
-                                    roleName === 'ADMIN'
-                                      ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.4))'
-                                      : roleName === 'CASHIER'
-                                      ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(8, 145, 178, 0.4))'
-                                      : roleName === 'STOCK_CONTROLLER'
-                                      ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.4))'
-                                      : 'linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))',
-                                  border: '1px solid var(--ios-glass-border)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontWeight: 800,
-                                  fontSize: '13px',
-                                  color: '#FFFFFF'
-                                }}
-                              >
-                                {user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'}
-                              </div>
+                              {(() => {
+                                const userAvatar =
+                                  user.avatarUrl ||
+                                  user.profileImg ||
+                                  localStorage.getItem(`aura_avatar_user_${user.id}`) ||
+                                  localStorage.getItem(`aura_avatar_${user.id}`) ||
+                                  localStorage.getItem(`aura_avatar_${user.email?.toLowerCase()}`);
+                                return (
+                                  <div
+                                    style={{
+                                      width: '38px',
+                                      height: '38px',
+                                      borderRadius: '50%',
+                                      background:
+                                        roleName === 'ADMIN'
+                                          ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(5, 150, 105, 0.4))'
+                                          : roleName === 'CASHIER'
+                                          ? 'linear-gradient(135deg, rgba(6, 182, 212, 0.25), rgba(8, 145, 178, 0.4))'
+                                          : roleName === 'STOCK_CONTROLLER'
+                                          ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.25), rgba(217, 119, 6, 0.4))'
+                                          : 'linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))',
+                                      border: '1px solid var(--ios-glass-border)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      fontWeight: 800,
+                                      fontSize: '13px',
+                                      color: '#FFFFFF',
+                                      overflow: 'hidden',
+                                      flexShrink: 0
+                                    }}
+                                  >
+                                    {userAvatar ? (
+                                      <img
+                                        src={userAvatar}
+                                        alt={user.fullName}
+                                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                        onError={(e) => {
+                                          (e.currentTarget as HTMLElement).style.display = 'none';
+                                        }}
+                                      />
+                                    ) : (
+                                      user.fullName ? user.fullName.charAt(0).toUpperCase() : 'U'
+                                    )}
+                                  </div>
+                                );
+                              })()}
                               <div>
                                 <div style={{ fontWeight: 600, color: '#FFFFFF' }}>{user.fullName}</div>
                                 <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>{user.email}</div>
@@ -4178,6 +4699,13 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                                   <div style={{ fontSize: '10px', color: '#94A3B8', marginTop: '1px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                     <Phone size={10} />
                                     {user.phone}
+                                  </div>
+                                )}
+                                {Boolean((user as any).companyName || (user as any).addresses) && (
+                                  <div style={{ fontSize: '10px', color: '#64748B', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px', maxWidth: '240px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <MapPin size={10} />
+                                    {(user as any).companyName ? `${(user as any).companyName} • ` : ''}
+                                    {typeof (user as any).addresses === 'string' ? (user as any).addresses.replace(/^[\["']+|[\]"']+$/g, '') : ''}
                                   </div>
                                 )}
                               </div>
@@ -5067,11 +5595,30 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                               <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700, background: 'rgba(255, 255, 255, 0.08)', color: 'var(--ios-text-muted)' }}>
                                 Depleted
                               </span>
-                            ) : (
-                              <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700, background: 'rgba(16, 185, 129, 0.15)', color: '#34D399' }}>
-                                In-Rotation
-                              </span>
-                            )}
+                            ) : (() => {
+                              if (b.expiryDate) {
+                                const diffDays = Math.ceil((new Date(b.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                                if (diffDays < 0) {
+                                  return (
+                                    <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700, background: 'rgba(239, 68, 68, 0.15)', color: '#F87171' }}>
+                                      Expired
+                                    </span>
+                                  );
+                                }
+                                if (diffDays <= 30) {
+                                  return (
+                                    <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700, background: 'rgba(245, 158, 11, 0.2)', color: '#FCD34D' }}>
+                                      Expiring Soon (&lt; 1 mo) • {diffDays}d
+                                    </span>
+                                  );
+                                }
+                              }
+                              return (
+                                <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 700, background: 'rgba(16, 185, 129, 0.15)', color: '#34D399' }}>
+                                  In-Rotation
+                                </span>
+                              );
+                            })()}
                           </td>
                         </tr>
                       ))}
@@ -7043,6 +7590,195 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
             {/* Form */}
             <form onSubmit={handleCreateUser} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Profile Image Section */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  padding: '14px',
+                  borderRadius: '16px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid var(--ios-glass-border)'
+                }}
+              >
+                {/* Avatar Preview */}
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '2px solid #3B82F6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    overflow: 'hidden'
+                  }}
+                >
+                  {newUserData.avatarUrl ? (
+                    <img
+                      src={newUserData.avatarUrl}
+                      alt="Preview"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={() => setNewUserData((prev) => ({ ...prev, avatarUrl: '' }))}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '20px', fontWeight: 800, color: '#93C5FD' }}>
+                      {newUserData.fullName ? newUserData.fullName.charAt(0).toUpperCase() : 'U'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Avatar Controls */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#CBD5E1' }}>
+                      Profile Photo (Optional)
+                    </span>
+                    {newUserData.avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNewUserData((prev) => ({ ...prev, avatarUrl: '' }));
+                          setNewUserLinkInput('');
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#F87171',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}
+                      >
+                        <Trash2 size={11} /> Remove
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Mode switcher: Local vs Link */}
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setNewUserImageMode('LOCAL')}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: newUserImageMode === 'LOCAL' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.08)',
+                        color: newUserImageMode === 'LOCAL' ? '#000000' : 'var(--ios-text-muted)'
+                      }}
+                    >
+                      Upload Local
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewUserImageMode('LINK')}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: newUserImageMode === 'LINK' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.08)',
+                        color: newUserImageMode === 'LINK' ? '#000000' : 'var(--ios-text-muted)'
+                      }}
+                    >
+                      Web Link
+                    </button>
+                  </div>
+
+                  {/* Mode content */}
+                  {newUserImageMode === 'LOCAL' ? (
+                    <div>
+                      <input
+                        type="file"
+                        id="new-user-avatar-upload"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const dataUrl = await resizeImageToDataUrl(file);
+                            setNewUserData((prev) => ({ ...prev, avatarUrl: dataUrl }));
+                          } catch (err: any) {
+                            showToast(err.message || 'Failed to process image', 'error');
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor="new-user-avatar-upload"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          background: 'rgba(59, 130, 246, 0.15)',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          color: '#60A5FA',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Upload size={12} /> Choose Local File...
+                      </label>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input
+                        type="text"
+                        placeholder="https://images.unsplash.com/photo-..."
+                        value={newUserLinkInput}
+                        onChange={(e) => setNewUserLinkInput(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          border: '1px solid var(--ios-glass-border)',
+                          color: '#FFFFFF',
+                          fontSize: '11px',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newUserLinkInput.trim()) {
+                            setNewUserData((prev) => ({ ...prev, avatarUrl: newUserLinkInput.trim() }));
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          background: '#3B82F6',
+                          border: 'none',
+                          color: '#FFFFFF',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Full Name */}
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#CBD5E1', marginBottom: '6px' }}>
@@ -7344,6 +8080,195 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
             {/* Form */}
             <form onSubmit={handleUpdateUser} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* Profile Image Section */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '16px',
+                  padding: '14px',
+                  borderRadius: '16px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid var(--ios-glass-border)'
+                }}
+              >
+                {/* Avatar Preview */}
+                <div
+                  style={{
+                    position: 'relative',
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '2px solid #60A5FA',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    overflow: 'hidden'
+                  }}
+                >
+                  {editUserData.avatarUrl ? (
+                    <img
+                      src={editUserData.avatarUrl}
+                      alt="Preview"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={() => setEditUserData((prev) => ({ ...prev, avatarUrl: '' }))}
+                    />
+                  ) : (
+                    <span style={{ fontSize: '20px', fontWeight: 800, color: '#93C5FD' }}>
+                      {editUserData.fullName ? editUserData.fullName.charAt(0).toUpperCase() : 'U'}
+                    </span>
+                  )}
+                </div>
+
+                {/* Avatar Controls */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#CBD5E1' }}>
+                      Profile Photo (Optional)
+                    </span>
+                    {editUserData.avatarUrl && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditUserData((prev) => ({ ...prev, avatarUrl: '' }));
+                          setEditUserLinkInput('');
+                        }}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: '#F87171',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px'
+                        }}
+                      >
+                        <Trash2 size={11} /> Remove
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Mode switcher: Local vs Link */}
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button
+                      type="button"
+                      onClick={() => setEditUserImageMode('LOCAL')}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: editUserImageMode === 'LOCAL' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.08)',
+                        color: editUserImageMode === 'LOCAL' ? '#000000' : 'var(--ios-text-muted)'
+                      }}
+                    >
+                      Upload Local
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditUserImageMode('LINK')}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        background: editUserImageMode === 'LINK' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.08)',
+                        color: editUserImageMode === 'LINK' ? '#000000' : 'var(--ios-text-muted)'
+                      }}
+                    >
+                      Web Link
+                    </button>
+                  </div>
+
+                  {/* Mode content */}
+                  {editUserImageMode === 'LOCAL' ? (
+                    <div>
+                      <input
+                        type="file"
+                        id="edit-user-avatar-upload"
+                        accept="image/*"
+                        style={{ display: 'none' }}
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const dataUrl = await resizeImageToDataUrl(file);
+                            setEditUserData((prev) => ({ ...prev, avatarUrl: dataUrl }));
+                          } catch (err: any) {
+                            showToast(err.message || 'Failed to process image', 'error');
+                          }
+                        }}
+                      />
+                      <label
+                        htmlFor="edit-user-avatar-upload"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          background: 'rgba(59, 130, 246, 0.15)',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                          color: '#60A5FA',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Upload size={12} /> Choose Local File...
+                      </label>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <input
+                        type="text"
+                        placeholder="https://images.unsplash.com/photo-..."
+                        value={editUserLinkInput}
+                        onChange={(e) => setEditUserLinkInput(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '6px 10px',
+                          borderRadius: '8px',
+                          background: 'rgba(255, 255, 255, 0.06)',
+                          border: '1px solid var(--ios-glass-border)',
+                          color: '#FFFFFF',
+                          fontSize: '11px',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editUserLinkInput.trim()) {
+                            setEditUserData((prev) => ({ ...prev, avatarUrl: editUserLinkInput.trim() }));
+                          }
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: '8px',
+                          background: '#3B82F6',
+                          border: 'none',
+                          color: '#FFFFFF',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, color: '#CBD5E1', marginBottom: '6px' }}>
                   Full Legal Name *

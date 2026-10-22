@@ -26,8 +26,15 @@ public interface AdminService {
             String password,
             String phone,
             String roleName,
-            String customerType
-    ) {}
+            String customerType,
+            String avatarUrl,
+            String companyName,
+            String addresses
+    ) {
+        public CreateUserRequest(String fullName, String email, String password, String phone, String roleName, String customerType) {
+            this(fullName, email, password, phone, roleName, customerType, null, null, null);
+        }
+    }
 
     record UpdateUserRequest(
             String fullName,
@@ -36,8 +43,15 @@ public interface AdminService {
             String roleName,
             String customerType,
             Boolean isActive,
-            String password
-    ) {}
+            String password,
+            String avatarUrl,
+            String companyName,
+            String addresses
+    ) {
+        public UpdateUserRequest(String fullName, String email, String phone, String roleName, String customerType, Boolean isActive, String password) {
+            this(fullName, email, phone, roleName, customerType, isActive, password, null, null, null);
+        }
+    }
 
     Page<InventoryTransaction> getAuditLogs(String type, java.time.LocalDateTime start, java.time.LocalDateTime end, Pageable pageable);
     default Page<InventoryTransaction> getAuditLogs(Pageable pageable) {
@@ -73,7 +87,11 @@ public interface AdminService {
             long posOrdersCount,
             long pendingWholesaleApplicationsCount,
             long expiredBatchesCount,
-            int lowStockProductsCount
+            long soonExpiringBatchesCount,
+            int lowStockProductsCount,
+            BigDecimal totalStockValuation,
+            BigDecimal totalStockRetailValue,
+            BigDecimal netLoss
     ) {}
 
     record SalesSeriesPointDto(

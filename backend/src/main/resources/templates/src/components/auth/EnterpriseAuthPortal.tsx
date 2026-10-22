@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from 'react-router-dom';
 import { UnifiedLoginForm } from './UnifiedLoginForm';
 
 interface EnterpriseAuthPortalProps {
@@ -6,7 +7,9 @@ interface EnterpriseAuthPortalProps {
 }
 
 export const EnterpriseAuthPortal: React.FC<EnterpriseAuthPortalProps> = () => {
-  return <UnifiedLoginForm />;
+  const location = useLocation();
+  const isRegister = location.pathname.toLowerCase() === '/signup' || location.pathname.toLowerCase() === '/register';
+  return <UnifiedLoginForm defaultMode={isRegister ? 'register' : 'login'} />;
 };
 
 export default EnterpriseAuthPortal;

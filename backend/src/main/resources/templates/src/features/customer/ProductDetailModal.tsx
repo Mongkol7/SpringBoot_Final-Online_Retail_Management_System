@@ -14,9 +14,12 @@ import {
   Cookie,
   Milk,
   Dumbbell,
-  Building2
+  Building2,
+  Calendar,
+  Sparkles
 } from 'lucide-react';
 import { CATEGORIES_LIST } from './customerApi';
+import { calculateItemPrice } from '../../utils/pricingCalculator';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -35,38 +38,125 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [quantity, setQuantity] = useState<number>(1);
   const [stockWarning, setStockWarning] = useState<string | null>(null);
   const [justAdded, setJustAdded] = useState<boolean>(false);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
 
   // Reset quantity and warnings when product changes
   useEffect(() => {
     setQuantity(1);
     setStockWarning(null);
     setJustAdded(false);
+    setSelectedImageIndex(0);
+    const isShortDated = (product?.freshStockQuantity === 0 && (product?.nearExpiryQuantity || 0) > 0) ||
+      (product?.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30 && (!product.freshStockQuantity || product.freshStockQuantity === 0));
+    setBatchPreference(isShortDated ? 'CLEARANCE' : 'FRESH');
   }, [product, isOpen]);
+
+  // Parse gallery images (properly parses JSON array strings, comma-separated lists, and direct URLs)
+  const galleryImages: string[] = React.useMemo(() => {
+    if (!product) return [];
+    const list: string[] = [];
+    const add = (url: any) => {
+      if (!url || typeof url !== 'string') return;
+      const u = url.trim();
+      if (u && !list.includes(u)) list.push(u);
+    };
+
+    if (product.images) {
+      if (Array.isArray(product.images)) {
+        product.images.forEach(add);
+      } else if (typeof product.images === 'string') {
+        const str = product.images.trim();
+        if (str.startsWith('[') && str.endsWith(']')) {
+          try {
+            const parsed = JSON.parse(str);
+            if (Array.isArray(parsed)) parsed.forEach(add);
+          } catch {
+            str.replace(/[\[\]"]/g, '').split(',').forEach(add);
+          }
+        } else {
+          str.split(',').forEach(add);
+        }
+      }
+    }
+
+    if (product.imageUrl) {
+      const str = product.imageUrl.trim();
+      if (str.startsWith('[') && str.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(str);
+          if (Array.isArray(parsed)) parsed.forEach(add);
+        } catch {
+          add(str);
+        }
+      } else if (str.includes(',')) {
+        str.split(',').forEach(add);
+      } else {
+        add(str);
+      }
+    }
+    return list;
+  }, [product]);
+
+  const activeImage = galleryImages[selectedImageIndex] || galleryImages[0] || product?.imageUrl || '';
 
   if (!isOpen || !product) return null;
 
   // Real-time stock from DB
-  const availableStock = product.stockQuantity !== undefined
+  const totalStock = product.stockQuantity !== undefined
     ? Number(product.stockQuantity)
     : (product.availableStock !== undefined ? Number(product.availableStock) : 0);
 
-  const existingItem = items.find((i) => i.productId === product.id);
-  const currentInCart = existingItem ? existingItem.quantity : 0;
-  const remainingStock = Math.max(0, availableStock - currentInCart);
+  const nearExpiryStock = product.nearExpiryQuantity !== undefined && product.nearExpiryQuantity > 0
+    ? Number(product.nearExpiryQuantity)
+    : 0;
+
+  const freshStock = product.freshStockQuantity !== undefined
+    ? Number(product.freshStockQuantity)
+    : Math.max(0, totalStock - nearExpiryStock);
+
+  const isShortDatedOnly = (product.freshStockQuantity === 0 && nearExpiryStock > 0) ||
+    (product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30 && (!product.freshStockQuantity || product.freshStockQuantity === 0));
+
+  // Wholesale batch preference selection: 'FRESH' (guaranteed shelf life) vs 'CLEARANCE' (25% off wholesale)
+  const [batchPreference, setBatchPreference] = useState<'FRESH' | 'CLEARANCE'>(
+    isShortDatedOnly ? 'CLEARANCE' : 'FRESH'
+  );
+
+  // Real-time batch-aware in-cart quantities
+  const inCartFresh = items
+    .filter((i) => i.productId === product.id && (i.batchPreference || 'FRESH') === 'FRESH')
+    .reduce((sum, i) => sum + i.quantity, 0);
+
+  const inCartClearance = items
+    .filter((i) => i.productId === product.id && i.batchPreference === 'CLEARANCE')
+    .reduce((sum, i) => sum + i.quantity, 0);
+
+  const liveFreshStock = Math.max(0, freshStock - inCartFresh);
+  const liveClearanceStock = Math.max(0, nearExpiryStock - inCartClearance);
+
+  const availableBatchStock = batchPreference === 'CLEARANCE'
+    ? liveClearanceStock
+    : liveFreshStock;
+  const availableStock = availableBatchStock;
+  const currentInCart = batchPreference === 'CLEARANCE' ? inCartClearance : inCartFresh;
 
   const tier = getEffectiveTier();
   const categoryName = CATEGORIES_LIST.find((c) => c.id === product.categoryId)?.name || 'General Bites';
 
-  // Unit price calculation based on tier and wholesale minimum quantity
-  const isWholesaleQualified =
-    tier === 'WHOLESALE' && quantity >= (product.wholesaleMinQty || 10);
-  const unitPrice = isWholesaleQualified ? product.wholesalePrice : product.retailPrice;
-  const lineSubtotal = unitPrice * quantity;
+  // Tiered and multi-batch pricing calculation with total product quantity aggregation
+  const priceCalculation = React.useMemo(() => {
+    if (!product) return null;
+    const totalProductQuantity = inCartFresh + inCartClearance + quantity;
+    return calculateItemPrice(product, quantity, tier, batchPreference, totalProductQuantity);
+  }, [product, quantity, tier, batchPreference, inCartFresh, inCartClearance]);
+
+  const unitPrice = priceCalculation?.unitPrice || product.retailPrice;
+  const lineSubtotal = priceCalculation?.subtotal || (unitPrice * quantity);
 
   // Step quantity with strict real-time stock boundary checks
   const handleIncrease = () => {
-    if (quantity + currentInCart >= availableStock) {
-      setStockWarning(`⚠️ Stock Limit: Only ${availableStock} units available in warehouse. You currently have ${currentInCart} in your cart.`);
+    if (quantity >= availableBatchStock) {
+      setStockWarning(`⚠️ Stock Limit: Only ${availableBatchStock} more units available for this ${batchPreference === 'CLEARANCE' ? 'Clearance' : 'Fresh'} batch. You currently have ${currentInCart} in your cart.`);
       return;
     }
     setStockWarning(null);
@@ -86,9 +176,9 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
       return;
     }
 
-    if (num + currentInCart > availableStock) {
-      setQuantity(Math.max(1, remainingStock));
-      setStockWarning(`⚠️ Real-time Stock Limit Reached: Cannot select ${num}. Maximum available to add is ${remainingStock}.`);
+    if (num > availableBatchStock) {
+      setQuantity(Math.max(1, availableBatchStock));
+      setStockWarning(`⚠️ Real-time Stock Limit Reached: Cannot select ${num}. Maximum available to add is ${availableBatchStock}.`);
     } else {
       setQuantity(num);
       setStockWarning(null);
@@ -96,20 +186,20 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   };
 
   const handleAddToCart = () => {
-    if (availableStock <= 0) {
-      setStockWarning('⚠️ This product is currently out of stock.');
+    if (availableBatchStock <= 0) {
+      setStockWarning(`⚠️ '${product.name}' (${batchPreference === 'CLEARANCE' ? 'Clearance Batch' : 'Fresh Batch'}) has no remaining stock available to add.`);
       return;
     }
 
-    if (quantity + currentInCart > availableStock) {
-      setStockWarning(`⚠️ Cannot add ${quantity} units. Stock limit is ${availableStock} (You already have ${currentInCart} in cart).`);
+    if (quantity > availableBatchStock) {
+      setStockWarning(`⚠️ Cannot add ${quantity} units. Stock limit is ${availableBatchStock} for this ${batchPreference === 'CLEARANCE' ? 'Clearance' : 'Fresh'} batch (You already have ${currentInCart} in cart).`);
       return;
     }
 
-    addToCart(product, quantity);
+    addToCart(product, quantity, batchPreference);
     setJustAdded(true);
     setNotification({
-      message: `✓ Added ${quantity}x '${product.name}' to your cart!`,
+      message: `✓ Added ${quantity}x '${product.name}' (${batchPreference === 'CLEARANCE' ? 'Clearance Batch' : 'Fresh Batch'}) to your cart!`,
       badge: 'ADDED'
     });
 
@@ -270,12 +360,13 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                overflow: 'hidden'
+                overflow: 'hidden',
+                position: 'relative'
               }}
             >
-              {product.imageUrl ? (
+              {activeImage ? (
                 <img
-                  src={product.imageUrl}
+                  src={activeImage}
                   alt={product.name}
                   style={{
                     width: '100%',
@@ -293,7 +384,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               <div
                 className="modal-fallback"
                 style={{
-                  display: product.imageUrl ? 'none' : 'flex',
+                  display: activeImage ? 'none' : 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -318,7 +409,36 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               </div>
             </div>
 
-            <div style={{ marginTop: '16px', fontSize: '11px', color: '#9CA3AF', fontFamily: 'monospace' }}>
+            {/* Thumbnail Gallery */}
+            {galleryImages.length > 1 && (
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', maxWidth: '240px', padding: '6px 0' }}>
+                {galleryImages.map((img, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedImageIndex(idx)}
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '10px',
+                      border: selectedImageIndex === idx ? '2px solid #111827' : '1px solid rgba(0, 0, 0, 0.12)',
+                      backgroundColor: '#FFFFFF',
+                      padding: '2px',
+                      cursor: 'pointer',
+                      overflow: 'hidden',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}
+                  >
+                    <img src={img} alt={`thumb-${idx}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginTop: '12px', fontSize: '11px', color: '#9CA3AF', fontFamily: 'monospace' }}>
               SKU: {product.sku} {(product as any).barcode ? `· Barcode: ${(product as any).barcode}` : ''}
             </div>
           </div>
@@ -384,6 +504,115 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 )}
               </div>
 
+              {/* Expiration Date & Near-Expiry Badge */}
+              {product.currentBatchExpiryDate ? (
+                <div
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '3px 10px',
+                    borderRadius: '8px',
+                    backgroundColor: (product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30) ? 'rgba(245, 158, 11, 0.12)' : 'rgba(59, 130, 246, 0.08)',
+                    border: (product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30) ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(59, 130, 246, 0.2)',
+                    fontSize: '11px',
+                    marginBottom: '10px'
+                  }}
+                >
+                  <Calendar size={13} color={(product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30) ? '#D97706' : '#2563EB'} />
+                  <span style={{ fontWeight: 700, color: (product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30) ? '#92400E' : '#1E40AF' }}>
+                    Exp: {new Date(product.currentBatchExpiryDate).toLocaleDateString()}
+                    {product.daysUntilExpiry !== undefined && ` (${product.daysUntilExpiry <= 0 ? 'Today' : `${product.daysUntilExpiry}d left`})`}
+                  </span>
+                </div>
+              ) : null}
+
+              {/* Wholesale Batch Choice Segmented Control */}
+              {/* Batch Choice Segmented Control (Available for all shoppers when both fresh and clearance batches exist) */}
+              {priceCalculation?.hasBothBatches ? (
+                <div
+                  style={{
+                    padding: '12px 14px',
+                    borderRadius: '16px',
+                    background: 'linear-gradient(135deg, rgba(240, 253, 244, 0.95), rgba(254, 243, 199, 0.9))',
+                    border: '1.5px solid rgba(16, 185, 129, 0.35)',
+                    marginBottom: '12px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#065F46', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Layers size={14} color="#059669" />
+                      Select Warehouse Batch
+                    </span>
+                    <span style={{ fontSize: '10px', fontWeight: 700, color: '#047857', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '2px 6px', borderRadius: '9999px' }}>
+                      Fresh vs Clearance
+                    </span>
+                  </div>
+
+                  {/* Toggle Pills */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div
+                      onClick={() => setBatchPreference('FRESH')}
+                      style={{
+                        cursor: 'pointer',
+                        padding: '8px 10px',
+                        borderRadius: '10px',
+                        backgroundColor: batchPreference === 'FRESH' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)',
+                        border: batchPreference === 'FRESH' ? '2px solid #10B981' : '1px solid rgba(0, 0, 0, 0.08)',
+                        boxShadow: batchPreference === 'FRESH' ? '0 2px 8px rgba(16, 185, 129, 0.15)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#065F46' }}>✨ Fresh Batch</div>
+                      <div style={{ fontSize: '13px', fontWeight: 900, color: '#111827' }}>
+                        ${(displayTier === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice).toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#047857' }}>{liveFreshStock} in stock {inCartFresh > 0 && <span style={{ opacity: 0.8 }}>({inCartFresh} in cart)</span>}</div>
+                    </div>
+
+                    <div
+                      onClick={() => setBatchPreference('CLEARANCE')}
+                      style={{
+                        cursor: 'pointer',
+                        padding: '8px 10px',
+                        borderRadius: '10px',
+                        backgroundColor: batchPreference === 'CLEARANCE' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.5)',
+                        border: batchPreference === 'CLEARANCE' ? '2px solid #F59E0B' : '1px solid rgba(0, 0, 0, 0.08)',
+                        boxShadow: batchPreference === 'CLEARANCE' ? '0 2px 8px rgba(245, 158, 11, 0.2)' : 'none',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      <div style={{ fontSize: '11px', fontWeight: 800, color: '#B45309' }}>🔥 Clearance (-25%)</div>
+                      <div style={{ fontSize: '13px', fontWeight: 900, color: '#D97706' }}>
+                        ${(displayTier === 'WHOLESALE'
+                          ? (product.wholesaleClearancePrice || product.wholesalePrice * 0.75)
+                          : (product.clearancePrice || product.retailPrice * 0.75)
+                        ).toFixed(2)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#B45309' }}>{liveClearanceStock} in stock {inCartClearance > 0 && <span style={{ opacity: 0.8 }}>({inCartClearance} in cart)</span>}</div>
+                    </div>
+                  </div>
+                </div>
+              ) : product.nearExpiryQuantity && product.nearExpiryQuantity > 0 && !priceCalculation?.hasBothBatches ? (
+                <div
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, rgba(254, 243, 199, 0.9), rgba(254, 226, 226, 0.6))',
+                    border: '1px solid rgba(245, 158, 11, 0.4)',
+                    marginBottom: '10px',
+                    fontSize: '11px',
+                    color: '#92400E'
+                  }}
+                >
+                  <AlertTriangle size={14} color="#D97706" style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+                  <strong>Short-Dated Stock Only (25% Clearance):</strong> Exp: {product.currentBatchExpiryDate ? new Date(product.currentBatchExpiryDate).toLocaleDateString() : '< 30d'} @ ${(displayTier === 'WHOLESALE' ? (product.wholesaleClearancePrice || product.wholesalePrice * 0.75) : (product.clearancePrice || product.retailPrice * 0.75)).toFixed(2)}/ea
+                </div>
+              ) : null}
+
               {/* Product Title */}
               <h2
                 style={{
@@ -423,12 +652,12 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 {displayTier === 'WHOLESALE' ? (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 800, color: '#D97706', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <Building2 size={13} color="#D97706" />
-                        Wholesale Price:
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: batchPreference === 'CLEARANCE' ? '#D97706' : '#B45309', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Building2 size={13} color={batchPreference === 'CLEARANCE' ? '#D97706' : '#B45309'} />
+                        {batchPreference === 'CLEARANCE' ? 'Clearance Wholesale (25% OFF):' : 'Fresh Wholesale Price:'}
                       </span>
-                      <span style={{ fontSize: '22px', fontWeight: 900, color: '#B45309' }}>
-                        ${product.wholesalePrice.toFixed(2)}
+                      <span style={{ fontSize: '22px', fontWeight: 900, color: batchPreference === 'CLEARANCE' ? '#D97706' : '#B45309' }}>
+                        ${(batchPreference === 'CLEARANCE' ? (product.wholesaleClearancePrice || product.wholesalePrice * 0.75) : product.wholesalePrice).toFixed(2)}
                       </span>
                     </div>
 
@@ -442,11 +671,11 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                       }}
                     >
                       <span style={{ fontSize: '12px', color: '#6B7280' }}>
-                        Normal Price:
+                        {batchPreference === 'CLEARANCE' ? 'Standard Wholesale:' : 'Normal Price:'}
                       </span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <span style={{ fontSize: '14px', textDecoration: 'line-through', color: '#9CA3AF', fontWeight: 600 }}>
-                          ${product.retailPrice.toFixed(2)}
+                          ${(batchPreference === 'CLEARANCE' ? product.wholesalePrice : product.retailPrice).toFixed(2)}
                         </span>
                         <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#ECFDF5', color: '#059669' }}>
                           SAVE ${(product.retailPrice - product.wholesalePrice).toFixed(2)}
@@ -489,10 +718,26 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                 ) : (
                   <>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#374151' }}>Normal Price:</span>
-                      <span style={{ fontSize: '20px', fontWeight: 900, color: '#111827' }}>
-                        ${product.retailPrice.toFixed(2)}
+                      <span style={{ fontSize: '13px', fontWeight: 700, color: '#374151', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {batchPreference === 'CLEARANCE' ? (
+                          <>
+                            <Sparkles size={13} color="#D97706" />
+                            Clearance Price (25% OFF):
+                          </>
+                        ) : (
+                          'Normal Price:'
+                        )}
                       </span>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                        {batchPreference === 'CLEARANCE' ? (
+                          <span style={{ fontSize: '14px', textDecoration: 'line-through', color: '#9CA3AF', fontWeight: 600 }}>
+                            ${product.retailPrice.toFixed(2)}
+                          </span>
+                        ) : null}
+                        <span style={{ fontSize: '20px', fontWeight: 900, color: batchPreference === 'CLEARANCE' ? '#D97706' : '#111827' }}>
+                          ${(batchPreference === 'CLEARANCE' ? (product.clearancePrice || product.retailPrice * 0.75) : product.retailPrice).toFixed(2)}
+                        </span>
+                      </div>
                     </div>
 
                     <div
@@ -542,6 +787,41 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
 
             {/* Bottom Actions: Stepper, Total, and Add to Cart */}
             <div>
+              {/* Multi-Batch Allocation Split (FEFO) */}
+              {priceCalculation?.hasNearExpiryDiscount && (
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    backgroundColor: '#FFFBEB',
+                    border: '1px solid #FDE68A',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    marginBottom: '14px',
+                    fontSize: '11px'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 800, color: '#92400E' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Layers size={12} color="#D97706" />
+                      FEFO Multi-Batch Split
+                    </span>
+                    <span style={{ color: '#059669', backgroundColor: '#D1FAE5', padding: '1px 6px', borderRadius: '9999px' }}>
+                      Save ${priceCalculation.savings.toFixed(2)}
+                    </span>
+                  </div>
+                  <div style={{ color: '#78350F' }}>
+                    ⚡ <strong>{priceCalculation.nearExpiryUnits}x</strong> Near-Expiry Batch @ ${(priceCalculation.clearanceUnitPrice || 0).toFixed(2)} ({priceCalculation.clearanceDiscountPercent || 25}% OFF)
+                  </div>
+                  {(priceCalculation.freshUnits || 0) > 0 && (
+                    <div style={{ color: '#1E293B' }}>
+                      🌿 <strong>{priceCalculation.freshUnits}x</strong> Fresh Warehouse Stock @ ${(priceCalculation.regularUnitPrice || product.retailPrice).toFixed(2)}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div
                 style={{
                   display: 'flex',

@@ -274,6 +274,18 @@ public class AdminServiceImpl implements AdminService {
                 : "Welcome123!";
         String encodedPassword = passwordEncoder.encode(rawPassword);
 
+        String addressesJson = "[]";
+        if (request.addresses() != null && !request.addresses().isBlank()) {
+            String addr = request.addresses().trim();
+            try {
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree(addr);
+                addressesJson = addr;
+            } catch (Exception ex) {
+                String clean = addr.replace("\\\"", "\"").replace("\"", "");
+                addressesJson = "[\"" + clean.replace("\"", "\\\"") + "\"]";
+            }
+        }
+
         User newUser = User.builder()
                 .role(role)
                 .email(cleanEmail)
@@ -281,6 +293,9 @@ public class AdminServiceImpl implements AdminService {
                 .fullName(request.fullName() != null && !request.fullName().isBlank() ? request.fullName().trim() : "New User")
                 .phone(request.phone() != null ? request.phone().trim() : "")
                 .customerType(customerType)
+                .avatarUrl(request.avatarUrl() != null && !request.avatarUrl().isBlank() ? request.avatarUrl().trim() : null)
+                .companyName(request.companyName() != null && !request.companyName().isBlank() ? request.companyName().trim() : null)
+                .addresses(addressesJson)
                 .isActive(true)
                 .build();
 
@@ -328,6 +343,25 @@ public class AdminServiceImpl implements AdminService {
 
         if (request.password() != null && !request.password().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(request.password().trim()));
+        }
+
+        if (request.avatarUrl() != null) {
+            user.setAvatarUrl(request.avatarUrl().trim().isEmpty() ? null : request.avatarUrl().trim());
+        }
+
+        if (request.companyName() != null) {
+            user.setCompanyName(request.companyName().trim().isEmpty() ? null : request.companyName().trim());
+        }
+
+        if (request.addresses() != null) {
+            String addr = request.addresses().trim();
+            try {
+                new com.fasterxml.jackson.databind.ObjectMapper().readTree(addr);
+                user.setAddresses(addr);
+            } catch (Exception ex) {
+                String clean = addr.replace("\\\"", "\"").replace("\"", "");
+                user.setAddresses("[\"" + clean.replace("\"", "\\\"") + "\"]");
+            }
         }
 
         return userRepository.save(user);
@@ -386,6 +420,45 @@ public class AdminServiceImpl implements AdminService {
         long expiredBatches = batchRepository.countByIsExpiredTrue();
         int lowStockCount = inventoryService.getLowStockAlerts() != null ? inventoryService.getLowStockAlerts().size() : 0;
 
+        // Soon expiring batches (< 30 days / 1 month), Total Stock Valuation, and Net Loss
+        LocalDate oneMonthLater = LocalDate.now().plusDays(30);
+        List<ProductBatch> allBatches = batchRepository.findAll();
+        long soonExpiringBatches = 0;
+        BigDecimal totalStockValuation = BigDecimal.ZERO;
+        BigDecimal totalStockRetailValue = BigDecimal.ZERO;
+        BigDecimal netLoss = BigDecimal.ZERO;
+
+        for (ProductBatch b : allBatches) {
+            int qty = b.getCurrentQuantity();
+            if (qty > 0 && !b.getIsExpired()) {
+                if (b.getExpiryDate() != null && !b.getExpiryDate().isAfter(oneMonthLater)) {
+                    soonExpiringBatches++;
+                }
+                if (b.getProduct() != null) {
+                    if (b.getProduct().getCostPrice() != null) {
+                        totalStockValuation = totalStockValuation.add(b.getProduct().getCostPrice().multiply(BigDecimal.valueOf(qty)));
+                    }
+                    if (b.getProduct().getRetailPrice() != null) {
+                        totalStockRetailValue = totalStockRetailValue.add(b.getProduct().getRetailPrice().multiply(BigDecimal.valueOf(qty)));
+                    }
+                }
+            } else if (b.getIsExpired() && b.getProduct() != null && b.getProduct().getCostPrice() != null) {
+                // Expired batches write-off loss
+                netLoss = netLoss.add(b.getProduct().getCostPrice().multiply(BigDecimal.valueOf(b.getCurrentQuantity())));
+            }
+        }
+
+        // Also add shrinkage/expired write-offs from inventory audit transactions
+        try {
+            Page<InventoryTransaction> writeOffPage = transactionRepository.findByType(TransactionType.EXPIRED_WRITE_OFF, Pageable.unpaged());
+            for (InventoryTransaction tx : writeOffPage.getContent()) {
+                if (tx.getBatch() != null && tx.getBatch().getProduct() != null && tx.getBatch().getProduct().getCostPrice() != null) {
+                    int lostUnits = Math.abs(tx.getQuantityDelta() != null ? tx.getQuantityDelta() : 0);
+                    netLoss = netLoss.add(tx.getBatch().getProduct().getCostPrice().multiply(BigDecimal.valueOf(lostUnits)));
+                }
+            }
+        } catch (Exception ignored) {}
+
         return new ExecutiveKpiSummary(
                 grossRevenue,
                 onlineRevenue,
@@ -394,7 +467,11 @@ public class AdminServiceImpl implements AdminService {
                 posOrders,
                 pendingWholesale,
                 expiredBatches,
-                lowStockCount
+                soonExpiringBatches,
+                lowStockCount,
+                totalStockValuation.setScale(2, RoundingMode.HALF_UP),
+                totalStockRetailValue.setScale(2, RoundingMode.HALF_UP),
+                netLoss.setScale(2, RoundingMode.HALF_UP)
         );
     }
 

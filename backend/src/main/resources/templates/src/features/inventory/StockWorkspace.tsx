@@ -30,6 +30,7 @@ import { CategoryModal } from './components/CategoryModal';
 import { AdjustmentModal } from './components/AdjustmentModal';
 import { InventoryLoginModal } from './components/InventoryLoginModal';
 import { LogoutConfirmModal } from '../../components/ui/LogoutConfirmModal';
+import { UserProfileModal } from '../../components/ui/UserProfileModal';
 
 import './stock.css';
 
@@ -53,6 +54,78 @@ export const StockWorkspace: React.FC = () => {
 
   const [currentTime, setCurrentTime] = useState<string>('');
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showStockProfileModal, setShowStockProfileModal] = useState(false);
+
+  // Stock Controller Profile & Avatar State (Local Storage & Image Link support)
+  const [stockInfo, setStockInfo] = useState<{ fullName: string; phone?: string; companyName?: string }>(() => {
+    const infoKey = currentUser?.userId ? `aura_stock_user_info_${currentUser.userId}` : 'aura_stock_user_info';
+    const saved = localStorage.getItem(infoKey);
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return {
+      fullName: currentUser?.fullName || 'Stock Controller',
+      phone: (currentUser as any)?.phone || '+855 23 777 888',
+      companyName: 'Aura Logistics & Warehouse Hub'
+    };
+  });
+
+  const [stockAvatar, setStockAvatar] = useState<string>(() => {
+    const key = currentUser?.userId ? `aura_avatar_${currentUser.userId}` : 'aura_avatar_stock';
+    return localStorage.getItem(key) || localStorage.getItem('aura_avatar_stock') || '';
+  });
+
+  useEffect(() => {
+    const key = currentUser?.userId ? `aura_avatar_${currentUser.userId}` : 'aura_avatar_stock';
+    const saved = localStorage.getItem(key) || localStorage.getItem('aura_avatar_stock') || '';
+    setStockAvatar(saved);
+
+    const infoKey = currentUser?.userId ? `aura_stock_user_info_${currentUser.userId}` : 'aura_stock_user_info';
+    const savedInfo = localStorage.getItem(infoKey);
+    if (savedInfo) {
+      try { setStockInfo(JSON.parse(savedInfo)); } catch {}
+    }
+  }, [currentUser]);
+
+  const stockProfileUser = {
+    id: currentUser?.userId || 3,
+    fullName: stockInfo.fullName || currentUser?.fullName || 'Stock Controller',
+    email: currentUser?.email || 'stock@aura.store',
+    phone: stockInfo.phone || (currentUser as any)?.phone || '+855 23 777 888',
+    companyName: stockInfo.companyName || 'Aura Logistics & Warehouse Hub',
+    role: 'STOCK_CONTROLLER' as any,
+    avatarUrl: stockAvatar
+  };
+
+  const handleSaveStockProfile = (updated: {
+    fullName: string;
+    phone?: string;
+    avatarUrl?: string;
+    addresses?: string[];
+    companyName?: string;
+  }) => {
+    const key = currentUser?.userId ? `aura_avatar_${currentUser.userId}` : 'aura_avatar_stock';
+    const infoKey = currentUser?.userId ? `aura_stock_user_info_${currentUser.userId}` : 'aura_stock_user_info';
+
+    const newInfo = {
+      fullName: updated.fullName,
+      phone: updated.phone,
+      companyName: updated.companyName
+    };
+    setStockInfo(newInfo);
+    localStorage.setItem(infoKey, JSON.stringify(newInfo));
+
+    if (updated.avatarUrl) {
+      setStockAvatar(updated.avatarUrl);
+      localStorage.setItem(key, updated.avatarUrl);
+      localStorage.setItem('aura_avatar_stock', updated.avatarUrl);
+    } else {
+      setStockAvatar('');
+      localStorage.removeItem(key);
+      localStorage.removeItem('aura_avatar_stock');
+    }
+  };
+
   const soonCount = soonExpiringCount();
   // Migrate any previously selected Stock Inbound tab to the unified radar view.
   const visibleTab = activeTab === 'intake' ? 'batches' : activeTab;
@@ -95,15 +168,24 @@ export const StockWorkspace: React.FC = () => {
 
   return (
     <div className="stock-workspace" style={{ width: '100%', maxWidth: '1440px', margin: '0 auto' }}>
-      {/* Topline Bar */}
+      {/* Topline Bar (Floating Glass Dock) */}
       <header
         style={{
+          position: 'sticky',
+          top: '16px',
+          zIndex: 900,
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '12px 0 20px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          marginBottom: '24px'
+          padding: '14px 22px',
+          backgroundColor: 'rgba(18, 18, 22, 0.88)',
+          backdropFilter: 'blur(28px)',
+          WebkitBackdropFilter: 'blur(28px)',
+          borderRadius: '20px',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+          marginBottom: '24px',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -223,6 +305,57 @@ export const StockWorkspace: React.FC = () => {
             <RefreshCw size={14} className={isSyncing ? 'stock-spin' : ''} />
           </button>
 
+          {/* Stock Controller Profile Capsule (Click to edit avatar and information) */}
+          <button
+            type="button"
+            onClick={() => setShowStockProfileModal(true)}
+            title="Edit Stock Controller Profile & Avatar"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '4px 12px 4px 5px',
+              borderRadius: '9999px',
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: '#FFFFFF',
+              fontSize: '11px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.14)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)')}
+          >
+            <div
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                backgroundColor: '#10B981',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#000000',
+                fontWeight: 800,
+                fontSize: '11px',
+                boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+              }}
+            >
+              {stockAvatar ? (
+                <img
+                  src={stockAvatar}
+                  alt={stockProfileUser.fullName}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={() => setStockAvatar('')}
+                />
+              ) : (
+                'SC'
+              )}
+            </div>
+            <span>Profile</span>
+          </button>
         </div>
       </header>
 
@@ -237,6 +370,14 @@ export const StockWorkspace: React.FC = () => {
           logoutRole('STOCK_CONTROLLER');
           setShowLogoutConfirm(false);
         }}
+      />
+
+      <UserProfileModal
+        isOpen={showStockProfileModal}
+        user={stockProfileUser}
+        roleLabel="Stock Controller"
+        onClose={() => setShowStockProfileModal(false)}
+        onSave={handleSaveStockProfile}
       />
 
       {/* Hero Intro */}

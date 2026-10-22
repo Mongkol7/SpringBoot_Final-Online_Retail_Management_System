@@ -143,44 +143,61 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
   const handleAddToCart = (product: Product, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
 
-    const realStock = product.stockQuantity !== undefined
+    const isShortDatedOnly = (product.freshStockQuantity === 0 && (product.nearExpiryQuantity || 0) > 0) ||
+      (product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30 && (!product.freshStockQuantity || product.freshStockQuantity === 0));
+
+    const totalStock = product.stockQuantity !== undefined
       ? Number(product.stockQuantity)
       : (product.availableStock !== undefined ? Number(product.availableStock) : 0);
 
-    const existingCartItem = items.find((i) => i.productId === product.id);
-    const inCartQty = existingCartItem ? existingCartItem.quantity : 0;
+    const nearExpiryStock = product.nearExpiryQuantity !== undefined && product.nearExpiryQuantity > 0
+      ? Number(product.nearExpiryQuantity)
+      : 0;
 
-    if (realStock <= 0) {
+    const freshStock = product.freshStockQuantity !== undefined
+      ? Number(product.freshStockQuantity)
+      : Math.max(0, totalStock - nearExpiryStock);
+
+    const inCartFresh = items
+      .filter((i) => i.productId === product.id && (i.batchPreference || 'FRESH') === 'FRESH')
+      .reduce((sum, i) => sum + i.quantity, 0);
+
+    const inCartClearance = items
+      .filter((i) => i.productId === product.id && i.batchPreference === 'CLEARANCE')
+      .reduce((sum, i) => sum + i.quantity, 0);
+
+    let pref: 'FRESH' | 'CLEARANCE' = isShortDatedOnly ? 'CLEARANCE' : 'FRESH';
+    // If fresh batch is exhausted in cart, auto-select clearance if clearance has stock left
+    if (pref === 'FRESH' && freshStock - inCartFresh <= 0 && nearExpiryStock - inCartClearance > 0) {
+      pref = 'CLEARANCE';
+    }
+
+    const maxStock = pref === 'CLEARANCE'
+      ? (nearExpiryStock > 0 ? nearExpiryStock : totalStock)
+      : (freshStock > 0 ? freshStock : totalStock);
+
+    const inCartQty = pref === 'CLEARANCE' ? inCartClearance : inCartFresh;
+
+    if (maxStock <= 0) {
       setToastAlert({
-        message: `⚠️ '${product.name}' is currently OUT OF STOCK in warehouse.`,
+        message: `⚠️ '${product.name}' (${pref === 'CLEARANCE' ? 'Clearance Batch' : 'Fresh Batch'}) is currently OUT OF STOCK.`,
         type: 'warning'
       });
       return;
     }
 
-    if (inCartQty + 1 > realStock) {
+    if (inCartQty + 1 > maxStock) {
       setToastAlert({
-        message: `⚠️ Stock Limit Warning: Cannot order more than ${realStock} units for '${product.name}'. You have ${inCartQty} in cart.`,
+        message: `⚠️ Stock Limit Warning: Cannot order more than ${maxStock} units for '${product.name}' (${pref === 'CLEARANCE' ? 'Clearance' : 'Fresh'}). You have ${inCartQty} in cart.`,
         type: 'warning'
       });
       return;
     }
 
-    if (!isAuthenticated) {
-      // Remember pending product and prompt customer to sign in or register
-      localStorage.setItem('pending_cart_item', JSON.stringify({ product, quantity: 1 }));
-      setNotification({
-        message: 'Please sign in or sign up first to add items to your cart.',
-        badge: 'AUTH REQUIRED'
-      });
-      navigate('/login?redirect=/shop');
-      return;
-    }
-
-    addToCart(product, 1);
+    addToCart(product, 1, pref);
     setAddedAnimationId(product.id);
     setToastAlert({
-      message: `✓ Added '${product.name}' to cart! (${inCartQty + 1} total)`,
+      message: `✓ Added '${product.name}' (${pref === 'CLEARANCE' ? 'Clearance' : 'Fresh'}) to cart! (${inCartQty + 1} in cart)`,
       type: 'success'
     });
     setTimeout(() => {
@@ -653,8 +670,15 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
           }}
         >
           {filteredProducts.map((product) => {
-            const existingCartItem = items.find((i) => i.productId === product.id);
-            const inCartQty = existingCartItem ? existingCartItem.quantity : 0;
+            const inCartFresh = items
+              .filter((i) => i.productId === product.id && (i.batchPreference || 'FRESH') === 'FRESH')
+              .reduce((sum, i) => sum + i.quantity, 0);
+
+            const inCartClearance = items
+              .filter((i) => i.productId === product.id && i.batchPreference === 'CLEARANCE')
+              .reduce((sum, i) => sum + i.quantity, 0);
+
+            const inCartTotal = inCartFresh + inCartClearance;
             const isJustAdded = addedAnimationId === product.id;
 
             // Compute savings percent for retail view hint
@@ -662,10 +686,35 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
               ((product.retailPrice - product.wholesalePrice) / product.retailPrice) * 100
             );
 
-            // Real-time stock count directly from DB
-            const availableStockCount = product.stockQuantity !== undefined
+            // Real-time stock counts directly deducting in-cart quantities
+            const totalStockRaw = product.stockQuantity !== undefined
               ? Number(product.stockQuantity)
               : (product.availableStock !== undefined ? Number(product.availableStock) : 0);
+
+            const nearExpiryStockRaw = product.nearExpiryQuantity !== undefined && product.nearExpiryQuantity > 0
+              ? Number(product.nearExpiryQuantity)
+              : 0;
+
+            const freshStockRaw = product.freshStockQuantity !== undefined
+              ? Number(product.freshStockQuantity)
+              : Math.max(0, totalStockRaw - nearExpiryStockRaw);
+
+            const liveFreshStock = Math.max(0, freshStockRaw - inCartFresh);
+            const liveClearanceStock = Math.max(0, nearExpiryStockRaw - inCartClearance);
+            const liveTotalStock = liveFreshStock + liveClearanceStock;
+
+            const hasClearanceBatch = nearExpiryStockRaw > 0;
+
+            // Prices for both batches:
+            const normalRetailPrice = product.retailPrice;
+            const normalWholesalePrice = product.wholesalePrice;
+            const clearanceDiscount = product.clearanceDiscountPercent || 25;
+            const specialRetailPrice = product.clearancePrice && product.clearancePrice > 0
+              ? product.clearancePrice
+              : parseFloat((normalRetailPrice * (1 - clearanceDiscount / 100)).toFixed(2));
+            const specialWholesalePrice = product.wholesaleClearancePrice && product.wholesaleClearancePrice > 0
+              ? product.wholesaleClearancePrice
+              : parseFloat((normalWholesalePrice * (1 - clearanceDiscount / 100)).toFixed(2));
 
             return (
               <div
@@ -812,34 +861,72 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                     </div>
                   </div>
 
-                  {/* Stock Availability Indicator from real DB */}
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      fontSize: '11px',
-                      marginBottom: '10px',
-                      color: availableStockCount > 10 ? '#059669' : availableStockCount > 0 ? '#D97706' : '#DC2626'
-                    }}
-                  >
+                  {/* Real-Time Stock Count Deducting In-Cart Quantities */}
+                  {hasClearanceBatch ? (
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          padding: '3px 8px',
+                          borderRadius: '8px',
+                          backgroundColor: liveFreshStock > 0 ? '#ECFDF5' : '#F3F4F6',
+                          color: liveFreshStock > 0 ? '#065F46' : '#9CA3AF',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: liveFreshStock > 0 ? '#10B981' : '#9CA3AF' }} />
+                        Fresh: {liveFreshStock} left {inCartFresh > 0 && <span style={{ opacity: 0.75, fontWeight: 500 }}>({inCartFresh} in cart)</span>}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          padding: '3px 8px',
+                          borderRadius: '8px',
+                          backgroundColor: liveClearanceStock > 0 ? '#FEF3C7' : '#F3F4F6',
+                          color: liveClearanceStock > 0 ? '#92400E' : '#9CA3AF',
+                          fontWeight: 700,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: liveClearanceStock > 0 ? '#F59E0B' : '#9CA3AF' }} />
+                        &lt;1 mo: {liveClearanceStock} left {inCartClearance > 0 && <span style={{ opacity: 0.75, fontWeight: 500 }}>({inCartClearance} in cart)</span>}
+                      </span>
+                    </div>
+                  ) : (
                     <div
                       style={{
-                        width: '6px',
-                        height: '6px',
-                        borderRadius: '50%',
-                        backgroundColor: availableStockCount > 10 ? '#10B981' : availableStockCount > 0 ? '#F59E0B' : '#EF4444',
-                        boxShadow: availableStockCount > 0 ? '0 0 6px currentColor' : 'none'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        fontSize: '11px',
+                        marginBottom: '10px',
+                        color: liveTotalStock > 10 ? '#059669' : liveTotalStock > 0 ? '#D97706' : '#DC2626'
                       }}
-                    />
-                    <span>
-                      {availableStockCount > 10
-                        ? `In Stock (${availableStockCount} units)`
-                        : availableStockCount > 0
-                        ? `Low Stock (${availableStockCount} units left)`
-                        : 'Out of Stock (0 units)'}
-                    </span>
-                  </div>
+                    >
+                      <div
+                        style={{
+                          width: '6px',
+                          height: '6px',
+                          borderRadius: '50%',
+                          backgroundColor: liveTotalStock > 10 ? '#10B981' : liveTotalStock > 0 ? '#F59E0B' : '#EF4444',
+                          boxShadow: liveTotalStock > 0 ? '0 0 6px currentColor' : 'none'
+                        }}
+                      />
+                      <span>
+                        {liveTotalStock > 10
+                          ? `In Stock (${liveTotalStock} units)`
+                          : liveTotalStock > 0
+                          ? `Low Stock (${liveTotalStock} left)`
+                          : 'Out of Stock (0 units)'}
+                        {inCartTotal > 0 && ` · ${inCartTotal} in cart`}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Title & Description */}
                   <h3
@@ -874,7 +961,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                 {/* Bottom Section: Dual Pricing & Add to Cart */}
                 <div style={{ borderTop: '1px solid rgba(0, 0, 0, 0.06)', paddingTop: '16px' }}>
                   {effectiveTier === 'WHOLESALE' ? (
-                    // CONFIRMED WHOLESALE: SHOW BOTH WHOLESALE PRICE & NORMAL PRICE
+                    // CONFIRMED WHOLESALE: DUAL PRICING IF CLEARANCE BATCH EXISTS, OTHERWISE SINGLE WHOLESALE PRICE
                     <div style={{ marginBottom: '14px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
                         <span
@@ -895,42 +982,84 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                         </span>
                       </div>
 
-                      {/* Explicit Wholesale and Normal Prices */}
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flexWrap: 'wrap', backgroundColor: '#FBFBFB', padding: '8px 12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.04)' }}>
-                        <div>
-                          <span style={{ fontSize: '10px', color: '#B45309', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
-                            Wholesale Price
-                          </span>
-                          <span style={{ fontSize: '22px', fontWeight: 900, color: '#111827' }}>
-                            ${product.wholesalePrice.toFixed(2)}
-                          </span>
+                      {/* Pricing Box */}
+                      {hasClearanceBatch ? (
+                        <div style={{ backgroundColor: '#FBFBFB', padding: '10px 12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {/* Normal Price (Guaranteed Fresh / Long Shelf Life) */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <span style={{ fontSize: '10px', color: '#059669', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                ✨ Normal Price (Long Exp.)
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                <span style={{ fontSize: '18px', fontWeight: 900, color: '#111827' }}>
+                                  ${normalWholesalePrice.toFixed(2)}
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#9CA3AF', textDecoration: 'line-through' }}>
+                                  ${normalRetailPrice.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#ECFDF5', color: '#065F46' }}>
+                              Fresh Stock
+                            </span>
+                          </div>
+
+                          {/* Special Price (<1 Month / Clearance Batch) */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px dashed rgba(0,0,0,0.08)', paddingTop: '6px' }}>
+                            <div>
+                              <span style={{ fontSize: '10px', color: '#D97706', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                🔥 Special Price (&lt;1 Mo.)
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                <span style={{ fontSize: '18px', fontWeight: 900, color: '#D97706' }}>
+                                  ${specialWholesalePrice.toFixed(2)}
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#9CA3AF', textDecoration: 'line-through' }}>
+                                  ${specialRetailPrice.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                              {clearanceDiscount}% OFF
+                            </span>
+                          </div>
                         </div>
-                        <div style={{ borderLeft: '1px solid rgba(0, 0, 0, 0.1)', paddingLeft: '14px' }}>
-                          <span style={{ fontSize: '10px', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
-                            Normal Price
-                          </span>
-                          <span
-                            style={{
-                              fontSize: '15px',
-                              color: '#9CA3AF',
-                              textDecoration: 'line-through',
-                              fontWeight: 700
-                            }}
-                          >
-                            ${product.retailPrice.toFixed(2)}
-                          </span>
+                      ) : (
+                        <div style={{ backgroundColor: '#FBFBFB', padding: '10px 12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <span style={{ fontSize: '10px', color: '#059669', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                ✨ Wholesale Price
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                <span style={{ fontSize: '20px', fontWeight: 900, color: '#111827' }}>
+                                  ${normalWholesalePrice.toFixed(2)}
+                                </span>
+                                <span style={{ fontSize: '12px', color: '#9CA3AF', textDecoration: 'line-through' }}>
+                                  ${normalRetailPrice.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#ECFDF5', color: '#065F46' }}>
+                              Fresh Stock
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       {/* Threshold Explanation */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginTop: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#059669' }}>
                           <Sparkles size={12} />
-                          <span>Wholesale tier applies on <strong>{product.wholesaleMinQty || 10}+</strong> units (Save ${(product.retailPrice - product.wholesalePrice).toFixed(2)}/unit)</span>
+                          <span>Wholesale applies at <strong>{product.wholesaleMinQty || 10}+</strong> units{hasClearanceBatch ? ' across batches' : ''}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6B7280' }}>
                           <Info size={12} />
-                          <span>Orders &lt; {product.wholesaleMinQty || 10} units billed at normal price: <strong>${product.retailPrice.toFixed(2)}</strong></span>
+                          <span>
+                            Orders &lt; {product.wholesaleMinQty || 10} units billed at retail (
+                            ${normalRetailPrice.toFixed(2)}{hasClearanceBatch ? ` / $${specialRetailPrice.toFixed(2)}` : ''})
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -953,24 +1082,69 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                         </span>
                       </div>
 
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flexWrap: 'wrap', backgroundColor: '#FFFBEB', padding: '8px 12px', borderRadius: '12px', border: '1px solid #FDE68A' }}>
-                        <div>
-                          <span style={{ fontSize: '10px', color: '#92400E', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
-                            Normal Price (Active)
-                          </span>
-                          <span style={{ fontSize: '22px', fontWeight: 900, color: '#111827' }}>
-                            ${product.retailPrice.toFixed(2)}
-                          </span>
+                      {/* Pricing Box */}
+                      {hasClearanceBatch ? (
+                        <div style={{ backgroundColor: '#FFFBEB', padding: '10px 12px', borderRadius: '12px', border: '1px solid #FDE68A', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <span style={{ fontSize: '10px', color: '#92400E', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Normal Price (Long Exp.)
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                <span style={{ fontSize: '18px', fontWeight: 900, color: '#111827' }}>
+                                  ${normalRetailPrice.toFixed(2)}
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#92400E', fontWeight: 700 }}>
+                                  (WS: ${normalWholesalePrice.toFixed(2)})
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                              Fresh Stock
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px dashed rgba(146, 64, 14, 0.2)', paddingTop: '6px' }}>
+                            <div>
+                              <span style={{ fontSize: '10px', color: '#D97706', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                🔥 Special Price (&lt;1 Mo.)
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                <span style={{ fontSize: '18px', fontWeight: 900, color: '#D97706' }}>
+                                  ${specialRetailPrice.toFixed(2)}
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#92400E', fontWeight: 700 }}>
+                                  (WS: ${specialWholesalePrice.toFixed(2)})
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                              {clearanceDiscount}% OFF
+                            </span>
+                          </div>
                         </div>
-                        <div style={{ borderLeft: '1px solid rgba(146, 64, 14, 0.2)', paddingLeft: '14px' }}>
-                          <span style={{ fontSize: '10px', color: '#92400E', fontWeight: 700, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
-                            Wholesale Price
-                          </span>
-                          <span style={{ fontSize: '16px', color: '#92400E', fontWeight: 800 }}>
-                            ${product.wholesalePrice.toFixed(2)}
-                          </span>
+                      ) : (
+                        <div style={{ backgroundColor: '#FFFBEB', padding: '10px 12px', borderRadius: '12px', border: '1px solid #FDE68A', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <span style={{ fontSize: '10px', color: '#92400E', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Current Price (Retail)
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                <span style={{ fontSize: '20px', fontWeight: 900, color: '#111827' }}>
+                                  ${normalRetailPrice.toFixed(2)}
+                                </span>
+                                <span style={{ fontSize: '12px', color: '#92400E', fontWeight: 700 }}>
+                                  (WS: ${normalWholesalePrice.toFixed(2)})
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                              Fresh Stock
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )}
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: '#92400E', marginTop: '6px' }}>
                         <Clock size={12} />
@@ -978,26 +1152,76 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                       </div>
                     </div>
                   ) : (
-                    // RETAIL PRICING WITH BULK TIER & WHOLESALE PREVIEWS
+                    // RETAIL PRICING WITH DUAL PRICES (NORMAL FRESH VS SPECIAL <1 MO ONLY IF CLEARANCE BATCH EXISTS)
                     <div style={{ marginBottom: '14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '4px' }}>
-                        <span style={{ fontSize: '24px', fontWeight: 900, color: '#111827' }}>
-                          ${product.retailPrice.toFixed(2)}
-                        </span>
-                        <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
-                          Standard Retail Price
-                        </span>
-                      </div>
+                      {hasClearanceBatch ? (
+                        <div style={{ backgroundColor: '#FBFBFB', padding: '10px 12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
+                          {/* Normal Price (Fresh / Long Shelf Life) */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <span style={{ fontSize: '10px', color: '#4B5563', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Normal Price (Long Exp.)
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                <span style={{ fontSize: '20px', fontWeight: 900, color: '#111827' }}>
+                                  ${normalRetailPrice.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#F3F4F6', color: '#4B5563' }}>
+                              Fresh Stock
+                            </span>
+                          </div>
+
+                          {/* Special Price (<1 Month / Clearance) */}
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px dashed rgba(0,0,0,0.08)', paddingTop: '6px' }}>
+                            <div>
+                              <span style={{ fontSize: '10px', color: '#D97706', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                🔥 Special Price (&lt;1 Mo.)
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                <span style={{ fontSize: '18px', fontWeight: 900, color: '#D97706' }}>
+                                  ${specialRetailPrice.toFixed(2)}
+                                </span>
+                                <span style={{ fontSize: '11px', color: '#9CA3AF', textDecoration: 'line-through' }}>
+                                  ${normalRetailPrice.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#FEF3C7', color: '#92400E' }}>
+                              {clearanceDiscount}% OFF
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ backgroundColor: '#FBFBFB', padding: '10px 12px', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                              <span style={{ fontSize: '10px', color: '#4B5563', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Retail Price
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                                <span style={{ fontSize: '20px', fontWeight: 900, color: '#111827' }}>
+                                  ${normalRetailPrice.toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '10px', fontWeight: 700, padding: '2px 6px', borderRadius: '4px', backgroundColor: '#F3F4F6', color: '#4B5563' }}>
+                              Fresh Stock
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Bulk Retail & Wholesale Preview */}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '6px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#2563EB' }}>
                           <TrendingDown size={12} />
-                          <span>Bulk Tier: <strong>${(product.retailPrice * 0.95).toFixed(2)}</strong> (5% off on 10+ units)</span>
+                          <span>Bulk Tier: <strong>${(normalRetailPrice * 0.95).toFixed(2)}</strong> (5% off on 10+ units)</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6B7280' }}>
                           <Building2 size={12} />
-                          <span>B2B Wholesale: <strong>${product.wholesalePrice.toFixed(2)}</strong> (Upon Admin Approval)</span>
+                          <span>B2B Wholesale: <strong>${normalWholesalePrice.toFixed(2)}</strong> (Upon Admin Approval)</span>
                         </div>
                       </div>
                     </div>
@@ -1029,7 +1253,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
 
                     <button
                       onClick={(e) => handleAddToCart(product, e)}
-                      disabled={availableStockCount <= 0}
+                      disabled={liveTotalStock <= 0}
                       style={{
                         flex: 1,
                         display: 'flex',
@@ -1041,40 +1265,40 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onNavigateToCart }) => {
                         border: 'none',
                         fontSize: '13px',
                         fontWeight: 700,
-                        cursor: availableStockCount <= 0 ? 'not-allowed' : 'pointer',
-                        backgroundColor: availableStockCount <= 0
+                        cursor: liveTotalStock <= 0 ? 'not-allowed' : 'pointer',
+                        backgroundColor: liveTotalStock <= 0
                           ? '#9CA3AF'
                           : isJustAdded
                           ? '#10B981'
-                          : inCartQty > 0
+                          : inCartTotal > 0
                           ? '#111827'
                           : '#FA3E54',
                         color: '#FFFFFF',
-                        boxShadow: availableStockCount <= 0
+                        boxShadow: liveTotalStock <= 0
                           ? 'none'
                           : isJustAdded
                           ? '0 4px 14px rgba(16, 185, 129, 0.3)'
-                          : inCartQty > 0
+                          : inCartTotal > 0
                           ? '0 4px 14px rgba(0, 0, 0, 0.15)'
                           : '0 4px 14px rgba(250, 62, 84, 0.35)',
                         transition: 'all 0.15s ease'
                       }}
                       onMouseEnter={(e) => {
-                        if (availableStockCount > 0) e.currentTarget.style.transform = 'scale(1.02)';
+                        if (liveTotalStock > 0) e.currentTarget.style.transform = 'scale(1.02)';
                       }}
                       onMouseLeave={(e) => {
-                        if (availableStockCount > 0) e.currentTarget.style.transform = 'scale(1)';
+                        if (liveTotalStock > 0) e.currentTarget.style.transform = 'scale(1)';
                       }}
                     >
-                      {availableStockCount <= 0 ? (
+                      {liveTotalStock <= 0 ? (
                         'Out of Stock'
                       ) : isJustAdded ? (
                         <>
                           <Check size={15} /> Added!
                         </>
-                      ) : inCartQty > 0 ? (
+                      ) : inCartTotal > 0 ? (
                         <>
-                          <ShoppingBag size={15} /> In Cart ({inCartQty}) +
+                          <Check size={15} /> In Cart ({inCartTotal})
                         </>
                       ) : (
                         <>

@@ -9,15 +9,18 @@ import { ProductDetailPage } from './ProductDetailPage';
 import { WholesaleRegisterPage } from './WholesaleRegisterPage';
 import { CustomerFooter } from './CustomerFooter';
 import { useCustomerCartStore } from '../../store/customerCartStore';
+import { LogoutConfirmModal } from '../../components/ui/LogoutConfirmModal';
+import { UserProfileModal } from '../../components/ui/UserProfileModal';
 import {
   ShoppingBag,
   ShoppingCart,
   ClipboardList,
   Building2,
   LogIn,
-  LogOut
+  LogOut,
+  User as UserIcon,
+  Edit3
 } from 'lucide-react';
-import { LogoutConfirmModal } from '../../components/ui/LogoutConfirmModal';
 
 export type CustomerRoute = 'shop' | 'cart' | 'checkout' | 'orders' | 'wholesale' | 'product-detail';
 
@@ -62,6 +65,8 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
     user,
     isAuthenticated,
     logout,
+    updateProfile,
+    refreshProfile,
     getItemCount,
     getDisplayTier,
     checkWholesaleStatus
@@ -70,6 +75,42 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
   const cartCount = getItemCount();
   const displayTier = getDisplayTier();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [userAvatar, setUserAvatar] = useState<string>('');
+
+  // Automatically refresh profile from DB on mount, refresh, tab focus, or storage sync
+  useEffect(() => {
+    refreshProfile();
+    const handleSync = () => {
+      refreshProfile();
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
+    };
+  }, [refreshProfile]);
+
+  useEffect(() => {
+    if (user) {
+      const saved =
+        user.avatarUrl ||
+        (user.id ? localStorage.getItem(`aura_avatar_user_${user.id}`) : null) ||
+        (user.id ? localStorage.getItem(`aura_avatar_${user.id}`) : null) ||
+        (user.email ? localStorage.getItem(`aura_avatar_${user.email.toLowerCase()}`) : null) ||
+        localStorage.getItem('aura_avatar_current') ||
+        '';
+      setUserAvatar(saved);
+    }
+  }, [user, user?.avatarUrl]);
+
+  const userInitials = (user?.fullName || 'User')
+    .split(' ')
+    .filter(Boolean)
+    .map((w) => w[0]?.toUpperCase())
+    .slice(0, 2)
+    .join('') || 'U';
 
   // Background polling to automatically catch Admin Wholesale Approval
   React.useEffect(() => {
@@ -119,11 +160,74 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
           boxShadow: '0 10px 30px rgba(0,0,0,0.6)'
         }}
       >
-        {/* Customer Identity Capsule */}
+        {/* Customer Identity Capsule (Clickable Profile Preview) */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF' }}>
-            {isAuthenticated ? user.fullName : 'Store Guest'}
-          </span>
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={() => setShowProfileModal(true)}
+              title="Click to edit profile, phone, address & avatar"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.16)',
+                borderRadius: '9999px',
+                padding: '3px 10px 3px 4px',
+                color: '#FFFFFF',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.14)';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
+                e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.16)';
+              }}
+            >
+              <div
+                style={{
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  backgroundColor: '#2563EB',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '10px',
+                  fontWeight: 800,
+                  color: '#FFFFFF'
+                }}
+              >
+                {userAvatar ? (
+                  <img
+                    src={userAvatar}
+                    alt={user.fullName}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={() => setUserAvatar('')}
+                  />
+                ) : (
+                  <span>{userInitials}</span>
+                )}
+              </div>
+              <span style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {user.fullName || 'Customer'}
+              </span>
+              <Edit3 size={11} style={{ opacity: 0.7 }} />
+            </button>
+          ) : (
+            <span
+              onClick={() => navigate('/login')}
+              style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', cursor: 'pointer' }}
+              title="Click to Sign In"
+            >
+              Store Guest · <span style={{ textDecoration: 'underline', color: '#93C5FD' }}>Sign In</span>
+            </span>
+          )}
           <span
             style={{
               fontSize: '10px',
@@ -235,52 +339,99 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
             <span>Wholesale</span>
           </button>
 
-          {/* Customer Auth Button */}
+          {/* Customer Auth & Profile Buttons */}
           {isAuthenticated ? (
-            <button
-              onClick={() => setShowLogoutConfirm(true)}
-              title="Sign Out"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '6px 12px',
-                borderRadius: '9999px',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                backgroundColor: 'rgba(239, 68, 68, 0.12)',
-                color: '#FCA5A5',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <LogOut size={12} />
-              <span>Sign Out</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(true)}
+                title="Edit customer profile and delivery address"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 14px',
+                  borderRadius: '9999px',
+                  border: '1px solid rgba(59, 130, 246, 0.45)',
+                  backgroundColor: 'rgba(59, 130, 246, 0.18)',
+                  color: '#93C5FD',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+                className="ios-glow-hover"
+              >
+                <UserIcon size={12} />
+                <span>My Profile</span>
+              </button>
+
+              <button
+                onClick={() => setShowLogoutConfirm(true)}
+                title="Sign Out"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '6px 12px',
+                  borderRadius: '9999px',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                  color: '#FCA5A5',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <LogOut size={12} />
+                <span>Sign Out</span>
+              </button>
+            </div>
           ) : (
-            <button
-              onClick={() => {
-                window.location.href = '/login';
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                padding: '6px 14px',
-                borderRadius: '9999px',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                color: '#FFFFFF',
-                fontSize: '11px',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <LogIn size={12} />
-              <span>Sign In</span>
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                onClick={() => navigate('/login')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '6px 14px',
+                  borderRadius: '9999px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  color: '#FFFFFF',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <LogIn size={12} />
+                <span>Sign In</span>
+              </button>
+
+              <button
+                onClick={() => navigate('/signup')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '6px 14px',
+                  borderRadius: '9999px',
+                  border: '1px solid #2563EB',
+                  backgroundColor: '#2563EB',
+                  color: '#FFFFFF',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <UserIcon size={12} />
+                <span>Sign Up</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -341,6 +492,26 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
       <WholesaleApplyModal
         isOpen={isWholesaleModalOpen}
         onClose={() => setIsWholesaleModalOpen(false)}
+      />
+
+      {/* User Profile & Avatar Modal */}
+      <UserProfileModal
+        isOpen={showProfileModal}
+        user={user}
+        roleLabel={displayTier === 'WHOLESALE' ? 'Wholesale Partner' : 'Retail Customer'}
+        onClose={() => setShowProfileModal(false)}
+        onSave={async (updated) => {
+          if (updated.avatarUrl !== undefined) {
+            setUserAvatar(updated.avatarUrl);
+          }
+          await updateProfile({
+            fullName: updated.fullName,
+            phone: updated.phone,
+            avatarUrl: updated.avatarUrl,
+            addresses: updated.addresses,
+            companyName: updated.companyName
+          });
+        }}
       />
 
       {/* Customer Footer with Developer Credits */}

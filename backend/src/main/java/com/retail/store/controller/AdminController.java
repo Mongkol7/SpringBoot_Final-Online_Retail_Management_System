@@ -73,8 +73,8 @@ public class AdminController {
     @GetMapping("/users")
     public ResponseEntity<Page<User>> getUsers(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "15") int size) {
-        return ResponseEntity.ok(adminService.getAllUsers(PageRequest.of(page, size)));
+            @RequestParam(defaultValue = "100") int size) {
+        return ResponseEntity.ok(adminService.getAllUsers(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "id"))));
     }
 
     @PatchMapping("/users/{id}/toggle-active")

@@ -60,11 +60,15 @@ class AdminControllerTest {
                 new BigDecimal("25000.00"),
                 new BigDecimal("15000.00"),
                 new BigDecimal("10000.00"),
-                150,
-                100,
-                5,
-                1,
-                2
+                150L,
+                100L,
+                5L,
+                1L,
+                2L,
+                2,
+                new BigDecimal("45000.00"),
+                new BigDecimal("60000.00"),
+                new BigDecimal("500.00")
         );
 
         when(adminService.getDashboardSummary()).thenReturn(kpi);

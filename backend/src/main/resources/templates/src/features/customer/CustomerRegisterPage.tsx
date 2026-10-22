@@ -191,6 +191,45 @@ export const CustomerRegisterPage: React.FC = () => {
               </p>
             </div>
 
+            {(redirectTo === '/checkout' || location.search.includes('guest_checkout')) && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  padding: '14px 16px',
+                  borderRadius: '18px',
+                  backgroundColor: 'rgba(250, 62, 84, 0.08)',
+                  border: '1.5px solid rgba(250, 62, 84, 0.3)',
+                  marginBottom: '16px'
+                }}
+              >
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(250, 62, 84, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FA3E54',
+                    flexShrink: 0
+                  }}
+                >
+                  <ShoppingBag size={16} />
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#991B1B', marginBottom: '2px' }}>
+                    Store Guest: Create Account to Complete Checkout
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#B91C1C', lineHeight: 1.5 }}>
+                    Your cart items and warehouse batch choices have been safely preserved. Once created, you will be taken directly to checkout.
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div
               style={{
                 padding: '12px 14px',

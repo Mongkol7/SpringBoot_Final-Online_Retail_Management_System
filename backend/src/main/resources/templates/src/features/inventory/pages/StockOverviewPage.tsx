@@ -150,7 +150,7 @@ export const StockOverviewPage: React.FC = () => {
             {soonCount}
           </div>
           <div style={{ fontSize: '11px', color: '#71717A', marginTop: '2px' }}>
-            {soonCount > 0 ? 'Batches expiring within 7 days (Click to inspect)' : 'No near-term expirations'}
+            {soonCount > 0 ? 'Batches expiring within 30 days (< 1 month) · Click to inspect' : 'No near-term expirations'}
           </div>
         </div>
       </div>

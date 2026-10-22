@@ -10,6 +10,10 @@ export interface AuthSessionUser {
   role: 'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN';
   customerType?: CustomerType;
   token: string;
+  avatarUrl?: string;
+  phone?: string;
+  companyName?: string;
+  addresses?: string[];
 }
 
 export const authService = {
@@ -29,7 +33,11 @@ export const authService = {
         fullName: data.fullName,
         role: (data.role || 'USER') as any,
         customerType: data.customerType || 'RETAIL',
-        token: data.token
+        token: data.token,
+        avatarUrl: data.avatarUrl,
+        phone: data.phone,
+        companyName: data.companyName,
+        addresses: typeof data.addresses === 'string' ? (() => { try { return JSON.parse(data.addresses); } catch { return []; } })() : data.addresses
       };
 
       // Synchronize role-specific JWT into appropriate storage
@@ -41,6 +49,14 @@ export const authService = {
         localStorage.setItem('cashier_jwt', sessionUser.token);
       } else {
         localStorage.setItem('customer_jwt', sessionUser.token);
+      }
+
+      // Synchronize avatar into localStorage caches for immediate UI rendering
+      if (data.avatarUrl) {
+        localStorage.setItem(`aura_avatar_user_${data.userId}`, data.avatarUrl);
+        localStorage.setItem(`aura_avatar_${data.userId}`, data.avatarUrl);
+        localStorage.setItem(`aura_avatar_${data.email.toLowerCase()}`, data.avatarUrl);
+        localStorage.setItem('aura_avatar_current', data.avatarUrl);
       }
 
       localStorage.setItem('auth_current_user', JSON.stringify(sessionUser));

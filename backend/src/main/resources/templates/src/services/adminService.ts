@@ -64,7 +64,11 @@ const FALLBACK_KPI: ExecutiveKpiSummary = {
   posOrdersCount: 17,
   pendingWholesaleApplicationsCount: 3,
   expiredBatchesCount: 1,
-  lowStockProductsCount: 2
+  soonExpiringBatchesCount: 3,
+  lowStockProductsCount: 2,
+  totalStockValuation: 48920.50,
+  totalStockRetailValue: 73380.00,
+  netLoss: 384.50
 };
 
 
@@ -1643,7 +1647,7 @@ export const adminService = {
 
   async getUsers(
     page: number = 0,
-    size: number = 15
+    size: number = 100
   ): Promise<{ content: AdminUser[]; totalElements: number; totalPages: number }> {
     try {
       const headers = await getAdminHeaders();
@@ -1708,8 +1712,13 @@ export const adminService = {
     try {
       const headers = await getAdminHeaders();
       const res = await axios.post<AdminUser>(`${API_BASE}/users`, payload, { headers });
-      fallbackUsers = [res.data, ...fallbackUsers];
-      return res.data;
+      const userWithAvatar = {
+        ...res.data,
+        avatarUrl: payload.avatarUrl || payload.profileImg || res.data.avatarUrl,
+        profileImg: payload.profileImg || payload.avatarUrl || res.data.profileImg
+      };
+      fallbackUsers = [userWithAvatar, ...fallbackUsers];
+      return userWithAvatar;
     } catch (err) {
       console.warn('Create user failed on backend, saving to local fallback state:', err);
       const newUser: AdminUser = {
@@ -1720,6 +1729,8 @@ export const adminService = {
         role: { id: Date.now(), name: payload.roleName || 'USER' },
         customerType: payload.customerType || 'RETAIL',
         isActive: true,
+        avatarUrl: payload.avatarUrl || payload.profileImg,
+        profileImg: payload.profileImg || payload.avatarUrl,
         createdAt: new Date().toISOString()
       };
       fallbackUsers = [newUser, ...fallbackUsers];
@@ -1731,8 +1742,13 @@ export const adminService = {
     try {
       const headers = await getAdminHeaders();
       const res = await axios.put<AdminUser>(`${API_BASE}/users/${id}`, payload, { headers });
-      fallbackUsers = fallbackUsers.map((u) => (u.id === id ? res.data : u));
-      return res.data;
+      const userWithAvatar = {
+        ...res.data,
+        avatarUrl: payload.avatarUrl ?? payload.profileImg ?? res.data.avatarUrl,
+        profileImg: payload.profileImg ?? payload.avatarUrl ?? res.data.profileImg
+      };
+      fallbackUsers = fallbackUsers.map((u) => (u.id === id ? userWithAvatar : u));
+      return userWithAvatar;
     } catch (err) {
       console.warn(`Update user #${id} failed on backend, modifying local fallback state:`, err);
       const existing = fallbackUsers.find((u) => u.id === id);
@@ -1744,7 +1760,9 @@ export const adminService = {
         phone: payload.phone ?? existing.phone,
         role: payload.roleName ? { id: existing.role.id, name: payload.roleName } : existing.role,
         customerType: payload.customerType ?? existing.customerType,
-        isActive: payload.isActive !== undefined ? payload.isActive : existing.isActive
+        isActive: payload.isActive !== undefined ? payload.isActive : existing.isActive,
+        avatarUrl: payload.avatarUrl ?? payload.profileImg ?? existing.avatarUrl,
+        profileImg: payload.profileImg ?? payload.avatarUrl ?? existing.profileImg
       };
       fallbackUsers = fallbackUsers.map((u) => (u.id === id ? updated : u));
       return updated;

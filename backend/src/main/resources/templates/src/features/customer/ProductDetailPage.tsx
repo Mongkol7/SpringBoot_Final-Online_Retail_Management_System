@@ -26,8 +26,12 @@ import {
   CheckCircle2,
   Loader2,
   Box,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft,
+  Eye,
+  Calendar
 } from 'lucide-react';
+import { calculateItemPrice } from '../../utils/pricingCalculator';
 
 interface ProductDetailPageProps {
   productId?: string | number;
@@ -50,6 +54,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
   const {
     items,
+    addItem,
     addToCart,
     getEffectiveTier,
     getDisplayTier,
@@ -67,6 +72,16 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   const [toastAlert, setToastAlert] = useState<{ message: string; type: 'success' | 'warning' } | null>(null);
   const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [isAdding, setIsAdding] = useState<boolean>(false);
+  const [allProducts, setAllProducts] = useState<Product[]>([]);
+
+  // Fetch all products for related recommendations
+  useEffect(() => {
+    customerApi.getProducts()
+      .then((res) => {
+        setAllProducts(Array.isArray(res) ? res : (res as any)?.content || []);
+      })
+      .catch((err) => console.warn('Failed to load related products catalog:', err));
+  }, []);
 
   // Auto-dismiss toast
   useEffect(() => {
@@ -135,15 +150,57 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
   };
 
   // Real-time stock calculation from DB
-  const availableStock = product
+  const totalStock = product
     ? (product.stockQuantity !== undefined
         ? Number(product.stockQuantity)
         : (product.availableStock !== undefined ? Number(product.availableStock) : 0))
     : 0;
 
-  const existingInCartItem = product ? items.find((i) => i.productId === product.id) : null;
-  const currentInCart = existingInCartItem ? existingInCartItem.quantity : 0;
-  const remainingStock = Math.max(0, availableStock - currentInCart);
+  const nearExpiryStock = product?.nearExpiryQuantity !== undefined && product.nearExpiryQuantity > 0
+    ? Number(product.nearExpiryQuantity)
+    : 0;
+
+  const freshStock = product?.freshStockQuantity !== undefined
+    ? Number(product.freshStockQuantity)
+    : Math.max(0, totalStock - nearExpiryStock);
+
+  const isShortDatedOnly = (product?.freshStockQuantity === 0 && nearExpiryStock > 0) ||
+    (product?.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30 && (!product.freshStockQuantity || product.freshStockQuantity === 0));
+
+  // Wholesale batch preference selection: 'FRESH' (guaranteed shelf life) vs 'CLEARANCE' (25% off wholesale)
+  const [batchPreference, setBatchPreference] = useState<'FRESH' | 'CLEARANCE'>(
+    isShortDatedOnly ? 'CLEARANCE' : 'FRESH'
+  );
+
+  useEffect(() => {
+    if (isShortDatedOnly) {
+      setBatchPreference('CLEARANCE');
+    }
+  }, [product?.id, isShortDatedOnly]);
+
+  // Real-time batch-aware in-cart quantities
+  const inCartFresh = product
+    ? items
+        .filter((i) => i.productId === product.id && (i.batchPreference || 'FRESH') === 'FRESH')
+        .reduce((sum, i) => sum + i.quantity, 0)
+    : 0;
+
+  const inCartClearance = product
+    ? items
+        .filter((i) => i.productId === product.id && i.batchPreference === 'CLEARANCE')
+        .reduce((sum, i) => sum + i.quantity, 0)
+    : 0;
+
+  const liveFreshStock = Math.max(0, freshStock - inCartFresh);
+  const liveClearanceStock = Math.max(0, nearExpiryStock - inCartClearance);
+
+  // Available stock remaining to add for the selected batch
+  const availableBatchStock = batchPreference === 'CLEARANCE'
+    ? liveClearanceStock
+    : liveFreshStock;
+  const availableStock = availableBatchStock;
+  const currentInCart = batchPreference === 'CLEARANCE' ? inCartClearance : inCartFresh;
+  const remainingStock = availableBatchStock;
 
   const tier = getEffectiveTier();
   const displayTier = getDisplayTier();
@@ -151,19 +208,21 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     ? (CATEGORIES_LIST.find((c) => c.id === product.categoryId)?.name || 'Artisanal Selection')
     : 'Artisanal Selection';
 
-  // Wholesale qualification calculation
-  const isWholesaleQualified =
-    tier === 'WHOLESALE' && product && quantity >= (product.wholesaleMinQty || 10);
-  const unitPrice = product
-    ? (isWholesaleQualified ? product.wholesalePrice : product.retailPrice)
-    : 0;
-  const lineSubtotal = unitPrice * quantity;
+  // Tiered and multi-batch pricing calculation with total product quantity aggregation
+  const priceCalculation = React.useMemo(() => {
+    if (!product) return null;
+    const totalProductQuantity = inCartFresh + inCartClearance + quantity;
+    return calculateItemPrice(product, quantity, tier, batchPreference, totalProductQuantity);
+  }, [product, quantity, tier, batchPreference, inCartFresh, inCartClearance]);
+
+  const unitPrice = priceCalculation?.unitPrice || (product ? product.retailPrice : 0);
+  const lineSubtotal = priceCalculation?.subtotal || (unitPrice * quantity);
 
   // Quantity stepper adjustments with real-time stock boundary checks
   const handleIncrease = () => {
-    if (quantity + currentInCart >= availableStock) {
+    if (quantity >= availableBatchStock) {
       setStockWarning(
-        `⚠️ Stock Limit Warning: Only ${availableStock} units available in warehouse batches. You currently have ${currentInCart} in your cart.`
+        `⚠️ Stock Limit Warning: Only ${availableBatchStock} more units available for this ${batchPreference === 'CLEARANCE' ? 'Clearance' : 'Fresh'} batch. You currently have ${currentInCart} in your cart.`
       );
       return;
     }
@@ -184,10 +243,10 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
       return;
     }
 
-    if (num + currentInCart > availableStock) {
-      setQuantity(Math.max(1, remainingStock));
+    if (num > availableBatchStock) {
+      setQuantity(Math.max(1, availableBatchStock));
       setStockWarning(
-        `⚠️ Real-time Stock Ceiling: Cannot select ${num} units. Maximum remaining available to add is ${remainingStock}.`
+        `⚠️ Real-time Stock Ceiling: Cannot select ${num} units. Maximum remaining available to add is ${availableBatchStock}.`
       );
     } else {
       setQuantity(num);
@@ -199,37 +258,27 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     if (e) e.preventDefault();
     if (!product) return;
 
-    if (availableStock <= 0) {
+    if (availableBatchStock <= 0) {
       setToastAlert({
-        message: `⚠️ '${product.name}' is out of stock in warehouse batches.`,
+        message: `⚠️ '${product.name}' (${batchPreference === 'CLEARANCE' ? 'Clearance Batch' : 'Fresh Batch'}) has no remaining stock available to add.`,
         type: 'warning'
       });
       return;
     }
 
-    if (quantity + currentInCart > availableStock) {
+    if (quantity > availableBatchStock) {
       setToastAlert({
-        message: `⚠️ Stock Limit Warning: Only ${remainingStock} more units can be added to your cart.`,
+        message: `⚠️ Stock Limit Warning: Only ${availableBatchStock} more units can be added to your cart for this ${batchPreference === 'CLEARANCE' ? 'Clearance' : 'Fresh'} batch.`,
         type: 'warning'
       });
-      return;
-    }
-
-    if (!isAuthenticated) {
-      localStorage.setItem('pending_cart_item', JSON.stringify({ product, quantity }));
-      setNotification({
-        message: 'Please sign in or register to complete adding items to your cart.',
-        badge: 'SIGN IN'
-      });
-      navigate('/login?redirect=/shop');
       return;
     }
 
     setIsAdding(true);
-    addToCart(product, quantity);
+    addToCart(product, quantity, batchPreference);
 
     setToastAlert({
-      message: `✓ Added ${quantity} unit${quantity > 1 ? 's' : ''} of '${product.name}' to cart!`,
+      message: `✓ Added ${quantity} unit${quantity > 1 ? 's' : ''} of '${product.name}' (${batchPreference === 'CLEARANCE' ? 'Clearance Batch' : 'Fresh Batch'}) to cart!`,
       type: 'success'
     });
 
@@ -242,7 +291,15 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     if (!product) return;
     handleAddToCart();
     setTimeout(() => {
-      handleGoToCheckout();
+      if (!isAuthenticated) {
+        setNotification({
+          message: 'Please sign in or create an account to proceed to checkout. Your items are saved in your cart!',
+          badge: 'GUEST CHECKOUT'
+        });
+        navigate('/login?redirect=/checkout&reason=guest_checkout');
+      } else {
+        handleGoToCheckout();
+      }
     }, 300);
   };
 
@@ -262,16 +319,61 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
     }
   };
 
-  // Parse gallery images
-  const galleryImages: string[] = [];
-  if (product) {
-    if (product.imageUrl) galleryImages.push(product.imageUrl);
-    if ((product as any).images && Array.isArray((product as any).images)) {
-      (product as any).images.forEach((img: string) => {
-        if (img && !galleryImages.includes(img)) galleryImages.push(img);
-      });
+  // Parse gallery images (properly parses JSON array strings, comma-separated lists, and direct URLs)
+  const galleryImages: string[] = React.useMemo(() => {
+    if (!product) return [];
+    const list: string[] = [];
+    const add = (url: any) => {
+      if (!url || typeof url !== 'string') return;
+      const u = url.trim();
+      if (u && !list.includes(u)) list.push(u);
+    };
+
+    if (product.images) {
+      if (Array.isArray(product.images)) {
+        product.images.forEach(add);
+      } else if (typeof product.images === 'string') {
+        const str = product.images.trim();
+        if (str.startsWith('[') && str.endsWith(']')) {
+          try {
+            const parsed = JSON.parse(str);
+            if (Array.isArray(parsed)) parsed.forEach(add);
+          } catch {
+            str.replace(/[\[\]"]/g, '').split(',').forEach(add);
+          }
+        } else if (str.includes(',')) {
+          str.split(',').forEach(add);
+        } else {
+          add(str);
+        }
+      }
     }
-  }
+
+    if (product.imageUrl) {
+      const str = product.imageUrl.trim();
+      if (str.startsWith('[') && str.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(str);
+          if (Array.isArray(parsed)) parsed.forEach(add);
+        } catch {
+          add(str);
+        }
+      } else if (str.includes(',')) {
+        str.split(',').forEach(add);
+      } else {
+        add(str);
+      }
+    }
+    return list;
+  }, [product]);
+
+  // Compute related products (same category prioritized, up to 4 items)
+  const relatedProducts = React.useMemo(() => {
+    if (!product || allProducts.length === 0) return [];
+    const sameCat = allProducts.filter((p) => p.id !== product.id && p.categoryId === product.categoryId);
+    const otherCat = allProducts.filter((p) => p.id !== product.id && p.categoryId !== product.categoryId);
+    return [...sameCat, ...otherCat].slice(0, 4);
+  }, [product, allProducts]);
 
   // Loading skeleton screen
   if (isLoading) {
@@ -614,6 +716,88 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               />
             ) : null}
 
+            {/* Gallery Navigation Controls (Previous / Next arrows) */}
+            {galleryImages.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : galleryImages.length - 1));
+                  }}
+                  title="Previous image"
+                  style={{
+                    position: 'absolute',
+                    left: '14px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.92)',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    zIndex: 3,
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <ChevronLeft size={18} color="#111827" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedImageIndex((prev) => (prev < galleryImages.length - 1 ? prev + 1 : 0));
+                  }}
+                  title="Next image"
+                  style={{
+                    position: 'absolute',
+                    right: '14px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    background: 'rgba(255, 255, 255, 0.92)',
+                    border: '1px solid rgba(0, 0, 0, 0.12)',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    zIndex: 3,
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <ChevronRight size={18} color="#111827" />
+                </button>
+
+                {/* Image Count Pill */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    bottom: '14px',
+                    right: '14px',
+                    padding: '4px 10px',
+                    borderRadius: '9999px',
+                    background: 'rgba(0, 0, 0, 0.65)',
+                    color: '#FFFFFF',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 3
+                  }}
+                >
+                  {selectedImageIndex + 1} / {galleryImages.length}
+                </div>
+              </>
+            )}
+
             {/* Fallback Icon Container */}
             <div
               className="detail-img-fallback"
@@ -786,6 +970,222 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             </p>
           </div>
 
+          {/* Expiration Date & FEFO Freshness Status Card */}
+          {product.currentBatchExpiryDate ? (
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                padding: '12px 18px',
+                borderRadius: '16px',
+                backgroundColor: (product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30)
+                  ? 'rgba(245, 158, 11, 0.1)'
+                  : 'rgba(59, 130, 246, 0.08)',
+                border: (product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30)
+                  ? '1px solid rgba(245, 158, 11, 0.35)'
+                  : '1px solid rgba(59, 130, 246, 0.2)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Calendar
+                  size={16}
+                  color={(product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30) ? '#D97706' : '#2563EB'}
+                />
+                <span
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: (product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30) ? '#92400E' : '#1E40AF'
+                  }}
+                >
+                  Best Before / Expiry: {new Date(product.currentBatchExpiryDate).toLocaleDateString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })}
+                </span>
+                {product.batchCode && (
+                  <span style={{ fontSize: '11px', color: '#6B7280', fontFamily: 'monospace' }}>
+                    ({product.batchCode})
+                  </span>
+                )}
+              </div>
+
+              {product.daysUntilExpiry !== undefined && (
+                <span
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 800,
+                    padding: '3px 10px',
+                    borderRadius: '9999px',
+                    backgroundColor: product.daysUntilExpiry <= 30 ? '#F59E0B' : '#3B82F6',
+                    color: '#FFFFFF',
+                    boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  {product.daysUntilExpiry <= 0
+                    ? 'Expires today'
+                    : `${product.daysUntilExpiry} days remaining`}
+                </span>
+              )}
+            </div>
+          ) : null}
+
+          {/* Batch Choice Segmented Control (Available for all shoppers when both fresh and clearance batches exist) */}
+          {priceCalculation?.hasBothBatches ? (
+            <div
+              style={{
+                padding: '16px 20px',
+                borderRadius: '20px',
+                background: 'linear-gradient(135deg, rgba(240, 253, 244, 0.95), rgba(254, 243, 199, 0.9))',
+                border: '1.5px solid rgba(16, 185, 129, 0.35)',
+                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.04)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Layers size={18} color="#059669" />
+                  <span style={{ fontSize: '13px', fontWeight: 800, color: '#065F46', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Select Warehouse Batch
+                  </span>
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: '#047857', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '3px 8px', borderRadius: '9999px' }}>
+                  Fresh vs Clearance Option
+                </span>
+              </div>
+
+              <p style={{ margin: 0, fontSize: '12px', color: '#374151', lineHeight: 1.4 }}>
+                Choose your batch. Select <strong>Guaranteed Fresh Stock</strong> for full pantry shelf life, or opt into the <strong>Clearance Batch</strong> to save an extra <strong>25% OFF</strong> on stock expiring in less than a month!
+              </p>
+
+              {/* Segmented Selection Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '10px' }}>
+                {/* Option 1: Fresh Batch */}
+                <div
+                  onClick={() => setBatchPreference('FRESH')}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '12px 14px',
+                    borderRadius: '14px',
+                    backgroundColor: batchPreference === 'FRESH' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)',
+                    border: batchPreference === 'FRESH' ? '2px solid #10B981' : '1px solid rgba(0, 0, 0, 0.08)',
+                    boxShadow: batchPreference === 'FRESH' ? '0 4px 14px rgba(16, 185, 129, 0.2)' : 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#065F46', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      ✨ Guaranteed Fresh Stock
+                    </span>
+                    <div
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        borderRadius: '50%',
+                        border: batchPreference === 'FRESH' ? '5px solid #10B981' : '2px solid #D1D5DB',
+                        backgroundColor: '#FFFFFF'
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontSize: '18px', fontWeight: 900, color: '#111827' }}>
+                      ${(tier === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice).toFixed(2)}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#6B7280' }}>
+                      {tier === 'WHOLESALE' ? '/ unit wholesale' : '/ unit standard'}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#047857', fontWeight: 700 }}>
+                    📦 {liveFreshStock} fresh units available {inCartFresh > 0 && <span style={{ opacity: 0.8, fontWeight: 500 }}>({inCartFresh} in cart)</span>}
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#6B7280', lineHeight: 1.3 }}>
+                    Exp: {product.freshBatchExpiryDate ? new Date(product.freshBatchExpiryDate).toLocaleDateString() : 'Long Shelf Life'} • Maximum shelf life
+                  </div>
+                </div>
+
+                {/* Option 2: Clearance Batch */}
+                <div
+                  onClick={() => setBatchPreference('CLEARANCE')}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '12px 14px',
+                    borderRadius: '14px',
+                    backgroundColor: batchPreference === 'CLEARANCE' ? '#FFFFFF' : 'rgba(255, 255, 255, 0.6)',
+                    border: batchPreference === 'CLEARANCE' ? '2px solid #F59E0B' : '1px solid rgba(0, 0, 0, 0.08)',
+                    boxShadow: batchPreference === 'CLEARANCE' ? '0 4px 14px rgba(245, 158, 11, 0.2)' : 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 800, color: '#B45309', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      🔥 Clearance Batch (25% OFF)
+                    </span>
+                    <div
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        borderRadius: '50%',
+                        border: batchPreference === 'CLEARANCE' ? '5px solid #F59E0B' : '2px solid #D1D5DB',
+                        backgroundColor: '#FFFFFF'
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '6px' }}>
+                    <span style={{ fontSize: '18px', fontWeight: 900, color: '#D97706' }}>
+                      ${(tier === 'WHOLESALE' ? (product.wholesaleClearancePrice || product.wholesalePrice * 0.75) : (product.clearancePrice || product.retailPrice * 0.75)).toFixed(2)}
+                    </span>
+                    <span style={{ fontSize: '11px', color: '#9CA3AF', textDecoration: 'line-through' }}>
+                      ${(tier === 'WHOLESALE' ? product.wholesalePrice : product.retailPrice).toFixed(2)}
+                    </span>
+                    <span style={{ fontSize: '10px', color: '#B45309', fontWeight: 800, backgroundColor: '#FEF3C7', padding: '1px 5px', borderRadius: '4px' }}>
+                      -25%
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#B45309', fontWeight: 700 }}>
+                    ⚡ {liveClearanceStock} short-dated units available {inCartClearance > 0 && <span style={{ opacity: 0.8, fontWeight: 500 }}>({inCartClearance} in cart)</span>}
+                  </div>
+                  <div style={{ fontSize: '10.5px', color: '#92400E', lineHeight: 1.3 }}>
+                    Exp: {product.currentBatchExpiryDate ? new Date(product.currentBatchExpiryDate).toLocaleDateString() : '< 30 days'} • Best for immediate use
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : product.nearExpiryQuantity && product.nearExpiryQuantity > 0 && !priceCalculation?.hasBothBatches ? (
+            <div
+              style={{
+                padding: '14px 18px',
+                borderRadius: '18px',
+                background: 'linear-gradient(135deg, rgba(254, 243, 199, 0.9), rgba(254, 226, 226, 0.6))',
+                border: '1px solid rgba(245, 158, 11, 0.4)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px'
+              }}
+            >
+              <AlertTriangle size={18} color="#D97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 800, color: '#92400E', marginBottom: '2px' }}>
+                  ⚠️ Short-Dated Stock Only in Warehouse (25% Clearance Discount Applied)
+                </div>
+                <div style={{ fontSize: '12px', color: '#B45309', lineHeight: 1.5 }}>
+                  All stock for this product expires on <strong>{product.currentBatchExpiryDate ? new Date(product.currentBatchExpiryDate).toLocaleDateString() : '< 30 days'}</strong>. No fresh batch is currently in inventory. We've discounted this stock to <strong>${(tier === 'WHOLESALE' ? (product.wholesaleClearancePrice || product.wholesalePrice * 0.75) : (product.clearancePrice || product.retailPrice * 0.75)).toFixed(2)}/unit</strong>!
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {/* Pricing Card */}
           <div
             style={{
@@ -813,25 +1213,25 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                     ★ CONFIRMED WHOLESALE PARTNER
                   </span>
                   <span style={{ fontSize: '12px', color: '#059669', fontWeight: 800 }}>
-                    Save ${(product.retailPrice - product.wholesalePrice).toFixed(2)}/unit
+                    Save ${(product.retailPrice - (batchPreference === 'CLEARANCE' ? (product.wholesaleClearancePrice || product.wholesalePrice * 0.75) : product.wholesalePrice)).toFixed(2)}/unit
                   </span>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: '18px', flexWrap: 'wrap', backgroundColor: '#FBFBFB', padding: '12px 16px', borderRadius: '16px', border: '1px solid rgba(0,0,0,0.04)' }}>
                   <div>
-                    <span style={{ fontSize: '11px', color: '#B45309', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
-                      Wholesale Price
+                    <span style={{ fontSize: '11px', color: batchPreference === 'CLEARANCE' ? '#D97706' : '#B45309', fontWeight: 800, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
+                      {batchPreference === 'CLEARANCE' ? 'Clearance Wholesale Price (25% OFF)' : 'Fresh Wholesale Price'}
                     </span>
-                    <span style={{ fontSize: '32px', fontWeight: 900, color: '#111827' }}>
-                      ${product.wholesalePrice.toFixed(2)}
+                    <span style={{ fontSize: '32px', fontWeight: 900, color: batchPreference === 'CLEARANCE' ? '#D97706' : '#111827' }}>
+                      ${(batchPreference === 'CLEARANCE' ? (product.wholesaleClearancePrice || product.wholesalePrice * 0.75) : product.wholesalePrice).toFixed(2)}
                     </span>
                   </div>
                   <div style={{ borderLeft: '1px solid rgba(0, 0, 0, 0.1)', paddingLeft: '18px' }}>
                     <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: 700, textTransform: 'uppercase', display: 'block', letterSpacing: '0.04em' }}>
-                      Normal Price
+                      {batchPreference === 'CLEARANCE' ? 'Regular Wholesale' : 'Normal Price'}
                     </span>
                     <span style={{ fontSize: '18px', color: '#9CA3AF', textDecoration: 'line-through', fontWeight: 700 }}>
-                      ${product.retailPrice.toFixed(2)}
+                      ${(batchPreference === 'CLEARANCE' ? product.wholesalePrice : product.retailPrice).toFixed(2)}
                     </span>
                   </div>
                 </div>
@@ -895,11 +1295,16 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             ) : (
               <div>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '6px' }}>
-                  <span style={{ fontSize: '32px', fontWeight: 900, color: '#111827' }}>
-                    ${product.retailPrice.toFixed(2)}
+                  <span style={{ fontSize: '32px', fontWeight: 900, color: batchPreference === 'CLEARANCE' ? '#D97706' : '#111827' }}>
+                    ${(batchPreference === 'CLEARANCE' ? (product.clearancePrice || product.retailPrice * 0.75) : product.retailPrice).toFixed(2)}
                   </span>
-                  <span style={{ fontSize: '13px', color: '#9CA3AF', fontWeight: 600 }}>
-                    Normal Store Price
+                  {batchPreference === 'CLEARANCE' ? (
+                    <span style={{ fontSize: '16px', color: '#9CA3AF', textDecoration: 'line-through', fontWeight: 600 }}>
+                      ${product.retailPrice.toFixed(2)}
+                    </span>
+                  ) : null}
+                  <span style={{ fontSize: '13px', color: batchPreference === 'CLEARANCE' ? '#D97706' : '#9CA3AF', fontWeight: 700 }}>
+                    {batchPreference === 'CLEARANCE' ? 'Clearance Price (25% OFF)' : 'Normal Store Price'}
                   </span>
                 </div>
 
@@ -920,6 +1325,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
               </div>
             )}
           </div>
+
 
           {/* Interactive Quantity Selector with Real-time Boundary Checks */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -1012,6 +1418,57 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Live Multi-Batch Allocation & Clearance Split Explanation */}
+            {priceCalculation?.hasNearExpiryDiscount && (
+              <div
+                style={{
+                  padding: '14px 18px',
+                  borderRadius: '16px',
+                  backgroundColor: '#FFFBEB',
+                  border: '1px solid #FDE68A',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 800, color: '#92400E', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Layers size={14} color="#D97706" />
+                    Automated Multi-Batch Allocation (FEFO)
+                  </span>
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#059669', backgroundColor: '#D1FAE5', padding: '2px 8px', borderRadius: '9999px' }}>
+                    Save ${priceCalculation.savings.toFixed(2)}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #FEF3C7' }}>
+                    <span style={{ color: '#78350F' }}>
+                      ⚡ <strong>{priceCalculation.nearExpiryUnits} unit(s)</strong> Near-Expiry Clearance (Exp: {product.currentBatchExpiryDate ? new Date(product.currentBatchExpiryDate).toLocaleDateString() : '< 1 mo'})
+                    </span>
+                    <span style={{ fontWeight: 800, color: '#D97706' }}>
+                      ${(priceCalculation.clearanceUnitPrice || 0).toFixed(2)}/ea ({priceCalculation.clearanceDiscountPercent || 25}% OFF)
+                    </span>
+                  </div>
+
+                  {(priceCalculation.freshUnits || 0) > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', backgroundColor: '#FFFFFF', borderRadius: '8px', border: '1px solid #FEF3C7' }}>
+                      <span style={{ color: '#1E293B' }}>
+                        🌿 <strong>{priceCalculation.freshUnits} unit(s)</strong> Fresh Stock (Future Expiry)
+                      </span>
+                      <span style={{ fontWeight: 800, color: '#334155' }}>
+                        ${(priceCalculation.regularUnitPrice || product.retailPrice).toFixed(2)}/ea ({tier === 'WHOLESALE' && quantity >= (product.wholesaleMinQty || 10) ? 'Wholesale Price' : 'Standard Price'})
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <p style={{ margin: '2px 0 0', fontSize: '11px', color: '#B45309', fontStyle: 'italic', lineHeight: 1.4 }}>
+                  💡 Products with different batch expiry dates in the same order are automatically dispatched using FEFO. The clearance discount strictly covers the units within less than 1 month of expiry.
+                </p>
+              </div>
+            )}
 
             {/* Real-time Stock Ceiling Warning Banner */}
             {stockWarning && (
@@ -1136,10 +1593,247 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
                 <span style={{ color: '#6B7280' }}>Database ID</span>
                 <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#111827' }}>#{product.id}</span>
               </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: '#F9FAFB', borderRadius: '8px' }}>
+                <span style={{ color: '#6B7280' }}>Current Batch</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#111827' }}>{product.batchCode || 'FIFO-Active'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: '#F9FAFB', borderRadius: '8px' }}>
+                <span style={{ color: '#6B7280' }}>Batch Expiry Date</span>
+                <span style={{ fontWeight: 700, color: (product.daysUntilExpiry !== undefined && product.daysUntilExpiry <= 30) ? '#D97706' : '#111827' }}>
+                  {product.currentBatchExpiryDate ? new Date(product.currentBatchExpiryDate).toLocaleDateString() : 'Shelf-Stable'}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* ================= RELATED PRODUCTS SECTION ================= */}
+      {relatedProducts.length > 0 && (
+        <div
+          style={{
+            marginTop: '16px',
+            padding: '28px',
+            borderRadius: '28px',
+            backgroundColor: '#FFFFFF',
+            border: '1px solid rgba(0, 0, 0, 0.08)',
+            boxShadow: '0 8px 30px rgba(0, 0, 0, 0.04)'
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '20px'
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <Sparkles size={16} color="#3B82F6" />
+                <span style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', color: '#3B82F6', textTransform: 'uppercase' }}>
+                  Curated Pairings & Alternatives
+                </span>
+              </div>
+              <h3 style={{ fontSize: '20px', fontWeight: 800, color: '#111827', margin: 0 }}>
+                Related Artisanal Products
+              </h3>
+            </div>
+            <span style={{ fontSize: '12px', color: '#6B7280' }}>
+              Showing {relatedProducts.length} items from {categoryName}
+            </span>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+              gap: '20px'
+            }}
+          >
+            {relatedProducts.map((rel) => {
+              const relCatName = CATEGORIES_LIST.find((c) => c.id === rel.categoryId)?.name || 'Artisanal Selection';
+              const relStock = rel.stockQuantity !== undefined ? Number(rel.stockQuantity) : (rel.availableStock !== undefined ? Number(rel.availableStock) : 0);
+              const relInStock = relStock > 0;
+
+              return (
+                <div
+                  key={rel.id}
+                  style={{
+                    borderRadius: '20px',
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    backgroundColor: '#FAFAFA',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    gap: '14px',
+                    transition: 'all 0.25s ease',
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 12px 28px rgba(0,0,0,0.08)';
+                    e.currentTarget.style.borderColor = 'rgba(59, 130, 246, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.02)';
+                    e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.08)';
+                  }}
+                >
+                  <div>
+                    {/* Related Thumbnail */}
+                    <div
+                      onClick={() => {
+                        navigate(`/product/${rel.id}`);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      style={{
+                        width: '100%',
+                        aspectRatio: '1 / 1',
+                        borderRadius: '16px',
+                        backgroundColor: '#FFFFFF',
+                        border: '1px solid rgba(0,0,0,0.06)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'hidden',
+                        cursor: 'pointer',
+                        marginBottom: '12px',
+                        position: 'relative'
+                      }}
+                    >
+                      {rel.imageUrl ? (
+                        <img
+                          src={rel.imageUrl}
+                          alt={rel.name}
+                          style={{ maxWidth: '85%', maxHeight: '85%', objectFit: 'contain' }}
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div style={{ color: '#9CA3AF' }}>{renderCategoryIcon(rel.categoryId)}</div>
+                      )}
+
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '10px',
+                          left: '10px',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '9999px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                          color: '#111827',
+                          border: '1px solid rgba(0,0,0,0.06)'
+                        }}
+                      >
+                        {relCatName}
+                      </span>
+                    </div>
+
+                    <h4
+                      onClick={() => {
+                        navigate(`/product/${rel.id}`);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      style={{
+                        margin: '0 0 4px',
+                        fontSize: '14px',
+                        fontWeight: 700,
+                        color: '#111827',
+                        cursor: 'pointer',
+                        lineHeight: 1.3
+                      }}
+                    >
+                      {rel.name}
+                    </h4>
+                    <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#9CA3AF', display: 'block', marginBottom: '8px' }}>
+                      {rel.sku}
+                    </span>
+
+                    {/* Pricing */}
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                      <span style={{ fontSize: '16px', fontWeight: 800, color: '#111827' }}>
+                        ${Number(rel.retailPrice || 0).toFixed(2)}
+                      </span>
+                      {tier === 'WHOLESALE' && (
+                        <span style={{ fontSize: '12px', fontWeight: 700, color: '#FA3E54' }}>
+                          Wholesale: ${Number(rel.wholesalePrice || 0).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigate(`/product/${rel.id}`);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: '9999px',
+                        border: '1px solid rgba(0, 0, 0, 0.12)',
+                        backgroundColor: '#FFFFFF',
+                        color: '#111827',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <Eye size={13} />
+                      <span>Details</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!relInStock}
+                      onClick={() => {
+                        addItem(rel, 1);
+                        setToastAlert({
+                          message: `Added 1x "${rel.name}" to cart!`,
+                          type: 'success'
+                        });
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: '9999px',
+                        border: 'none',
+                        backgroundColor: relInStock ? '#111827' : '#E5E7EB',
+                        color: relInStock ? '#FFFFFF' : '#9CA3AF',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: relInStock ? 'pointer' : 'not-allowed',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      <ShoppingCart size={13} />
+                      <span>{relInStock ? 'Add' : 'Out'}</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Floating Success / Warning Toast Alert */}
       {toastAlert && (

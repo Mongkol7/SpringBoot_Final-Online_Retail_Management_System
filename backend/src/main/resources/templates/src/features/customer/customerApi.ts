@@ -217,16 +217,43 @@ function withFallbackStock(product: Product): Product {
   return { ...product, stockQuantity: stock, availableStock: stock };
 }
 
-// Helper to get auth headers from localStorage across personas
-function getAuthHeaders(): { headers: Record<string, string> } {
-  const token =
+export async function getCustomerToken(): Promise<string> {
+  const existingToken =
     localStorage.getItem('customer_jwt') ||
-    '' ||
-    '' ||
-    '' ||
-    '' ||
+    localStorage.getItem('token') ||
     '';
-  if (token) {
+
+  // If we already have a real valid signed JWT (not a mock placeholder)
+  if (existingToken && !existingToken.startsWith('jwt-customer-') && !existingToken.startsWith('mock-')) {
+    return existingToken;
+  }
+
+  return '';
+}
+
+// Helper to get auth headers from localStorage across personas
+export function getAuthHeaders(): { headers: Record<string, string> } {
+  let token =
+    localStorage.getItem('customer_jwt') ||
+    localStorage.getItem('admin_jwt') ||
+    localStorage.getItem('cashier_jwt') ||
+    localStorage.getItem('inventory_jwt') ||
+    localStorage.getItem('token') ||
+    '';
+
+  if (!token || token.startsWith('jwt-customer-') || token.startsWith('mock-')) {
+    try {
+      const authUser = localStorage.getItem('auth_current_user');
+      if (authUser) {
+        const parsed = JSON.parse(authUser);
+        if (parsed?.token && !parsed.token.startsWith('jwt-customer-')) {
+          token = parsed.token;
+        }
+      }
+    } catch {}
+  }
+
+  if (token && !token.startsWith('jwt-customer-') && !token.startsWith('mock-')) {
     return {
       headers: {
         Authorization: `Bearer ${token}`
@@ -265,21 +292,53 @@ export function normalizeProduct(p: any): Product {
     ? Number(p.stockQuantity)
     : (p.availableStock !== undefined ? Number(p.availableStock) : 0);
 
-  let images: string[] = [];
-  if (Array.isArray(p.images)) {
-    images = p.images;
-  } else if (typeof p.images === 'string' && p.images.trim()) {
-    try {
-      const parsed = JSON.parse(p.images);
-      images = Array.isArray(parsed) ? parsed : [p.images];
-    } catch {
-      images = p.images.split(',').map((s: string) => s.trim()).filter(Boolean);
+  const imagesList: string[] = [];
+  const add = (url: any) => {
+    if (!url || typeof url !== 'string') return;
+    const trimmed = url.trim();
+    if (trimmed && !imagesList.includes(trimmed)) imagesList.push(trimmed);
+  };
+
+  // 1. Parse images field (supports JSON array string, comma-separated, or array)
+  if (p.images) {
+    if (Array.isArray(p.images)) {
+      p.images.forEach(add);
+    } else if (typeof p.images === 'string') {
+      const raw = p.images.trim();
+      if (raw.startsWith('[') && raw.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) parsed.forEach(add);
+        } catch {
+          raw.replace(/[\[\]"]/g, '').split(',').forEach(add);
+        }
+      } else if (raw.includes(',')) {
+        raw.split(',').forEach(add);
+      } else {
+        add(raw);
+      }
     }
-  } else if (p.imageUrl || p.image_url) {
-    images = [p.imageUrl || p.image_url];
   }
 
-  const primaryImage = images.length > 0 ? images[0] : (p.imageUrl || p.image_url || '');
+  // 2. Parse imageUrl field
+  const rawImageUrl = p.imageUrl || p.image_url;
+  if (rawImageUrl && typeof rawImageUrl === 'string') {
+    const raw = rawImageUrl.trim();
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) parsed.forEach(add);
+      } catch {
+        add(raw);
+      }
+    } else if (raw.includes(',')) {
+      raw.split(',').forEach(add);
+    } else {
+      add(raw);
+    }
+  }
+
+  const primaryImage = imagesList.length > 0 ? imagesList[0] : (p.imageUrl || p.image_url || '');
 
   return {
     ...p,
@@ -289,6 +348,7 @@ export function normalizeProduct(p: any): Product {
     description: p.description || '',
     categoryId: p.categoryId ?? p.category?.id ?? 2,
     imageUrl: primaryImage,
+    images: imagesList,
     costPrice: Number(p.costPrice || 0),
     retailPrice: Number(p.retailPrice || 0),
     wholesalePrice: Number(p.wholesalePrice || 0),
@@ -427,7 +487,7 @@ export const customerApi = {
     paymentMethod: PaymentMethod,
     recipientName?: string,
     recipientPhone?: string,
-    items?: Array<{ productId: number; quantity: number }>
+    items?: Array<{ productId: number; quantity: number; batchPreference?: string }>
   ): Promise<Order> {
     const payload = { shippingAddress, paymentMethod, recipientName, recipientPhone, items };
     try {
@@ -544,7 +604,18 @@ export const customerApi = {
   },
 
   // Auth
-  async login(email: string, password: string): Promise<{ token: string; userId: number; email: string; fullName: string; role: string; customerType: 'RETAIL' | 'WHOLESALE' }> {
+  async login(email: string, password: string): Promise<{
+    token: string;
+    userId: number;
+    email: string;
+    fullName: string;
+    role: string;
+    customerType: 'RETAIL' | 'WHOLESALE';
+    avatarUrl?: string;
+    phone?: string;
+    companyName?: string;
+    addresses?: string;
+  }> {
     try {
       const res = await axios.post(`${API_BASE}/auth/login`, { email, password });
       return res.data;
@@ -560,6 +631,57 @@ export const customerApi = {
       return res.data;
     } catch (err: any) {
       const msg = err.response?.data?.message || err.message || 'Registration failed. Please check your inputs.';
+      throw new Error(msg);
+    }
+  },
+
+  // Customer Profile Management
+  async getProfile(): Promise<any> {
+    let token = await getCustomerToken();
+    let headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    try {
+      const res = await axios.get(`${API_BASE}/customer/profile`, { headers });
+      return res.data;
+    } catch {
+      try {
+        const fallback = await axios.get(`${API_BASE}/customer/me`, { headers });
+        return fallback.data;
+      } catch (err: any) {
+        throw new Error(err.response?.data?.message || 'Failed to fetch customer profile.');
+      }
+    }
+  },
+
+  async updateProfile(data: {
+    fullName: string;
+    phone?: string;
+    addresses?: string[];
+    avatarUrl?: string;
+    companyName?: string;
+    password?: string;
+  }): Promise<any> {
+    let token = await getCustomerToken();
+    let headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const payload = {
+      fullName: data.fullName,
+      phone: data.phone,
+      addresses: data.addresses,
+      password: data.password,
+      avatarUrl: data.avatarUrl,
+      companyName: data.companyName
+    };
+
+    try {
+      const res = await axios.put(`${API_BASE}/customer/profile`, payload, { headers });
+      return res.data;
+    } catch (err: any) {
+      const msg = err.response?.data?.message || err.message || 'Failed to update profile. Please verify your authentication.';
       throw new Error(msg);
     }
   }

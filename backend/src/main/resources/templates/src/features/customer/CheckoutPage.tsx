@@ -39,6 +39,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
     isAuthenticated,
     items,
     checkout,
+    refreshCartPrices,
     getSubtotal,
     getTax,
     getTotal,
@@ -63,14 +64,19 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [completedOrderNumber, setCompletedOrderNumber] = useState<string | null>(null);
 
+  const effectiveTier = getEffectiveTier();
+
   // Route guard: Redirect to /login if unauthenticated
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/login?redirect=/checkout', { replace: true });
+      navigate('/login?redirect=/checkout&reason=guest_checkout', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
-  const effectiveTier = getEffectiveTier();
+  // Synchronize cart item pricing with current tier and batch preferences
+  useEffect(() => {
+    refreshCartPrices();
+  }, [effectiveTier, isAuthenticated, refreshCartPrices]);
   const subtotal = getSubtotal();
   const tax = getTax();
   const total = getTotal();
@@ -169,7 +175,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <button
-              onClick={() => navigate('/login?redirect=/checkout')}
+              onClick={() => navigate('/login?redirect=/checkout&reason=guest_checkout')}
               style={{
                 width: '100%',
                 padding: '14px',
@@ -187,7 +193,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
             </button>
 
             <button
-              onClick={() => navigate('/signup')}
+              onClick={() => navigate('/signup?redirect=/checkout&reason=guest_checkout')}
               style={{
                 width: '100%',
                 padding: '14px',
@@ -812,8 +818,18 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({
                         <div style={{ color: '#111827', fontWeight: 700, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {i.product.name}
                         </div>
-                        <div style={{ fontSize: '11px', color: '#6B7280' }}>
-                          {i.quantity}x @ ${safeToFixed(i.appliedPrice ?? (i as any).unitPrice ?? 0)}
+                        <div style={{ fontSize: '11px', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <span>{i.quantity}x @ ${safeToFixed(i.appliedPrice ?? (i as any).unitPrice ?? 0)}</span>
+                          {i.batchPreference === 'CLEARANCE' && (
+                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#B45309', backgroundColor: '#FEF3C7', padding: '1px 5px', borderRadius: '4px' }}>
+                              Clearance (-25%)
+                            </span>
+                          )}
+                          {i.batchPreference === 'FRESH' && i.canChooseBatch && (
+                            <span style={{ fontSize: '9px', fontWeight: 800, color: '#047857', backgroundColor: '#ECFDF5', padding: '1px 5px', borderRadius: '4px' }}>
+                              ✨ Fresh
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>

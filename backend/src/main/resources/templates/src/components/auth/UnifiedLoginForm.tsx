@@ -28,11 +28,13 @@ export const UnifiedLoginForm: React.FC<UnifiedLoginFormProps> = ({
 }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login } = useAuth();
+  const { login, refreshAuthState } = useAuth();
   const customerStore = useCustomerCartStore();
 
   // Mode: 'login' or 'register'
-  const [mode, setMode] = useState<'login' | 'register'>(defaultMode);
+  const [mode, setMode] = useState<'login' | 'register'>(
+    location.pathname === '/signup' ? 'register' : defaultMode
+  );
 
   // Form State
   const [email, setEmail] = useState('');
@@ -101,6 +103,7 @@ export const UnifiedLoginForm: React.FC<UnifiedLoginFormProps> = ({
       // 2. Sync customerCartStore for customer session consistency
       if (sessionUser.role === 'USER') {
         await customerStore.login(targetEmail, targetPassword).catch(() => {});
+        customerStore.refreshCartPrices();
       }
 
       setSuccessMsg(`Welcome, ${sessionUser.fullName}! Directing to your workspace...`);
@@ -144,9 +147,14 @@ export const UnifiedLoginForm: React.FC<UnifiedLoginFormProps> = ({
 
     try {
       await customerStore.register(email.trim(), password, fullName.trim(), phone.trim());
-      setSuccessMsg('Account registered successfully! Redirecting to storefront...');
+      refreshAuthState();
+      if (onSuccess) {
+        onSuccess();
+      }
+      setSuccessMsg('Account registered successfully! Redirecting...');
+      const dest = getRedirectDestination('USER');
       setTimeout(() => {
-        navigate('/shop', { replace: true });
+        navigate(dest, { replace: true });
       }, 600);
     } catch (err: any) {
       setError(err.message || 'Registration failed. An account with this email may already exist.');
@@ -320,6 +328,87 @@ export const UnifiedLoginForm: React.FC<UnifiedLoginFormProps> = ({
                   : 'Register a new customer account to start ordering snacks and track deliveries.'}
               </p>
             </div>
+
+            {/* Store Guest Redirect Alert Banners */}
+            {(location.search.includes('guest_checkout') ||
+              location.search.includes('redirect=/checkout') ||
+              location.pathname === '/checkout') && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  padding: '14px 16px',
+                  borderRadius: '18px',
+                  backgroundColor: 'rgba(250, 62, 84, 0.08)',
+                  border: '1.5px solid rgba(250, 62, 84, 0.3)',
+                  marginBottom: '20px'
+                }}
+              >
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(250, 62, 84, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#FA3E54',
+                    flexShrink: 0
+                  }}
+                >
+                  <ShoppingBag size={16} />
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#991B1B', marginBottom: '2px' }}>
+                    Store Guest: Sign In Required for Checkout
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#B91C1C', lineHeight: 1.5 }}>
+                    You are currently shopping as a guest. Please <strong>sign in</strong> or <strong>create an account</strong> to complete your order checkout. All items in your cart are safely preserved!
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {(location.search.includes('redirect=/orders') || location.pathname === '/orders') && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  padding: '14px 16px',
+                  borderRadius: '18px',
+                  backgroundColor: '#EFF6FF',
+                  border: '1.5px solid #BFDBFE',
+                  marginBottom: '20px'
+                }}
+              >
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '10px',
+                    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#2563EB',
+                    flexShrink: 0
+                  }}
+                >
+                  <ShieldCheck size={16} />
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 800, color: '#1E40AF', marginBottom: '2px' }}>
+                    Sign In Required to View Orders
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#1E40AF', lineHeight: 1.5 }}>
+                    Please sign in or register to view and manage your order history.
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Toggle Tabs: Sign In / Create Account */}
             <div

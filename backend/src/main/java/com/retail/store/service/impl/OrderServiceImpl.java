@@ -24,7 +24,9 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -57,12 +59,14 @@ public class OrderServiceImpl implements OrderService {
     }
 
     @Override
-    public BigDecimal calculateUnitPrice(Product product, int quantity, CustomerType customerType) {
+    public BigDecimal calculateUnitPrice(Product product, int quantity, CustomerType customerType, String batchPreference, int totalProductQuantity) {
         if (product == null) {
             throw new IllegalArgumentException("Product cannot be null");
         }
 
         int safeQuantity = Math.max(1, quantity);
+        int qualifyingQty = totalProductQuantity > 0 ? totalProductQuantity : safeQuantity;
+
         BigDecimal retailPrice = product.getRetailPrice().setScale(2, RoundingMode.HALF_UP);
         BigDecimal wholesalePrice = product.getWholesalePrice() != null
                 ? product.getWholesalePrice().setScale(2, RoundingMode.HALF_UP)
@@ -70,17 +74,28 @@ public class OrderServiceImpl implements OrderService {
 
         CustomerType safeCustomerType = customerType != null ? customerType : CustomerType.RETAIL;
 
-        // Case 1: User is WHOLESALE
-        if (safeCustomerType == CustomerType.WHOLESALE) {
-            int minQty = product.getWholesaleMinQty() != null && product.getWholesaleMinQty() > 0
-                    ? product.getWholesaleMinQty()
-                    : DEFAULT_WHOLESALE_MIN_QTY;
+        int minWholesaleQty = (product.getWholesaleMinQty() != null && product.getWholesaleMinQty() > 0)
+                ? product.getWholesaleMinQty()
+                : DEFAULT_WHOLESALE_MIN_QTY;
 
-            if (safeQuantity >= minQty) {
-                // Bulk limit met: apply wholesale price
+        boolean qualifiesForWholesale = (safeCustomerType == CustomerType.WHOLESALE) && (qualifyingQty >= minWholesaleQty);
+
+        // If CLEARANCE / NEAR_EXPIRY batch preference was explicitly requested:
+        if ("CLEARANCE".equalsIgnoreCase(batchPreference) || "NEAR_EXPIRY".equalsIgnoreCase(batchPreference)) {
+            BigDecimal factor = BigDecimal.valueOf(0.75); // 25% OFF
+            if (qualifiesForWholesale) {
+                return wholesalePrice.multiply(factor).setScale(2, RoundingMode.HALF_UP);
+            } else {
+                return retailPrice.multiply(factor).setScale(2, RoundingMode.HALF_UP);
+            }
+        }
+
+        // Case 1: User is WHOLESALE (standard or FRESH batch preference)
+        if (safeCustomerType == CustomerType.WHOLESALE) {
+            if (qualifiesForWholesale) {
                 return wholesalePrice;
             } else {
-                // Minimum bulk limit NOT met: retain standard retail price
+                // Below MOQ across batches: standard retail price applies
                 return retailPrice;
             }
         }
@@ -93,6 +108,15 @@ public class OrderServiceImpl implements OrderService {
 
         // Standard retail quantity (< 10 units)
         return retailPrice;
+    }
+
+    public BigDecimal calculateUnitPrice(Product product, int quantity, CustomerType customerType, String batchPreference) {
+        return calculateUnitPrice(product, quantity, customerType, batchPreference, quantity);
+    }
+
+    @Override
+    public BigDecimal calculateUnitPrice(Product product, int quantity, CustomerType customerType) {
+        return calculateUnitPrice(product, quantity, customerType, null, quantity);
     }
 
     @Override
@@ -108,7 +132,7 @@ public class OrderServiceImpl implements OrderService {
 
         List<OrderItemRequestDto> itemRequests = new ArrayList<>();
         for (CartItem ci : cartItems) {
-            itemRequests.add(new OrderItemRequestDto(ci.getProduct().getId(), ci.getQuantity()));
+            itemRequests.add(new OrderItemRequestDto(ci.getProduct().getId(), ci.getQuantity(), null));
         }
 
         Order order = executeOrderCreation(user, shippingAddress, paymentMethod, itemRequests);
@@ -143,7 +167,13 @@ public class OrderServiceImpl implements OrderService {
         String randomSuffix = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         String orderNumber = "ORD-" + datePart + "-" + randomSuffix;
 
-        // 2. Server-side Line Item Pricing & Stock Validation
+        // 2. Aggregate total product quantities across lines (e.g. fresh + clearance of same product count together toward wholesale MOQ)
+        Map<Long, Integer> productTotals = new HashMap<>();
+        for (OrderItemRequestDto itemReq : items) {
+            productTotals.merge(itemReq.productId(), itemReq.quantity(), Integer::sum);
+        }
+
+        // 3. Server-side Line Item Pricing & Stock Validation
         BigDecimal subtotal = BigDecimal.ZERO;
         List<VerifiedLineItem> verifiedItems = new ArrayList<>();
 
@@ -163,12 +193,14 @@ public class OrderServiceImpl implements OrderService {
                         + " (Available: " + availableStock + ", Requested: " + quantity + ")");
             }
 
-            // Recalculate tiered unit price on server side
-            BigDecimal unitPrice = calculateUnitPrice(product, quantity, user.getCustomerType());
+            int totalProductQty = productTotals.getOrDefault(itemReq.productId(), quantity);
+
+            // Recalculate tiered unit price on server side with cross-batch aggregation
+            BigDecimal unitPrice = calculateUnitPrice(product, quantity, user.getCustomerType(), itemReq.batchPreference(), totalProductQty);
             BigDecimal lineSubtotal = unitPrice.multiply(BigDecimal.valueOf(quantity)).setScale(2, RoundingMode.HALF_UP);
 
             subtotal = subtotal.add(lineSubtotal);
-            verifiedItems.add(new VerifiedLineItem(product, quantity, unitPrice, lineSubtotal));
+            verifiedItems.add(new VerifiedLineItem(product, quantity, unitPrice, lineSubtotal, itemReq.batchPreference()));
         }
 
         // 3. Financial Totals (Subtotal, 7% VAT, Total)
@@ -205,19 +237,28 @@ public class OrderServiceImpl implements OrderService {
 
             OrderItem savedOrderItem = orderItemRepository.save(orderItem);
 
-            // FIFO / FEFO Batch Allocation and inventory stock deduction
+            // FIFO / FEFO Batch Allocation with Wholesale Fresh Preference
+            boolean preferFresh = "FRESH".equalsIgnoreCase(item.batchPreference()) ||
+                    (user.getCustomerType() == CustomerType.WHOLESALE && !"CLEARANCE".equalsIgnoreCase(item.batchPreference()) && !"NEAR_EXPIRY".equalsIgnoreCase(item.batchPreference()));
+
             batchAllocationService.allocateAndDeductBatches(
                     savedOrderItem.getId(),
                     item.product().getId(),
                     item.quantity(),
                     user.getId(),
-                    "ONLINE_SALE"
+                    "ONLINE_SALE",
+                    preferFresh
             );
 
             savedItemsList.add(savedOrderItem);
         }
 
-        savedOrder.setItems(savedItemsList);
+        if (savedOrder.getItems() == null) {
+            savedOrder.setItems(new ArrayList<>(savedItemsList));
+        } else {
+            savedOrder.getItems().clear();
+            savedOrder.getItems().addAll(savedItemsList);
+        }
         return savedOrder;
     }
 
@@ -225,6 +266,7 @@ public class OrderServiceImpl implements OrderService {
             Product product,
             int quantity,
             BigDecimal unitPrice,
-            BigDecimal subtotal
+            BigDecimal subtotal,
+            String batchPreference
     ) {}
 }

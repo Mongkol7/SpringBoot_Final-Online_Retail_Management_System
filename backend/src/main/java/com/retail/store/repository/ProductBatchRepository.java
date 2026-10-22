@@ -13,6 +13,7 @@ import java.util.Optional;
 @Repository
 public interface ProductBatchRepository extends JpaRepository<ProductBatch, Long> {
     Optional<ProductBatch> findByBatchCode(String batchCode);
+    boolean existsByBatchCode(String batchCode);
 
     // FEFO: Perishable goods sorted by expiryDate ASC, then receivedAt ASC
     @Query("SELECT b FROM ProductBatch b WHERE b.product.id = :productId " +

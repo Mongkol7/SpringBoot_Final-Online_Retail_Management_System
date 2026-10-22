@@ -600,11 +600,21 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                               <span style={{ color: '#111827', fontWeight: 700, fontSize: '14px' }}>
                                 {item.product?.name || `Product #${item.productId}`}
                               </span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#6B7280', marginTop: '2px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#6B7280', marginTop: '2px', flexWrap: 'wrap' }}>
                                 <span style={{ fontFamily: 'monospace' }}>SKU: {item.product?.sku || 'BATCH-ALLOC'}</span>
                                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontWeight: 700 }}>
                                   <Layers size={11} /> FIFO/FEFO Deducted
                                 </span>
+                                {item.batchPreference === 'CLEARANCE' && (
+                                  <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#B45309', backgroundColor: '#FEF3C7', padding: '1px 6px', borderRadius: '4px' }}>
+                                    🔥 Clearance Batch (-25%)
+                                  </span>
+                                )}
+                                {item.batchPreference === 'FRESH' && (
+                                  <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#047857', backgroundColor: '#ECFDF5', padding: '1px 6px', borderRadius: '4px' }}>
+                                    ✨ Fresh Batch
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>

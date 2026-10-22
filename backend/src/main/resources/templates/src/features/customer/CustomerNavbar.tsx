@@ -1,17 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import { WholesaleApplyModal, WholesaleStatusBanner } from './WholesaleApplyModal';
 import { LogoutConfirmModal } from '../../components/ui/LogoutConfirmModal';
+import { UserProfileModal } from '../../components/ui/UserProfileModal';
 import {
   ShoppingBag,
   ShoppingCart,
   ClipboardList,
   LogOut,
-  User as UserIcon,
   LogIn,
   UserPlus,
-  Building2
+  Building2,
+  Edit3
 } from 'lucide-react';
 
 export const CustomerNavbar: React.FC = () => {
@@ -19,6 +20,8 @@ export const CustomerNavbar: React.FC = () => {
   const {
     user,
     isAuthenticated,
+    updateProfile,
+    refreshProfile,
     logout,
     getItemCount,
     getEffectiveTier,
@@ -27,9 +30,40 @@ export const CustomerNavbar: React.FC = () => {
 
   const [isWholesaleModalOpen, setIsWholesaleModalOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [userAvatar, setUserAvatar] = useState<string>('');
+
   const cartCount = getItemCount();
   const effectiveTier = getEffectiveTier();
   const topOffset = notification?.message ? '68px' : '16px';
+
+  // Automatically sync profile with DB on mount, refresh, tab focus, or storage events
+  useEffect(() => {
+    refreshProfile();
+    const handleSync = () => {
+      refreshProfile();
+    };
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('focus', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleSync);
+    };
+  }, [refreshProfile]);
+
+  // Load avatar from user state (DB) or localStorage caches
+  useEffect(() => {
+    if (user) {
+      const saved =
+        user.avatarUrl ||
+        (user.id ? localStorage.getItem(`aura_avatar_user_${user.id}`) : null) ||
+        (user.id ? localStorage.getItem(`aura_avatar_${user.id}`) : null) ||
+        (user.email ? localStorage.getItem(`aura_avatar_${user.email.toLowerCase()}`) : null) ||
+        localStorage.getItem('aura_avatar_current') ||
+        '';
+      setUserAvatar(saved);
+    }
+  }, [user, user?.avatarUrl]);
 
   const navLinks = [
     { to: '/shop', label: 'Category', icon: <ShoppingBag size={15} /> },
@@ -48,9 +82,10 @@ export const CustomerNavbar: React.FC = () => {
         style={{
           position: 'sticky',
           top: topOffset,
-          zIndex: 900,
-          marginBottom: '32px',
-          transition: 'top 0.25s ease'
+          zIndex: 1000,
+          margin: '0 auto 28px',
+          maxWidth: '1240px',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
         <div
@@ -59,14 +94,14 @@ export const CustomerNavbar: React.FC = () => {
             flexWrap: 'wrap',
             justifyContent: 'space-between',
             alignItems: 'center',
-            padding: '12px 24px',
+            padding: '10px 24px',
             gap: '16px',
-            borderRadius: 'var(--ios-radius-capsule, 9999px)',
+            borderRadius: '9999px',
             backgroundColor: 'rgba(255, 255, 255, 0.88)',
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
+            backdropFilter: 'blur(28px)',
+            WebkitBackdropFilter: 'blur(28px)',
             border: '1px solid rgba(0, 0, 0, 0.08)',
-            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.06)'
+            boxShadow: '0 16px 36px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04)'
           }}
         >
           {/* Brand Logo */}
@@ -151,22 +186,65 @@ export const CustomerNavbar: React.FC = () => {
                 {/* Wholesale Status Banner / Action */}
                 <WholesaleStatusBanner onOpenModal={() => navigate('/wholesale-register')} />
 
-                {/* User Profile Capsule */}
-                <div
+                {/* User Profile Capsule (Click to edit profile & avatar) */}
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(true)}
+                  title="Click to edit profile and avatar"
                   style={{
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    padding: '6px 14px',
+                    padding: '4px 12px 4px 6px',
                     borderRadius: '9999px',
                     backgroundColor: 'rgba(0, 0, 0, 0.05)',
-                    border: '1px solid rgba(0, 0, 0, 0.06)'
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.09)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.05)')}
                 >
-                  <UserIcon size={14} color="#4B5563" />
+                  {/* Avatar Circle */}
+                  <div
+                    style={{
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      overflow: 'hidden',
+                      backgroundColor: '#111827',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      fontWeight: 800,
+                      boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    {userAvatar ? (
+                      <img
+                        src={userAvatar}
+                        alt={user.fullName}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        onError={() => setUserAvatar('')}
+                      />
+                    ) : (
+                      <span>
+                        {(user.fullName || 'User')
+                          .split(' ')
+                          .filter(Boolean)
+                          .map((w) => w[0]?.toUpperCase())
+                          .slice(0, 2)
+                          .join('')}
+                      </span>
+                    )}
+                  </div>
+
                   <span style={{ fontSize: '13px', fontWeight: 700, color: '#111827' }}>
                     {user.fullName}
                   </span>
+
                   <span
                     style={{
                       fontSize: '10px',
@@ -179,7 +257,9 @@ export const CustomerNavbar: React.FC = () => {
                   >
                     {effectiveTier}
                   </span>
-                </div>
+
+                  <Edit3 size={12} color="#9CA3AF" />
+                </button>
 
                 {/* Logout Button */}
                 <button
@@ -286,6 +366,26 @@ export const CustomerNavbar: React.FC = () => {
       />
 
       {/* Redesigned Logout Confirmation Modal */}
+      {/* User Profile & Avatar Modal */}
+      <UserProfileModal
+        isOpen={showProfileModal}
+        user={user}
+        roleLabel={effectiveTier === 'WHOLESALE' ? 'Wholesale Partner' : 'Retail Customer'}
+        onClose={() => setShowProfileModal(false)}
+        onSave={async (updated) => {
+          if (updated.avatarUrl !== undefined) {
+            setUserAvatar(updated.avatarUrl);
+          }
+          await updateProfile({
+            fullName: updated.fullName,
+            phone: updated.phone,
+            avatarUrl: updated.avatarUrl,
+            addresses: updated.addresses,
+            companyName: updated.companyName
+          });
+        }}
+      />
+
       <LogoutConfirmModal
         isOpen={showLogoutConfirm}
         roleLabel="Customer"

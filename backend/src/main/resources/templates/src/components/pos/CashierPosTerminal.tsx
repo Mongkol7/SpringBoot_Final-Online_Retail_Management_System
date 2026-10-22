@@ -9,6 +9,7 @@ import { PosSalesHistory } from './PosSalesHistory';
 import { ProductDetailModal } from './ProductDetailModal';
 import { CashierPinModal } from './CashierPinModal';
 import { LogoutConfirmModal } from '../ui/LogoutConfirmModal';
+import { UserProfileModal } from '../ui/UserProfileModal';
 import { useAuth } from '../../context/AuthContext';
 import {
   Barcode,
@@ -48,6 +49,51 @@ export const CashierPosTerminal: React.FC = () => {
   // Step 2: Cashier PIN Authentication & Identification
   const [activeCashier, setActiveCashier] = useState<CashierStaff | null>(() => posService.getActiveCashier());
   const [isPinModalOpen, setIsPinModalOpen] = useState<boolean>(() => !posService.getActiveCashier());
+
+  // Cashier Profile & Avatar State (Local Storage & Image Link support)
+  const [showCashierProfileModal, setShowCashierProfileModal] = useState(false);
+  const [cashierAvatar, setCashierAvatar] = useState<string>(() => {
+    const key = activeCashier?.id ? `aura_avatar_${activeCashier.id}` : (currentUser?.userId ? `aura_avatar_${currentUser.userId}` : 'aura_avatar_cashier');
+    return localStorage.getItem(key) || localStorage.getItem('aura_avatar_cashier') || '';
+  });
+
+  useEffect(() => {
+    const key = activeCashier?.id ? `aura_avatar_${activeCashier.id}` : (currentUser?.userId ? `aura_avatar_${currentUser.userId}` : 'aura_avatar_cashier');
+    const saved = localStorage.getItem(key) || localStorage.getItem('aura_avatar_cashier') || '';
+    setCashierAvatar(saved);
+  }, [activeCashier, currentUser]);
+
+  const cashierProfileUser = {
+    id: activeCashier?.id || currentUser?.userId || 2,
+    fullName: activeCashier?.fullName || currentUser?.fullName || 'Cashier Staff',
+    email: currentUser?.email || activeCashier?.email || 'cashier@aura.store',
+    role: 'CASHIER' as any,
+    avatarUrl: cashierAvatar
+  };
+
+  const handleSaveCashierProfile = (updated: {
+    fullName: string;
+    phone?: string;
+    avatarUrl?: string;
+    addresses?: string[];
+    companyName?: string;
+  }) => {
+    const key = activeCashier?.id ? `aura_avatar_${activeCashier.id}` : (currentUser?.userId ? `aura_avatar_${currentUser.userId}` : 'aura_avatar_cashier');
+    if (updated.avatarUrl) {
+      setCashierAvatar(updated.avatarUrl);
+      localStorage.setItem(key, updated.avatarUrl);
+      localStorage.setItem('aura_avatar_cashier', updated.avatarUrl);
+    } else {
+      setCashierAvatar('');
+      localStorage.removeItem(key);
+      localStorage.removeItem('aura_avatar_cashier');
+    }
+    if (activeCashier && updated.fullName) {
+      const updatedStaff = { ...activeCashier, fullName: updated.fullName };
+      setActiveCashier(updatedStaff);
+      localStorage.setItem('active_cashier', JSON.stringify(updatedStaff));
+    }
+  };
 
   // View Mode: POS Terminal vs Sales History
   const [activeView, setActiveView] = useState<'TERMINAL' | 'SALES_HISTORY'>('TERMINAL');
@@ -545,18 +591,28 @@ export const CashierPosTerminal: React.FC = () => {
 
   return (
     <div className="pos-terminal-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
-      {/* Top POS Header, Cambodia Clock & Shift Status Bar */}
+      {/* Top POS Header, Cambodia Clock & Shift Status Bar (Floating Glass Dock) */}
       <div
         className="ios-glass-panel pos-header-panel"
         style={{
-          padding: '16px 24px',
+          position: 'sticky',
+          top: '12px',
+          zIndex: 800,
+          padding: '14px 24px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '12px',
           width: '100%',
-          boxSizing: 'border-box'
+          boxSizing: 'border-box',
+          backgroundColor: 'rgba(20, 20, 26, 0.88)',
+          backdropFilter: 'blur(28px)',
+          WebkitBackdropFilter: 'blur(28px)',
+          borderRadius: '20px',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          boxShadow: '0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+          transition: 'all 0.25s cubic-bezier(0.16, 1, 0.3, 1)'
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -769,6 +825,58 @@ export const CashierPosTerminal: React.FC = () => {
             <LogOut size={13} />
             Sign Out
           </button>
+
+          {/* Cashier Profile Capsule (Click to edit avatar and information) */}
+          <button
+            type="button"
+            onClick={() => setShowCashierProfileModal(true)}
+            title="Edit Cashier Profile & Avatar"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '4px 12px 4px 5px',
+              borderRadius: '9999px',
+              backgroundColor: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: '#FFFFFF',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.14)')}
+            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)')}
+          >
+            <div
+              style={{
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                backgroundColor: '#38BDF8',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#000000',
+                fontWeight: 800,
+                fontSize: '11px',
+                boxShadow: '0 2px 6px rgba(56, 189, 248, 0.3)'
+              }}
+            >
+              {cashierAvatar ? (
+                <img
+                  src={cashierAvatar}
+                  alt={cashierProfileUser.fullName}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={() => setCashierAvatar('')}
+                />
+              ) : (
+                'CA'
+              )}
+            </div>
+            <span>Profile</span>
+          </button>
         </div>
       </div>
 
@@ -783,6 +891,14 @@ export const CashierPosTerminal: React.FC = () => {
           logoutRole(currentUser?.role === 'ADMIN' ? 'ADMIN' : 'CASHIER');
           setShowLogoutConfirm(false);
         }}
+      />
+
+      <UserProfileModal
+        isOpen={showCashierProfileModal}
+        user={cashierProfileUser}
+        roleLabel="POS Terminal Cashier"
+        onClose={() => setShowCashierProfileModal(false)}
+        onSave={handleSaveCashierProfile}
       />
 
       {/* Auto-Dismissing Error banner if present */}

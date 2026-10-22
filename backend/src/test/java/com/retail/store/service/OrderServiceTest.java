@@ -235,8 +235,8 @@ class OrderServiceTest {
         assertEquals(new BigDecimal("856.00"), createdOrder.getTotalAmount());
 
         // Verify FIFO/FEFO batch allocation called for both items
-        verify(batchAllocationService).allocateAndDeductBatches(eq(888L), eq(101L), eq(10), eq(2L), eq("ONLINE_SALE"));
-        verify(batchAllocationService).allocateAndDeductBatches(eq(888L), eq(102L), eq(2), eq(2L), eq("ONLINE_SALE"));
+        verify(batchAllocationService).allocateAndDeductBatches(eq(888L), eq(101L), eq(10), eq(2L), eq("ONLINE_SALE"), anyBoolean());
+        verify(batchAllocationService).allocateAndDeductBatches(eq(888L), eq(102L), eq(2), eq(2L), eq("ONLINE_SALE"), anyBoolean());
 
         // Verify cart is cleared
         verify(cartItemRepository).deleteByUser_Id(2L);
@@ -274,7 +274,7 @@ class OrderServiceTest {
         assertEquals(new BigDecimal("1016.50"), order.getTotalAmount());
 
         // Verify FIFO/FEFO allocation
-        verify(batchAllocationService).allocateAndDeductBatches(eq(777L), eq(101L), eq(10), eq(1L), eq("ONLINE_SALE"));
+        verify(batchAllocationService).allocateAndDeductBatches(eq(777L), eq(101L), eq(10), eq(1L), eq("ONLINE_SALE"), anyBoolean());
     }
 
     @Test

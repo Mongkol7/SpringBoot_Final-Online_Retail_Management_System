@@ -18,6 +18,8 @@ export interface User {
   email: string;
   fullName: string;
   phone?: string;
+  avatarUrl?: string;
+  companyName?: string;
   customerType: CustomerType;
   addresses?: string[];
   isActive: boolean;
@@ -62,6 +64,7 @@ export interface Product {
   name: string;
   description?: string;
   imageUrl?: string;
+  images?: string[] | string;
   costPrice: number;
   retailPrice: number;
   wholesalePrice: number;
@@ -71,6 +74,16 @@ export interface Product {
   isDeleted: boolean;
   stockQuantity?: number;
   availableStock?: number;
+  currentBatchExpiryDate?: string;
+  daysUntilExpiry?: number;
+  nearExpiryQuantity?: number;
+  clearanceDiscountPercent?: number;
+  clearancePrice?: number;
+  wholesaleClearancePrice?: number;
+  freshStockQuantity?: number;
+  freshBatchExpiryDate?: string;
+  freshBatchCode?: string;
+  batchCode?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -120,6 +133,7 @@ export interface OrderItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  batchPreference?: 'FRESH' | 'CLEARANCE';
   product?: Product;
 }
 
@@ -226,7 +240,11 @@ export interface ExecutiveKpiSummary {
   posOrdersCount: number;
   pendingWholesaleApplicationsCount: number;
   expiredBatchesCount: number;
+  soonExpiringBatchesCount?: number;
   lowStockProductsCount: number;
+  totalStockValuation?: number;
+  totalStockRetailValue?: number;
+  netLoss?: number;
 }
 
 export interface SalesSeriesPoint {
@@ -247,6 +265,8 @@ export interface AdminUser {
   isActive: boolean;
   address?: string;
   addresses?: string;
+  avatarUrl?: string;
+  profileImg?: string;
   createdAt?: string;
 }
 
@@ -257,6 +277,8 @@ export interface CreateUserRequest {
   phone?: string;
   roleName: string;
   customerType?: CustomerType;
+  avatarUrl?: string;
+  profileImg?: string;
 }
 
 export interface UpdateUserRequest {
@@ -267,6 +289,8 @@ export interface UpdateUserRequest {
   customerType?: CustomerType;
   isActive?: boolean;
   password?: string;
+  avatarUrl?: string;
+  profileImg?: string;
 }
 
 export interface AdminWholesaleApp {

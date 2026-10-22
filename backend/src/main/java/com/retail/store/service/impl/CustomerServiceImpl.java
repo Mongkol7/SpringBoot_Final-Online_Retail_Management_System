@@ -6,8 +6,10 @@ import com.retail.store.entity.Product;
 import com.retail.store.entity.User;
 import com.retail.store.entity.WholesaleApplication;
 import com.retail.store.entity.enums.PaymentMethod;
+import com.retail.store.entity.ProductBatch;
 import com.retail.store.repository.CartItemRepository;
 import com.retail.store.repository.OrderRepository;
+import com.retail.store.repository.ProductBatchRepository;
 import com.retail.store.repository.ProductRepository;
 import com.retail.store.repository.UserRepository;
 import com.retail.store.repository.WholesaleApplicationRepository;
@@ -18,7 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import com.retail.store.entity.enums.ApplicationStatus;
@@ -48,26 +53,32 @@ public class CustomerServiceImpl implements CustomerService {
 
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
+    private final ProductBatchRepository batchRepository;
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
     private final WholesaleApplicationRepository wholesaleRepository;
     private final BatchAllocationService batchAllocationService;
     private final OrderService orderService;
+    private final org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     public CustomerServiceImpl(CartItemRepository cartItemRepository,
                                ProductRepository productRepository,
+                               ProductBatchRepository batchRepository,
                                UserRepository userRepository,
                                OrderRepository orderRepository,
                                WholesaleApplicationRepository wholesaleRepository,
                                BatchAllocationService batchAllocationService,
-                               OrderService orderService) {
+                               OrderService orderService,
+                               org.springframework.security.crypto.password.PasswordEncoder passwordEncoder) {
         this.cartItemRepository = cartItemRepository;
         this.productRepository = productRepository;
+        this.batchRepository = batchRepository;
         this.userRepository = userRepository;
         this.orderRepository = orderRepository;
         this.wholesaleRepository = wholesaleRepository;
         this.batchAllocationService = batchAllocationService;
         this.orderService = orderService;
+        this.passwordEncoder = passwordEncoder != null ? passwordEncoder : new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(12);
     }
 
     @Override
@@ -170,7 +181,7 @@ public class CustomerServiceImpl implements CustomerService {
         Order order = orderRepository.findByOrderNumber(orderNumber)
                 .orElseGet(() -> {
                     try {
-                        Long id = Long.parseLong(orderNumber);
+                        Long id = Long.valueOf(orderNumber);
                         return orderRepository.findById(id).orElse(null);
                     } catch (NumberFormatException e) {
                         return null;
@@ -257,7 +268,7 @@ public class CustomerServiceImpl implements CustomerService {
     public List<com.retail.store.entity.Product> getAvailableProducts() {
         List<com.retail.store.entity.Product> products = productRepository.findByIsDeletedFalseOrderByNameAsc();
         for (com.retail.store.entity.Product p : products) {
-            p.setStockQuantity(batchAllocationService.getAvailableStock(p.getId()));
+            enrichProductBatchAndExpiry(p);
         }
         return products;
     }
@@ -267,7 +278,122 @@ public class CustomerServiceImpl implements CustomerService {
     public com.retail.store.entity.Product getProductById(Long id) {
         com.retail.store.entity.Product product = productRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new com.retail.store.exception.ResourceNotFoundException("Product not found with id: " + id));
-        product.setStockQuantity(batchAllocationService.getAvailableStock(product.getId()));
+        enrichProductBatchAndExpiry(product);
         return product;
+    }
+
+    private void enrichProductBatchAndExpiry(com.retail.store.entity.Product p) {
+        if (p == null) return;
+        p.setStockQuantity(batchAllocationService.getAvailableStock(p.getId()));
+
+        List<ProductBatch> activeBatches;
+        if (Boolean.TRUE.equals(p.getIsPerishable())) {
+            activeBatches = batchRepository.findActiveBatchesFEFO(p.getId(), LocalDate.now());
+        } else {
+            activeBatches = batchRepository.findActiveBatchesFIFO(p.getId());
+        }
+
+        LocalDate now = LocalDate.now();
+        LocalDate oneMonthLater = now.plusDays(30);
+
+        if (!activeBatches.isEmpty()) {
+            ProductBatch firstBatch = activeBatches.get(0);
+            p.setBatchCode(firstBatch.getBatchCode());
+
+            LocalDate expDate = firstBatch.getExpiryDate();
+            if (expDate != null) {
+                p.setCurrentBatchExpiryDate(expDate.toString());
+                long days = ChronoUnit.DAYS.between(now, expDate);
+                p.setDaysUntilExpiry((int) Math.max(0, days));
+            }
+
+            int nearExpiryUnits = 0;
+            int freshUnits = 0;
+            String freshExpiry = null;
+            String freshCode = null;
+
+            for (ProductBatch b : activeBatches) {
+                if (b.getCurrentQuantity() <= 0) continue;
+                boolean isNearExpiry = b.getExpiryDate() != null && !b.getExpiryDate().isAfter(oneMonthLater);
+                if (isNearExpiry) {
+                    nearExpiryUnits += b.getCurrentQuantity();
+                } else {
+                    freshUnits += b.getCurrentQuantity();
+                    if (freshCode == null) {
+                        freshCode = b.getBatchCode();
+                        if (b.getExpiryDate() != null) {
+                            freshExpiry = b.getExpiryDate().toString();
+                        }
+                    }
+                }
+            }
+
+            p.setNearExpiryQuantity(nearExpiryUnits);
+            p.setFreshStockQuantity(freshUnits);
+            p.setFreshBatchExpiryDate(freshExpiry);
+            p.setFreshBatchCode(freshCode);
+
+            if (nearExpiryUnits > 0) {
+                // 25% clearance discount for near-expiry units (< 1 month)
+                p.setClearanceDiscountPercent(BigDecimal.valueOf(25));
+                BigDecimal factor = BigDecimal.valueOf(0.75);
+                if (p.getRetailPrice() != null) {
+                    p.setClearancePrice(p.getRetailPrice().multiply(factor).setScale(2, RoundingMode.HALF_UP));
+                }
+                if (p.getWholesalePrice() != null) {
+                    p.setWholesaleClearancePrice(p.getWholesalePrice().multiply(factor).setScale(2, RoundingMode.HALF_UP));
+                }
+            } else {
+                p.setClearanceDiscountPercent(BigDecimal.ZERO);
+                p.setClearancePrice(p.getRetailPrice());
+                p.setWholesaleClearancePrice(p.getWholesalePrice());
+            }
+        } else {
+            p.setNearExpiryQuantity(0);
+            p.setFreshStockQuantity(0);
+            p.setClearanceDiscountPercent(BigDecimal.ZERO);
+            p.setClearancePrice(p.getRetailPrice());
+            p.setWholesaleClearancePrice(p.getWholesalePrice());
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public User getCustomerProfile(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new com.retail.store.exception.ResourceNotFoundException("User not found with id: " + userId));
+    }
+
+    @Override
+    @Transactional
+    public User updateCustomerProfile(Long userId, String fullName, String phone, String addressesJson, String newPassword) {
+        return updateCustomerProfile(userId, fullName, phone, addressesJson, newPassword, null, null);
+    }
+
+    @Override
+    @Transactional
+    public User updateCustomerProfile(Long userId, String fullName, String phone, String addressesJson, String newPassword, String avatarUrl, String companyName) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new com.retail.store.exception.ResourceNotFoundException("User not found with id: " + userId));
+
+        if (fullName != null && !fullName.trim().isEmpty()) {
+            user.setFullName(fullName.trim());
+        }
+        if (phone != null) {
+            user.setPhone(phone.trim());
+        }
+        if (addressesJson != null && !addressesJson.trim().isEmpty()) {
+            user.setAddresses(addressesJson.trim());
+        }
+        if (avatarUrl != null && !avatarUrl.trim().isEmpty()) {
+            user.setAvatarUrl(avatarUrl.trim());
+        }
+        if (companyName != null) {
+            user.setCompanyName(companyName.trim());
+        }
+        if (newPassword != null && !newPassword.trim().isEmpty() && newPassword.trim().length() >= 4) {
+            user.setPasswordHash(passwordEncoder.encode(newPassword.trim()));
+        }
+        return userRepository.save(user);
     }
 }
