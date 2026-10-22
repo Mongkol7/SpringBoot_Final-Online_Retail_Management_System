@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import { WholesaleApplyModal, WholesaleStatusBanner } from './WholesaleApplyModal';
+import { LogoutConfirmModal } from '../../components/ui/LogoutConfirmModal';
 import {
   ShoppingBag,
   ShoppingCart,
@@ -25,6 +26,7 @@ export const CustomerNavbar: React.FC = () => {
   } = useCustomerCartStore();
 
   const [isWholesaleModalOpen, setIsWholesaleModalOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const cartCount = getItemCount();
   const effectiveTier = getEffectiveTier();
   const topOffset = notification?.message ? '68px' : '16px';
@@ -181,10 +183,7 @@ export const CustomerNavbar: React.FC = () => {
 
                 {/* Logout Button */}
                 <button
-                  onClick={() => {
-                    logout();
-                    navigate('/login');
-                  }}
+                  onClick={() => setShowLogoutConfirm(true)}
                   title="Sign out of customer account"
                   style={{
                     background: 'transparent',
@@ -284,6 +283,23 @@ export const CustomerNavbar: React.FC = () => {
       <WholesaleApplyModal
         isOpen={isWholesaleModalOpen}
         onClose={() => setIsWholesaleModalOpen(false)}
+      />
+
+      {/* Redesigned Logout Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        roleLabel="Customer"
+        userName={user?.fullName}
+        title="Sign out of customer account?"
+        description="Your customer session will be safely cleared. Any products saved in your cart will remain available when you return."
+        confirmLabel="Sign Out"
+        cancelLabel="Stay Signed In"
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          logout();
+          navigate('/login');
+        }}
       />
     </>
   );

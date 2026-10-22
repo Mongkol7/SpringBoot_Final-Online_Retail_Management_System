@@ -91,45 +91,11 @@ export function calculateItemPrice(
     }
   }
 
-  // Case 2: RETAIL Customer Type
-  if (safeQty >= RETAIL_BULK_MIN_QTY) {
-    // 5% Bulk Retail Discount applied
-    const discountAmount = originalPrice * (RETAIL_BULK_DISCOUNT_PERCENT / 100);
-    let calculatedBulk = parseFloat((originalPrice - discountAmount).toFixed(2));
-
-    // Ensure business rule constraint: wholesalePrice < bulkRetailPrice < retailPrice
-    if (calculatedBulk <= product.wholesalePrice) {
-      calculatedBulk = parseFloat((product.wholesalePrice + 0.05).toFixed(2));
-    }
-    if (calculatedBulk >= originalPrice) {
-      calculatedBulk = parseFloat((originalPrice - 0.05).toFixed(2));
-    }
-
-    const unitPrice = calculatedBulk;
-    const unitSavings = Math.max(0, parseFloat((originalPrice - unitPrice).toFixed(2)));
-    const savings = parseFloat((unitSavings * safeQty).toFixed(2));
-    const subtotal = parseFloat((unitPrice * safeQty).toFixed(2));
-
-    return {
-      unitPrice,
-      originalPrice,
-      discountType: 'RETAIL_BULK',
-      unitSavings,
-      savings,
-      subtotal,
-      neededForWholesale: 0,
-      neededForRetailBulk: 0,
-      minQty: RETAIL_BULK_MIN_QTY,
-      discountPercent: RETAIL_BULK_DISCOUNT_PERCENT,
-      badgeLabel: `Bulk Tier (-${RETAIL_BULK_DISCOUNT_PERCENT}%)`,
-      badgeColor: '#0A84FF'
-    };
-  }
-
-  // Standard retail quantity (< 10)
+  // Case 2: RETAIL Customer Type (Standard / Guest Store Customers)
+  // Standard retail customers always pay normal retail price.
+  // Wholesale discounts are strictly reserved for approved WHOLESALE accounts.
   const unitPrice = originalPrice;
   const subtotal = parseFloat((unitPrice * safeQty).toFixed(2));
-  const neededForRetailBulk = RETAIL_BULK_MIN_QTY - safeQty;
 
   return {
     unitPrice,
@@ -138,9 +104,9 @@ export function calculateItemPrice(
     unitSavings: 0,
     savings: 0,
     subtotal,
-    neededForWholesale: 0,
-    neededForRetailBulk,
-    minQty: RETAIL_BULK_MIN_QTY,
+    neededForWholesale: minQty,
+    neededForRetailBulk: 0,
+    minQty,
     discountPercent: 0,
     badgeLabel: undefined,
     badgeColor: undefined

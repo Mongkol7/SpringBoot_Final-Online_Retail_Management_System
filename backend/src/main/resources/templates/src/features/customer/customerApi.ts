@@ -221,10 +221,10 @@ function withFallbackStock(product: Product): Product {
 function getAuthHeaders(): { headers: Record<string, string> } {
   const token =
     localStorage.getItem('customer_jwt') ||
-    localStorage.getItem('admin_jwt') ||
-    localStorage.getItem('inventory_jwt') ||
-    localStorage.getItem('cashier_jwt') ||
-    localStorage.getItem('jwt_token') ||
+    '' ||
+    '' ||
+    '' ||
+    '' ||
     '';
   if (token) {
     return {

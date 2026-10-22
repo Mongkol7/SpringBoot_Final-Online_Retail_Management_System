@@ -775,6 +775,7 @@ export const CashierPosTerminal: React.FC = () => {
       <LogoutConfirmModal
         isOpen={showLogoutConfirm}
         roleLabel="Cashier"
+        userName={currentUser?.fullName || currentUser?.email}
         description="The cashier account will be signed out. Any open register work remains recorded on the server."
         onCancel={() => setShowLogoutConfirm(false)}
         onConfirm={() => {

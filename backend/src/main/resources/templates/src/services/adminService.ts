@@ -1536,7 +1536,7 @@ export const adminService = {
   async getWholesaleApplications(
     status?: string,
     page: number = 0,
-    size: number = 10
+    size: number = 1000
   ): Promise<{ content: AdminWholesaleApp[]; totalElements: number; totalPages: number }> {
     try {
       const headers = await getAdminHeaders();
@@ -1544,14 +1544,25 @@ export const adminService = {
         params: { status: status || undefined, page, size },
         headers
       });
+      const content = (res.data.content || []).sort((a: AdminWholesaleApp, b: AdminWholesaleApp) => {
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        if (timeB !== timeA) return timeB - timeA;
+        return (b.id || 0) - (a.id || 0);
+      });
       return {
-        content: res.data.content || [],
-        totalElements: res.data.totalElements || 0,
+        content,
+        totalElements: res.data.totalElements || content.length,
         totalPages: res.data.totalPages || 1
       };
     } catch (err) {
       console.warn('Backend wholesale apps fetch failed, using fallback:', err);
-      let filtered = fallbackWholesaleApps;
+      let filtered = [...fallbackWholesaleApps].sort((a, b) => {
+        const timeA = new Date(a.createdAt || 0).getTime();
+        const timeB = new Date(b.createdAt || 0).getTime();
+        if (timeB !== timeA) return timeB - timeA;
+        return (b.id || 0) - (a.id || 0);
+      });
       if (status) {
         filtered = filtered.filter((app) => app.status === status);
       }

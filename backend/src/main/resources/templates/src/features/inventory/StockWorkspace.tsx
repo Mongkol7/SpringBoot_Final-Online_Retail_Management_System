@@ -229,6 +229,7 @@ export const StockWorkspace: React.FC = () => {
       <LogoutConfirmModal
         isOpen={showLogoutConfirm}
         roleLabel="Stock Controller"
+        userName={currentUser?.fullName || currentUser?.email}
         description="Your live inventory session will be closed and this workspace will return to local preview mode."
         onCancel={() => setShowLogoutConfirm(false)}
         onConfirm={() => {

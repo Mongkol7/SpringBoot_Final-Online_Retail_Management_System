@@ -11,7 +11,8 @@ import {
   Sparkles,
   ArrowLeft,
   PackageOpen,
-  AlertTriangle
+  AlertTriangle,
+  Building2
 } from 'lucide-react';
 
 interface CartPageProps {
@@ -36,7 +37,8 @@ export const CartPage: React.FC<CartPageProps> = ({
     getTotal,
     getItemCount,
     getWholesaleSavings,
-    getEffectiveTier
+    getEffectiveTier,
+    isAuthenticated
   } = useCustomerCartStore();
 
   const effectiveTier = getEffectiveTier();
@@ -101,8 +103,17 @@ export const CartPage: React.FC<CartPageProps> = ({
               </span>
             </div>
             <p style={{ fontSize: '13px', color: '#6B7280', margin: '4px 0 0 0' }}>
-              Pricing applied: <strong>{effectiveTier} Tier</strong>
-              {effectiveTier === 'WHOLESALE' && ' (Wholesale discounts reflected below)'}
+              Pricing applied:{' '}
+              <strong style={{ color: isAuthenticated && effectiveTier === 'WHOLESALE' ? '#D97706' : '#111827' }}>
+                {isAuthenticated && effectiveTier === 'WHOLESALE'
+                  ? '★ Verified Wholesale Partner'
+                  : 'Standard Retail Store Pricing'}
+              </strong>
+              {isAuthenticated && effectiveTier === 'WHOLESALE' && (
+                <span style={{ color: '#059669', fontWeight: 700, marginLeft: '6px' }}>
+                  (Wholesale B2B rates applied on 10+ units)
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -128,6 +139,47 @@ export const CartPage: React.FC<CartPageProps> = ({
           </button>
         )}
       </div>
+
+      {/* Guest Cart Info Banner */}
+      {!isAuthenticated && items.length > 0 && (
+        <div
+          style={{
+            padding: '14px 20px',
+            borderRadius: '18px',
+            backgroundColor: '#EFF6FF',
+            border: '1px solid #BFDBFE',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '14px',
+            flexWrap: 'wrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#1E40AF' }}>
+            <Building2 size={18} style={{ flexShrink: 0 }} />
+            <span>
+              <strong>Shopping as Guest:</strong> Items in your cart are charged at standard retail store prices. Sign in with a verified wholesale account to unlock B2B pricing on orders of 10+ units.
+            </span>
+          </div>
+          <button
+            onClick={() => navigate('/login?redirect=/cart')}
+            style={{
+              padding: '7px 16px',
+              borderRadius: '9999px',
+              backgroundColor: '#2563EB',
+              color: '#FFFFFF',
+              border: 'none',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.25)'
+            }}
+          >
+            Sign In to Unlock Wholesale →
+          </button>
+        </div>
+      )}
 
       {/* Main Content Layout */}
       {items.length === 0 ? (

@@ -7,6 +7,8 @@ import com.retail.store.security.user.UserDetailsImpl;
 import com.retail.store.service.AdminService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -44,8 +46,10 @@ public class AdminController {
     public ResponseEntity<Page<WholesaleApplication>> getWholesaleApplications(
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
-        return ResponseEntity.ok(adminService.getWholesaleApplications(status, PageRequest.of(page, size)));
+            @RequestParam(defaultValue = "1000") int size) {
+        int safeSize = (size <= 0) ? 1000 : Math.min(size, 10000);
+        Pageable pageable = PageRequest.of(page, safeSize, Sort.by(Sort.Direction.DESC, "createdAt", "id"));
+        return ResponseEntity.ok(adminService.getWholesaleApplications(status, pageable));
     }
 
     @PostMapping({"/wholesale/applications/{id}/approve", "/wholesale-applications/{id}/approve"})

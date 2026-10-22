@@ -228,14 +228,21 @@ export const useCustomerCartStore = create<CustomerState>()(
 
       logout: () => {
         localStorage.removeItem('customer_jwt');
+        // When logging out, immediately recalculate all products in cart back to standard RETAIL pricing
+        const resetItems = get().items.map((item) =>
+          buildCartItem(item.product, item.quantity, 'RETAIL', item.id)
+        );
         set({
           isAuthenticated: false,
           token: null,
           user: GUEST_USER,
-          demoTierOverride: null
+          demoTierOverride: null,
+          wholesaleApplication: null,
+          items: resetItems,
+          totalPrice: calcCartTotal(resetItems)
         });
         get().setNotification({
-          message: 'Signed out of customer account',
+          message: 'Signed out of customer account. Switched to standard store pricing.',
           badge: 'GUEST'
         });
       },
@@ -243,18 +250,24 @@ export const useCustomerCartStore = create<CustomerState>()(
       quickDemoLogin: (tier: 'RETAIL' | 'WHOLESALE') => {
         const token = 'jwt-customer-token-2026';
         localStorage.setItem('customer_jwt', token);
+        const updatedUser = {
+          ...DEFAULT_USER,
+          customerType: tier
+        };
+        const updatedItems = get().items.map((item) =>
+          buildCartItem(item.product, item.quantity, tier, item.id)
+        );
         set({
           isAuthenticated: true,
           token,
-          user: {
-            ...DEFAULT_USER,
-            customerType: tier
-          },
-          demoTierOverride: tier
+          user: updatedUser,
+          demoTierOverride: tier,
+          items: updatedItems,
+          totalPrice: calcCartTotal(updatedItems)
         });
         get().setNotification({
-          message: `Signed in as Customer`,
-          badge: 'CUSTOMER'
+          message: `Signed in as Customer (${tier})`,
+          badge: tier
         });
       },
 
@@ -290,6 +303,10 @@ export const useCustomerCartStore = create<CustomerState>()(
 
       getEffectiveTier: () => {
         const state = get();
+        // Crucial security rule: Unauthenticated visitors / guests CANNOT be WHOLESALE
+        if (!state.isAuthenticated) {
+          return 'RETAIL';
+        }
         // Rule: If user account is WHOLESALE or wholesale application is APPROVED, unlock WHOLESALE
         if (state.user.customerType === 'WHOLESALE' || state.wholesaleApplication?.status === 'APPROVED') {
           return 'WHOLESALE';
@@ -304,6 +321,10 @@ export const useCustomerCartStore = create<CustomerState>()(
 
       getDisplayTier: (): 'RETAIL' | 'PENDING_WHOLESALE' | 'WHOLESALE' => {
         const state = get();
+        // Crucial security rule: Unauthenticated visitors / guests CANNOT be WHOLESALE
+        if (!state.isAuthenticated) {
+          return 'RETAIL';
+        }
         if (state.user.customerType === 'WHOLESALE' || state.wholesaleApplication?.status === 'APPROVED' || state.demoTierOverride === 'WHOLESALE') {
           return 'WHOLESALE';
         }
@@ -662,9 +683,13 @@ export const useCustomerCartStore = create<CustomerState>()(
       },
 
       checkWholesaleStatus: async () => {
+        // Must only check when authenticated with a customer token
+        if (!get().isAuthenticated || !localStorage.getItem('customer_jwt')) {
+          return null;
+        }
         try {
           const app = await customerApi.getWholesaleStatus();
-          if (app) {
+          if (app && get().isAuthenticated) {
             set({ wholesaleApplication: app });
             if (app.status === 'APPROVED' || get().user.customerType === 'WHOLESALE') {
               const updatedUser: User = { ...get().user, customerType: 'WHOLESALE' };
@@ -712,6 +737,21 @@ export const useCustomerCartStore = create<CustomerState>()(
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {
+          // If customer is logged out, ensure wholesale data and cart discounts are purged
+          if (!state.isAuthenticated || !localStorage.getItem('customer_jwt')) {
+            state.isAuthenticated = false;
+            state.token = null;
+            state.user = GUEST_USER;
+            state.demoTierOverride = null;
+            state.wholesaleApplication = null;
+            if (Array.isArray(state.items)) {
+              state.items = state.items.map((item) =>
+                buildCartItem(item.product, item.quantity, 'RETAIL', item.id)
+              );
+              state.totalPrice = calcCartTotal(state.items);
+            }
+          }
+
           const currentOrders = Array.isArray(state.orders) ? state.orders : [];
           const sanitized = currentOrders.map((o, idx) => ({
             ...o,

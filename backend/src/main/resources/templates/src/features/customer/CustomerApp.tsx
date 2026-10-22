@@ -17,6 +17,7 @@ import {
   LogIn,
   LogOut
 } from 'lucide-react';
+import { LogoutConfirmModal } from '../../components/ui/LogoutConfirmModal';
 
 export type CustomerRoute = 'shop' | 'cart' | 'checkout' | 'orders' | 'wholesale' | 'product-detail';
 
@@ -68,6 +69,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
 
   const cartCount = getItemCount();
   const displayTier = getDisplayTier();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Background polling to automatically catch Admin Wholesale Approval
   React.useEffect(() => {
@@ -120,7 +122,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
         {/* Customer Identity Capsule */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF' }}>
-            {user.fullName}
+            {isAuthenticated ? user.fullName : 'Store Guest'}
           </span>
           <span
             style={{
@@ -129,21 +131,21 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
               padding: '3px 10px',
               borderRadius: '9999px',
               backgroundColor:
-                displayTier === 'WHOLESALE'
+                isAuthenticated && displayTier === 'WHOLESALE'
                   ? 'rgba(251, 192, 45, 0.25)'
-                  : displayTier === 'PENDING_WHOLESALE'
+                  : isAuthenticated && displayTier === 'PENDING_WHOLESALE'
                   ? 'rgba(245, 158, 11, 0.25)'
                   : 'rgba(255, 255, 255, 0.08)',
               color:
-                displayTier === 'WHOLESALE'
+                isAuthenticated && displayTier === 'WHOLESALE'
                   ? '#FDE047'
-                  : displayTier === 'PENDING_WHOLESALE'
+                  : isAuthenticated && displayTier === 'PENDING_WHOLESALE'
                   ? '#FBBF24'
                   : '#FFFFFF',
               border:
-                displayTier === 'WHOLESALE'
+                isAuthenticated && displayTier === 'WHOLESALE'
                   ? '1px solid rgba(251, 192, 45, 0.5)'
-                  : displayTier === 'PENDING_WHOLESALE'
+                  : isAuthenticated && displayTier === 'PENDING_WHOLESALE'
                   ? '1px solid rgba(245, 158, 11, 0.5)'
                   : '1px solid rgba(255, 255, 255, 0.12)',
               letterSpacing: '0.04em',
@@ -152,12 +154,12 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
               gap: '4px'
             }}
           >
-            {displayTier === 'WHOLESALE' ? (
+            {isAuthenticated && displayTier === 'WHOLESALE' ? (
               <>
                 <span>★</span>
                 <span>VERIFIED WHOLESALE</span>
               </>
-            ) : displayTier === 'PENDING_WHOLESALE' ? (
+            ) : isAuthenticated && displayTier === 'PENDING_WHOLESALE' ? (
               <>
                 <span>⏳</span>
                 <span>WHOLESALE (PENDING CONFIRMATION)</span>
@@ -236,11 +238,7 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
           {/* Customer Auth Button */}
           {isAuthenticated ? (
             <button
-              onClick={() => {
-                if (window.confirm('Sign out from customer account?')) {
-                  logout();
-                }
-              }}
+              onClick={() => setShowLogoutConfirm(true)}
               title="Sign Out"
               style={{
                 display: 'flex',
@@ -286,6 +284,22 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
           )}
         </div>
       </div>
+
+      {/* Redesigned Logout Confirmation Modal */}
+      <LogoutConfirmModal
+        isOpen={showLogoutConfirm}
+        roleLabel="Customer"
+        userName={user?.fullName}
+        title="Sign out of customer account?"
+        description="Your customer session will be safely cleared. Any products saved in your cart will remain available when you return."
+        confirmLabel="Sign Out"
+        cancelLabel="Stay Signed In"
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          setShowLogoutConfirm(false);
+          logout();
+        }}
+      />
 
       {/* Main View Display */}
       {currentRoute === 'shop' && (

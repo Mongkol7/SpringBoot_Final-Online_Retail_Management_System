@@ -107,6 +107,14 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
   // Wholesale Applications State
   const [wholesaleApps, setWholesaleApps] = useState<AdminWholesaleApp[]>([]);
+  const sortedWholesaleApps = useMemo(() => {
+    return [...wholesaleApps].sort((a, b) => {
+      const timeA = new Date(a.createdAt || 0).getTime();
+      const timeB = new Date(b.createdAt || 0).getTime();
+      if (timeB !== timeA) return timeB - timeA;
+      return (b.id || 0) - (a.id || 0);
+    });
+  }, [wholesaleApps]);
   const [wholesaleFilter, setWholesaleFilter] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
   const [selectedWholesaleAppModal, setSelectedWholesaleAppModal] = useState<AdminWholesaleApp | null>(null);
   const [wholesaleApprovalNotes, setWholesaleApprovalNotes] = useState<string>('');
@@ -3450,11 +3458,39 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
               }}
             >
               <div>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#FFFFFF' }}>
-                  Wholesale B2B Application Verification Queue
-                </h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: 700, margin: 0, color: '#FFFFFF' }}>
+                    Wholesale B2B Application Verification Queue
+                  </h3>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      background: 'rgba(59, 130, 246, 0.15)',
+                      color: '#60A5FA',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      fontWeight: 600
+                    }}
+                  >
+                    Showing All {sortedWholesaleApps.length} Applications (No Row Limit)
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '11px',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      background: 'rgba(16, 185, 129, 0.15)',
+                      color: '#34D399',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      fontWeight: 600
+                    }}
+                  >
+                    Newest First
+                  </span>
+                </div>
                 <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--ios-text-muted)' }}>
-                  Approve applicant businesses to instantly elevate their customer account to Wholesale pricing tier.
+                  Approve applicant businesses to instantly elevate their customer account to Wholesale pricing tier. Showing all applications without row limits, sorted with newest requests on top.
                 </p>
               </div>
 
@@ -3492,7 +3528,7 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             </div>
 
             {/* Applications Table / Cards */}
-            {wholesaleApps.length === 0 ? (
+            {sortedWholesaleApps.length === 0 ? (
               <div
                 style={{
                   textAlign: 'center',
@@ -3506,7 +3542,7 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {wholesaleApps.map((app) => (
+                {sortedWholesaleApps.map((app) => (
                   <div
                     key={app.id}
                     style={{
@@ -3609,7 +3645,17 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                         )}
                         <div>
                           Submitted:{' '}
-                          <span>{app.createdAt ? new Date(app.createdAt).toLocaleDateString() : 'N/A'}</span>
+                          <span style={{ color: '#E2E8F0', fontWeight: 500 }}>
+                            {app.createdAt
+                              ? new Date(app.createdAt).toLocaleString(undefined, {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })
+                              : 'N/A'}
+                          </span>
                         </div>
                       </div>
 
