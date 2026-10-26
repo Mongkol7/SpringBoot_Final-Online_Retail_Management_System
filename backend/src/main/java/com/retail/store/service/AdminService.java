@@ -109,6 +109,7 @@ public interface AdminService {
             String description,
             String categoryName,
             String imageUrl,
+            String images,
             BigDecimal costPrice,
             BigDecimal retailPrice,
             BigDecimal wholesalePrice,
@@ -120,7 +121,19 @@ public interface AdminService {
             String currentBatchCode,
             java.time.LocalDate currentBatchExpiryDate,
             java.util.List<BatchItemDto> batches
-    ) {}
+    ) {
+        public AdminProductDetailDto(
+                Long id, String sku, String name, String description, String categoryName,
+                String imageUrl, BigDecimal costPrice, BigDecimal retailPrice, BigDecimal wholesalePrice,
+                BigDecimal retailMarginPercent, BigDecimal wholesaleMarginPercent, int availableStock,
+                int minStockThreshold, boolean isPerishable, String currentBatchCode,
+                java.time.LocalDate currentBatchExpiryDate, java.util.List<BatchItemDto> batches
+        ) {
+            this(id, sku, name, description, categoryName, imageUrl, null, costPrice, retailPrice, wholesalePrice,
+                    retailMarginPercent, wholesaleMarginPercent, availableStock, minStockThreshold, isPerishable,
+                    currentBatchCode, currentBatchExpiryDate, batches);
+        }
+    }
 
     record BatchItemDto(
             Long id,
@@ -171,10 +184,18 @@ public interface AdminService {
             String imageUrl,
             int quantity,
             BigDecimal unitPrice,
-            BigDecimal subtotal
+            BigDecimal subtotal,
+            BigDecimal originalPrice,
+            Boolean isPerishable,
+            java.time.LocalDate expiryDate,
+            String pricingTier
     ) {
         public AdminPaymentItemDto(Long id, String productName, String sku, int quantity, BigDecimal unitPrice, BigDecimal subtotal) {
-            this(id, productName, sku, null, quantity, unitPrice, subtotal);
+            this(id, productName, sku, null, quantity, unitPrice, subtotal, unitPrice, false, null, "RETAIL");
+        }
+
+        public AdminPaymentItemDto(Long id, String productName, String sku, String imageUrl, int quantity, BigDecimal unitPrice, BigDecimal subtotal) {
+            this(id, productName, sku, imageUrl, quantity, unitPrice, subtotal, unitPrice, false, null, "RETAIL");
         }
     }
 

@@ -373,6 +373,8 @@ export interface AdminProductDetail {
   description?: string;
   categoryName?: string;
   imageUrl?: string;
+  images?: string;
+  otherImages?: string[];
   costPrice: number;
   retailPrice: number;
   wholesalePrice: number;
@@ -394,6 +396,10 @@ export interface AdminPaymentItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  originalPrice?: number;
+  isPerishable?: boolean;
+  expiryDate?: string;
+  pricingTier?: string;
 }
 
 export interface AdminPayment {

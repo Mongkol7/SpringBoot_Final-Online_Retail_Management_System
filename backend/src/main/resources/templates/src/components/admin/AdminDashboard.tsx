@@ -228,7 +228,70 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   const [productCategoryFilter, setProductCategoryFilter] = useState<string>('ALL');
   const [productStockFilter, setProductStockFilter] = useState<'ALL' | 'HEALTHY' | 'LOW' | 'OUT' | 'PERISHABLE' | 'EXPIRING_SOON'>('ALL');
   const [selectedProductModal, setSelectedProductModal] = useState<AdminProductDetail | null>(null);
+  const [inspectActiveImageIdx, setInspectActiveImageIdx] = useState<number>(0);
   const [loadingDetailId, setLoadingDetailId] = useState<number | null>(null);
+
+  // Status Badge Styling Helper for Payment & Revenue Records
+  const getPaymentStatusStyle = (status?: string) => {
+    const s = (status || 'PAID').toUpperCase();
+    switch (s) {
+      case 'PAID':
+      case 'SETTLED':
+      case 'COMPLETED':
+      case 'SUCCESS':
+        return {
+          bg: 'rgba(16, 185, 129, 0.15)',
+          text: '#34D399',
+          border: '1px solid rgba(16, 185, 129, 0.35)',
+          icon: <CheckCircle2 size={11} />
+        };
+      case 'PROCESSING':
+        return {
+          bg: 'rgba(59, 130, 246, 0.15)',
+          text: '#60A5FA',
+          border: '1px solid rgba(59, 130, 246, 0.35)',
+          icon: <RefreshCw size={11} />
+        };
+      case 'PENDING':
+        return {
+          bg: 'rgba(245, 158, 11, 0.15)',
+          text: '#FBBF24',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
+          icon: <Clock size={11} />
+        };
+      case 'CANCELLED':
+      case 'FAILED':
+      case 'VOID':
+        return {
+          bg: 'rgba(239, 68, 68, 0.15)',
+          text: '#F87171',
+          border: '1px solid rgba(239, 68, 68, 0.35)',
+          icon: <XCircle size={11} />
+        };
+      case 'REFUNDED':
+        return {
+          bg: 'rgba(168, 85, 247, 0.15)',
+          text: '#C084FC',
+          border: '1px solid rgba(168, 85, 247, 0.35)',
+          icon: <ArrowUpDown size={11} />
+        };
+      case 'PARTIAL':
+      case 'PARTIALLY_PAID':
+        return {
+          bg: 'rgba(6, 182, 212, 0.15)',
+          text: '#22D3EE',
+          border: '1px solid rgba(6, 182, 212, 0.35)',
+          icon: <AlertTriangle size={11} />
+        };
+      default:
+        return {
+          bg: 'rgba(255, 255, 255, 0.08)',
+          text: '#E2E8F0',
+          border: '1px solid rgba(255, 255, 255, 0.18)',
+          icon: <CheckCircle2 size={11} />
+        };
+    }
+  };
 
   // Payments & Tax State
   const [payments, setPayments] = useState<AdminPayment[]>([]);
@@ -791,6 +854,7 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
   // Handle Product Detail Inspection
   const handleInspectProduct = async (prod: AdminProductDetail) => {
+    setInspectActiveImageIdx(0);
     setLoadingDetailId(prod.id);
     try {
       const detail = await adminService.getProductDetail(prod.id);
@@ -3688,23 +3752,28 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
 
                           {/* Status */}
                           <td style={{ padding: '14px 16px' }}>
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '2px 8px',
-                                borderRadius: '9999px',
-                                fontSize: '10px',
-                                fontWeight: 800,
-                                background: 'rgba(16, 185, 129, 0.15)',
-                                color: '#34D399',
-                                border: '1px solid rgba(16, 185, 129, 0.3)'
-                              }}
-                            >
-                              <CheckCircle2 size={10} />
-                              {p.status || 'PAID'}
-                            </span>
+                            {(() => {
+                              const st = getPaymentStatusStyle(p.status);
+                              return (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '5px',
+                                    padding: '3px 10px',
+                                    borderRadius: '9999px',
+                                    fontSize: '10px',
+                                    fontWeight: 800,
+                                    background: st.bg,
+                                    color: st.text,
+                                    border: st.border
+                                  }}
+                                >
+                                  {st.icon}
+                                  {p.status || 'PAID'}
+                                </span>
+                              );
+                            })()}
                           </td>
 
                           {/* Timestamp */}
@@ -5316,40 +5385,118 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
             {/* Modal Top Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
               <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-                {selectedProductModal.imageUrl ? (
-                  <img
-                    src={selectedProductModal.imageUrl}
-                    alt={selectedProductModal.name}
-                    style={{
-                      width: '68px',
-                      height: '68px',
-                      borderRadius: '16px',
-                      objectFit: 'cover',
-                      border: '1px solid var(--ios-glass-border)',
-                      flexShrink: 0
-                    }}
-                    onError={(e) => {
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '68px',
-                      height: '68px',
-                      borderRadius: '16px',
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      border: '1px solid var(--ios-glass-border)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'var(--ios-text-muted)',
-                      flexShrink: 0
-                    }}
-                  >
-                    <Package size={32} />
-                  </div>
-                )}
+                {(() => {
+                  const inspectImages: string[] = [];
+                  const addImg = (url?: string | null) => {
+                    if (!url || typeof url !== 'string') return;
+                    const u = url.trim();
+                    if (!u || u === 'data:image/jpeg;base64' || u === 'data:image/png;base64') return;
+                    if (!inspectImages.includes(u)) inspectImages.push(u);
+                  };
+                  if (selectedProductModal.imageUrl) addImg(selectedProductModal.imageUrl);
+                  if (selectedProductModal.images) {
+                    const str = selectedProductModal.images.trim();
+                    if (str.startsWith('[') && str.endsWith(']')) {
+                      try {
+                        const parsed = JSON.parse(str);
+                        if (Array.isArray(parsed)) parsed.forEach(addImg);
+                      } catch {
+                        str.replace(/[\[\]"]/g, '').split(',').forEach(addImg);
+                      }
+                    } else if (str.includes(',')) {
+                      str.split(',').forEach(addImg);
+                    } else {
+                      addImg(str);
+                    }
+                  }
+                  if (selectedProductModal.otherImages && Array.isArray(selectedProductModal.otherImages)) {
+                    selectedProductModal.otherImages.forEach(addImg);
+                  }
+                  const activeImg = inspectImages[inspectActiveImageIdx] || inspectImages[0] || selectedProductModal.imageUrl;
+
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flexShrink: 0 }}>
+                      <div
+                        style={{
+                          width: '90px',
+                          height: '90px',
+                          borderRadius: '16px',
+                          background: 'rgba(0, 0, 0, 0.45)',
+                          border: '1px solid var(--ios-glass-border)',
+                          overflow: 'hidden',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          position: 'relative'
+                        }}
+                      >
+                        {activeImg ? (
+                          <img
+                            src={activeImg}
+                            alt={selectedProductModal.name}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'contain',
+                              padding: '4px'
+                            }}
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <Package size={32} color="var(--ios-text-muted)" />
+                        )}
+                        {inspectImages.length > 1 && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              bottom: '3px',
+                              right: '4px',
+                              fontSize: '9px',
+                              fontWeight: 800,
+                              padding: '1px 5px',
+                              borderRadius: '9999px',
+                              background: 'rgba(0,0,0,0.75)',
+                              color: '#FFFFFF'
+                            }}
+                          >
+                            {inspectActiveImageIdx + 1}/{inspectImages.length}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Other Images Thumbnails Strip */}
+                      {inspectImages.length > 1 && (
+                        <div style={{ display: 'flex', gap: '5px', maxWidth: '120px', overflowX: 'auto', padding: '2px' }}>
+                          {inspectImages.map((img, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setInspectActiveImageIdx(idx)}
+                              title={idx === 0 ? 'Main Cover' : `Gallery Image ${idx + 1}`}
+                              style={{
+                                width: '26px',
+                                height: '26px',
+                                borderRadius: '6px',
+                                overflow: 'hidden',
+                                padding: 0,
+                                border: idx === inspectActiveImageIdx ? '2px solid #38BDF8' : '1px solid rgba(255,255,255,0.15)',
+                                background: 'rgba(0,0,0,0.3)',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                                opacity: idx === inspectActiveImageIdx ? 1 : 0.6,
+                                transition: 'all 0.15s ease'
+                              }}
+                            >
+                              <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 <div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center', marginBottom: '6px' }}>
@@ -7207,11 +7354,94 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                                 <div style={{ fontSize: '10px', color: 'var(--ios-text-muted)', fontFamily: 'monospace' }}>
                                   SKU: {item.sku}
                                 </div>
+                                {/* Detailed Product Metadata: Pricing Tier, Discount, Expiry */}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                  <span
+                                    style={{
+                                      fontSize: '9px',
+                                      fontWeight: 800,
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      background: (item.pricingTier === 'WHOLESALE' || selectedPaymentModal.pricingTierUsed === 'WHOLESALE') ? 'rgba(168, 85, 247, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                                      color: (item.pricingTier === 'WHOLESALE' || selectedPaymentModal.pricingTierUsed === 'WHOLESALE') ? '#C084FC' : '#93C5FD',
+                                      border: (item.pricingTier === 'WHOLESALE' || selectedPaymentModal.pricingTierUsed === 'WHOLESALE') ? '1px solid rgba(168, 85, 247, 0.35)' : '1px solid rgba(59, 130, 246, 0.35)'
+                                    }}
+                                  >
+                                    {(item.pricingTier === 'WHOLESALE' || selectedPaymentModal.pricingTierUsed === 'WHOLESALE') ? '🏢 Wholesale Tier' : '🛍️ Normal User (Retail)'}
+                                  </span>
+
+                                  {((item.originalPrice && item.originalPrice > item.unitPrice + 0.01) || (selectedPaymentModal.pricingTierUsed === 'WHOLESALE')) ? (
+                                    <span
+                                      style={{
+                                        fontSize: '9px',
+                                        fontWeight: 800,
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                        background: 'rgba(239, 68, 68, 0.18)',
+                                        color: '#FCA5A5',
+                                        border: '1px solid rgba(239, 68, 68, 0.3)'
+                                      }}
+                                    >
+                                      🏷️ Discounted
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{
+                                        fontSize: '9px',
+                                        fontWeight: 600,
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                        background: 'rgba(255, 255, 255, 0.08)',
+                                        color: '#94A3B8'
+                                      }}
+                                    >
+                                      Standard Price
+                                    </span>
+                                  )}
+
+                                  {item.isPerishable ? (
+                                    <span
+                                      style={{
+                                       fontSize: '9px',
+                                       fontWeight: 800,
+                                       padding: '1px 6px',
+                                       borderRadius: '4px',
+                                       background: 'rgba(245, 158, 11, 0.2)',
+                                       color: '#FCD34D',
+                                       border: '1px solid rgba(245, 158, 11, 0.35)'
+                                      }}
+                                    >
+                                      ⚠️ &lt;1 mo Expiring Soon
+                                    </span>
+                                  ) : (
+                                    <span
+                                      style={{
+                                       fontSize: '9px',
+                                       fontWeight: 600,
+                                       padding: '1px 6px',
+                                       borderRadius: '4px',
+                                       background: 'rgba(16, 185, 129, 0.15)',
+                                       color: '#6EE7B7'
+                                      }}
+                                    >
+                                      🌿 Normal Shelf-Life
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           </td>
                           <td style={{ padding: '8px 10px', textAlign: 'center', color: '#FFFFFF' }}>{item.quantity}</td>
-                          <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--ios-text-muted)' }}>${item.unitPrice.toFixed(2)}</td>
+                          <td style={{ padding: '8px 10px', textAlign: 'right', color: 'var(--ios-text-muted)' }}>
+                            {item.originalPrice && item.originalPrice > item.unitPrice + 0.01 && (
+                              <div style={{ fontSize: '10px', textDecoration: 'line-through', color: '#94A3B8' }}>
+                                ${item.originalPrice.toFixed(2)}
+                              </div>
+                            )}
+                            <div style={{ color: item.originalPrice && item.originalPrice > item.unitPrice + 0.01 ? '#34D399' : 'inherit', fontWeight: 600 }}>
+                              ${item.unitPrice.toFixed(2)}
+                            </div>
+                          </td>
                           <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#FFFFFF' }}>${item.subtotal.toFixed(2)}</td>
                         </tr>
                       ))
@@ -7243,7 +7473,28 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.1)', fontSize: '11px' }}>
                 <span style={{ color: 'var(--ios-text-muted)' }}>Tender: <strong>{selectedPaymentModal.paymentMethod}</strong></span>
-                <span style={{ color: '#34D399', fontWeight: 700 }}>STATUS: {selectedPaymentModal.status || 'PAID'}</span>
+                {(() => {
+                  const st = getPaymentStatusStyle(selectedPaymentModal.status);
+                  return (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '3px 10px',
+                        borderRadius: '9999px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        background: st.bg,
+                        color: st.text,
+                        border: st.border
+                      }}
+                    >
+                      {st.icon}
+                      STATUS: {selectedPaymentModal.status || 'PAID'}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
 

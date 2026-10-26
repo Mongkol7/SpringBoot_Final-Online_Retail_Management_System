@@ -637,6 +637,7 @@ public class AdminServiceImpl implements AdminService {
                 product.getDescription(),
                 product.getCategory() != null ? product.getCategory().getName() : "General",
                 product.getImageUrl(),
+                product.getImages(),
                 cost,
                 retail,
                 wholesale,
@@ -863,16 +864,41 @@ public class AdminServiceImpl implements AdminService {
     }
 
     private AdminPaymentDto mapOrderToPaymentDto(Order o) {
+        String orderPricingTier = o.getPricingTierUsed() != null ? o.getPricingTierUsed().name() : "RETAIL";
         List<AdminPaymentItemDto> itemDtos = o.getItems() != null ? o.getItems().stream()
-                .map(item -> new AdminPaymentItemDto(
-                        item.getId(),
-                        item.getProduct() != null ? item.getProduct().getName() : "Item",
-                        item.getProduct() != null ? item.getProduct().getSku() : "N/A",
-                        item.getProduct() != null ? item.getProduct().getImageUrl() : null,
-                        item.getQuantity() != null ? item.getQuantity() : 0,
-                        item.getUnitPrice() != null ? item.getUnitPrice() : BigDecimal.ZERO,
-                        item.getSubtotal() != null ? item.getSubtotal() : BigDecimal.ZERO
-                ))
+                .map(item -> {
+                    BigDecimal origPrice = item.getProduct() != null && item.getProduct().getRetailPrice() != null
+                            ? item.getProduct().getRetailPrice()
+                            : (item.getUnitPrice() != null ? item.getUnitPrice() : BigDecimal.ZERO);
+                    Boolean perishable = item.getProduct() != null ? item.getProduct().getIsPerishable() : false;
+                    java.time.LocalDate expDate = null;
+                    if (item.getProduct() != null && item.getProduct().getId() != null) {
+                        try {
+                            List<ProductBatch> bList = batchRepository.findByProduct_IdOrderByReceivedAtDesc(item.getProduct().getId());
+                            if (bList != null && !bList.isEmpty()) {
+                                expDate = bList.stream()
+                                        .map(ProductBatch::getExpiryDate)
+                                        .filter(java.util.Objects::nonNull)
+                                        .sorted()
+                                        .findFirst()
+                                        .orElse(null);
+                            }
+                        } catch (Exception ignored) {}
+                    }
+                    return new AdminPaymentItemDto(
+                            item.getId(),
+                            item.getProduct() != null ? item.getProduct().getName() : "Item",
+                            item.getProduct() != null ? item.getProduct().getSku() : "N/A",
+                            item.getProduct() != null ? item.getProduct().getImageUrl() : null,
+                            item.getQuantity() != null ? item.getQuantity() : 0,
+                            item.getUnitPrice() != null ? item.getUnitPrice() : BigDecimal.ZERO,
+                            item.getSubtotal() != null ? item.getSubtotal() : BigDecimal.ZERO,
+                            origPrice,
+                            Boolean.TRUE.equals(perishable),
+                            expDate,
+                            orderPricingTier
+                    );
+                })
                 .toList() : List.of();
 
         int totalItems = itemDtos.stream().mapToInt(AdminPaymentItemDto::quantity).sum();
