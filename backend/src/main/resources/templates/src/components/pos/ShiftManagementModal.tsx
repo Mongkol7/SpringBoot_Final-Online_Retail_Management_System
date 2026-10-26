@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PosShift } from '../../types/schema';
-import { X, DollarSign, Calculator, AlertTriangle, CheckCircle, ShieldCheck } from 'lucide-react';
+import { X, DollarSign, Calculator, AlertTriangle, CheckCircle, ShieldCheck, Lock } from 'lucide-react';
 
 interface ShiftManagementModalProps {
   isOpen: boolean;
@@ -9,7 +9,7 @@ interface ShiftManagementModalProps {
   cashierId?: number;
   onClose: () => void;
   onOpenShift: (floatAmount: number, notes: string) => Promise<void>;
-  onCloseShift: (closingCash: number, notes: string) => Promise<void>;
+  onCloseShift: (closingCash: number, notes: string, lockRegister?: boolean) => Promise<void>;
 }
 
 export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
@@ -24,6 +24,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   const [openingFloat, setOpeningFloat] = useState<string>('100.00');
   const [closingCash, setClosingCash] = useState<string>('250.00');
   const [notes, setNotes] = useState<string>('');
+  const [lockRegisterAfter, setLockRegisterAfter] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,7 +56,7 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
     setIsSubmitting(true);
     setError(null);
     try {
-      await onCloseShift(parseFloat(closingCash) || 0, notes);
+      await onCloseShift(parseFloat(closingCash) || 0, notes, lockRegisterAfter);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to close/reconcile shift');
@@ -388,11 +389,44 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
               />
             </div>
 
+            {/* Shift Handover / Lock Terminal Toggle */}
+            <div
+              onClick={() => setLockRegisterAfter((prev) => !prev)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 14px',
+                borderRadius: '12px',
+                backgroundColor: lockRegisterAfter ? 'rgba(16, 185, 129, 0.08)' : 'rgba(255, 255, 255, 0.04)',
+                border: `1px solid ${lockRegisterAfter ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
+                cursor: 'pointer',
+                userSelect: 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={lockRegisterAfter}
+                onChange={(e) => setLockRegisterAfter(e.target.checked)}
+                style={{ cursor: 'pointer', accentColor: '#10B981', width: '16px', height: '16px' }}
+              />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Lock size={12} color={lockRegisterAfter ? '#10B981' : '#F59E0B'} />
+                  <span>Lock register & return to PIN screen for next cashier</span>
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)', marginTop: '2px' }}>
+                  Safely signs out active cashier so incoming cashier can enter their 4-digit PIN
+                </div>
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={isSubmitting}
               style={{
-                marginTop: '8px',
+                marginTop: '4px',
                 padding: '14px',
                 backgroundColor: '#EF4444',
                 color: '#FFFFFF',
@@ -404,11 +438,16 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '8px'
+                gap: '8px',
+                boxShadow: '0 8px 20px rgba(239, 68, 68, 0.3)'
               }}
             >
               <Calculator size={18} />
-              {isSubmitting ? 'Reconciling...' : 'Confirm Reconciliation & Close Shift'}
+              {isSubmitting
+                ? 'Reconciling...'
+                : lockRegisterAfter
+                ? 'Confirm Reconciliation & Lock for Next Cashier'
+                : 'Confirm Reconciliation & Close Shift'}
             </button>
           </form>
         )}

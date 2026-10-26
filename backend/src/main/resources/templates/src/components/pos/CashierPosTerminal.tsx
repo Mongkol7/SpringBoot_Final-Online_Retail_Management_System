@@ -592,10 +592,15 @@ export const CashierPosTerminal: React.FC = () => {
     fetchProducts();
   };
 
-  const handleCloseShift = async (closingCash: number, notes: string) => {
+  const handleCloseShift = async (closingCash: number, notes: string, lockRegister: boolean = true) => {
     const shift = await posService.closeShift(closingCash, notes, activeCashier?.id);
     setActiveShift(shift);
     fetchProducts();
+    if (lockRegister) {
+      posService.lockRegister();
+      setActiveCashier(null);
+      setIsPinModalOpen(true);
+    }
   };
 
   // Filtered catalog
@@ -825,6 +830,28 @@ export const CashierPosTerminal: React.FC = () => {
             }}
           >
             {isShiftOpen ? 'Reconcile Drawer' : 'Open Shift Float'}
+          </button>
+
+          <button
+            onClick={handleLockRegister}
+            title="Lock register and return to PIN login screen for another cashier"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 14px',
+              color: '#F59E0B',
+              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+              border: '1px solid rgba(245, 158, 11, 0.28)',
+              borderRadius: '9999px',
+              fontSize: '12px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Lock size={12} />
+            <span>Lock / Switch Cashier</span>
           </button>
 
           <button
