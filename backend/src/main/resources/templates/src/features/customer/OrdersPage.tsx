@@ -19,13 +19,34 @@ import {
   Printer,
   X,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Clock
 } from 'lucide-react';
 
 const safeToFixed = (val: any, fallback = '0.00'): string => {
   if (val === null || val === undefined) return fallback;
   const num = typeof val === 'number' ? val : parseFloat(String(val));
   return isNaN(num) ? fallback : num.toFixed(2);
+};
+
+// 4-Hour Cancellation Window Helpers
+const getOrderAgeHours = (createdAt?: string): number => {
+  if (!createdAt) return 0;
+  const created = new Date(createdAt).getTime();
+  if (isNaN(created)) return 0;
+  return Math.max(0, (Date.now() - created) / (1000 * 60 * 60));
+};
+
+const getCancelRemainingTime = (createdAt?: string): string => {
+  if (!createdAt) return '';
+  const created = new Date(createdAt).getTime();
+  if (isNaN(created)) return '';
+  const diffMs = 4 * 60 * 60 * 1000 - (Date.now() - created);
+  if (diffMs <= 0) return 'Expired';
+  const hrs = Math.floor(diffMs / (1000 * 60 * 60));
+  const mins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  if (hrs > 0) return `${hrs}h ${mins}m left`;
+  return `${mins}m left`;
 };
 
 interface OrdersPageProps {
@@ -347,8 +368,11 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {filteredOrders.map((order) => {
             const normalizedStatus = getNormalizedStatus(order.status);
-            // Cancel button visible ONLY when status is PENDING
-            const canCancel = order.status === 'PENDING';
+            // Cancel button visible when status is PENDING and placed within 4 hours
+            const orderAgeHours = getOrderAgeHours(order.createdAt);
+            const isWithin4Hours = orderAgeHours < 4;
+            const canCancel = order.status === 'PENDING' && isWithin4Hours;
+            const isPendingOver4Hours = order.status === 'PENDING' && !isWithin4Hours;
             const isExpanded = !!expandedOrderIds[order.id];
 
             const getBadgeColors = () => {
@@ -540,10 +564,11 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                         </button>
                       )}
 
-                      {/* Cancel Order Action button: Only visible to Administrator (not retail or wholesale customers) */}
-                      {isAdmin && canCancel && (
+                      {/* Cancel Order Action button: Visible to customers for PENDING orders within 4 hours */}
+                      {canCancel && (
                         <button
                           onClick={() => setCancellingOrder(order)}
+                          title={`Cancel order (${getCancelRemainingTime(order.createdAt)})`}
                           style={{
                             padding: '8px 16px',
                             display: 'flex',
@@ -555,11 +580,49 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                             color: '#DC2626',
                             border: '1px solid #FCA5A5',
                             borderRadius: '9999px',
-                            cursor: 'pointer'
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
                           }}
                         >
-                          <XCircle size={14} /> Cancel Order
+                          <XCircle size={14} />
+                          <span>Cancel Order</span>
+                          {order.createdAt && (
+                            <span
+                              style={{
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                padding: '2px 7px',
+                                borderRadius: '9999px',
+                                backgroundColor: 'rgba(220, 38, 38, 0.15)',
+                                color: '#991B1B'
+                              }}
+                            >
+                              {getCancelRemainingTime(order.createdAt)}
+                            </span>
+                          )}
                         </button>
+                      )}
+
+                      {/* When order is PENDING but placed > 4 hours ago, cancellation window is closed */}
+                      {isPendingOver4Hours && (
+                        <div
+                          title="Orders cannot be cancelled after 4 hours as warehouse fulfillment preparation has begun."
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: '#9CA3AF',
+                            padding: '6px 12px',
+                            borderRadius: '9999px',
+                            backgroundColor: '#F3F4F6',
+                            border: '1px solid #E5E7EB'
+                          }}
+                        >
+                          <Clock size={12} />
+                          <span>Cancel window closed (&gt;4 hrs)</span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -923,8 +986,8 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
               </h3>
 
               <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 24px 0', lineHeight: 1.5 }}>
-                Cancelling this order sends a cancellation request to <strong>PUT /api/v1/customer/orders/{cancellingOrder.id}/cancel</strong>.
-                All allocated FIFO/FEFO batches will be restored to warehouse inventory immediately.
+                Orders can be cancelled within <strong>4 hours</strong> of placement while in <strong>PENDING</strong> status.
+                All allocated FIFO/FEFO batches will be released back to warehouse stock immediately.
               </p>
 
               <div style={{ display: 'flex', gap: '12px' }}>

@@ -198,6 +198,14 @@ public class CustomerServiceImpl implements CustomerService {
             throw new RuntimeException("Only PENDING orders can be cancelled. Current status: " + order.getStatus());
         }
 
+        // 4-Hour Cancellation Window: Customers can only cancel within 4 hours of placing the order
+        if (order.getCreatedAt() != null) {
+            java.time.LocalDateTime fourHoursAgo = java.time.LocalDateTime.now().minusHours(4);
+            if (order.getCreatedAt().isBefore(fourHoursAgo)) {
+                throw new RuntimeException("Cancellation window expired: Orders can only be cancelled within 4 hours of placement.");
+            }
+        }
+
         order.setStatus(com.retail.store.entity.enums.OrderStatus.CANCELLED);
         orderRepository.save(order);
 
