@@ -592,7 +592,7 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
             </span>
           </div>
           <button
-            onClick={() => navigate('/wholesale-apply')}
+            onClick={() => navigate('/wholesale-register')}
             style={{
               padding: '6px 14px',
               borderRadius: '9999px',

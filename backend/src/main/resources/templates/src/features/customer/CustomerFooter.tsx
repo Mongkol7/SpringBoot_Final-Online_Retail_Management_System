@@ -64,7 +64,7 @@ export const CustomerFooter: React.FC = () => {
   const accountLinks = [
     { label: 'Shopping Bag', to: '/cart' },
     { label: 'My Orders & Live Stepper', to: '/orders' },
-    { label: 'Wholesale Application Portal', to: '/wholesale-register' },
+    { label: 'Wholesale Application Portal', to: isAuthenticated ? '/wholesale-register' : '/login?redirect=/wholesale-register' },
     { label: isAuthenticated ? `Signed in as ${user.fullName}` : 'Customer Sign In', to: isAuthenticated ? '/orders' : '/login' }
   ];
 
@@ -516,7 +516,7 @@ export const CustomerFooter: React.FC = () => {
               Catalog
             </Link>
             <span>·</span>
-            <Link to="/wholesale-register" style={{ color: '#6B7280', textDecoration: 'none' }}>
+            <Link to={isAuthenticated ? "/wholesale-register" : "/login?redirect=/wholesale-register"} style={{ color: '#6B7280', textDecoration: 'none' }}>
               Wholesale Terms
             </Link>
             <span>·</span>

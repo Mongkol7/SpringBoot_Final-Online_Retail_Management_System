@@ -52,10 +52,24 @@ const AppLayout: React.FC = () => {
         <Route path="/product/:id" element={<CustomerApp initialRoute="product-detail" />} />
         <Route path="/shop/product/:id" element={<CustomerApp initialRoute="product-detail" />} />
         <Route path="/cart" element={<CustomerApp initialRoute="cart" />} />
-        <Route path="/wholesale" element={<CustomerApp initialRoute="wholesale" />} />
-        <Route path="/wholesale-register" element={<CustomerApp initialRoute="wholesale" />} />
 
-        {/* Customer Protected Routes (Orders, Checkout) */}
+        {/* Customer Protected Routes (Orders, Checkout, Wholesale Registration) */}
+        <Route
+          path="/wholesale"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <CustomerApp initialRoute="wholesale" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/wholesale-register"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <CustomerApp initialRoute="wholesale" />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/checkout"
           element={

@@ -92,6 +92,13 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
     };
   }, [refreshProfile]);
 
+  // Protect wholesale route: if not signed in, user cannot access wholesale registration
+  useEffect(() => {
+    if (currentRoute === 'wholesale' && !isAuthenticated) {
+      navigate('/login?redirect=/wholesale-register');
+    }
+  }, [currentRoute, isAuthenticated, navigate]);
+
   useEffect(() => {
     if (user) {
       const saved =
@@ -318,7 +325,14 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {/* Quick Wholesale Page Trigger Button */}
           <button
-            onClick={() => setCurrentRoute('wholesale')}
+            onClick={() => {
+              if (!isAuthenticated) {
+                navigate('/login?redirect=/wholesale-register');
+                return;
+              }
+              setCurrentRoute('wholesale');
+            }}
+            title={isAuthenticated ? 'View Wholesale Partner Status & Registration' : 'Sign in to access Wholesale Registration'}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -477,7 +491,9 @@ export const CustomerApp: React.FC<CustomerAppProps> = ({ initialRoute }) => {
       )}
 
       {currentRoute === 'wholesale' && (
-        <WholesaleRegisterPage />
+        isAuthenticated ? (
+          <WholesaleRegisterPage />
+        ) : null
       )}
 
       {currentRoute === 'product-detail' && (

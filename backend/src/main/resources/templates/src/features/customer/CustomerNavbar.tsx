@@ -285,7 +285,8 @@ export const CustomerNavbar: React.FC = () => {
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <NavLink
-                  to="/wholesale-register"
+                  to="/login?redirect=/wholesale-register"
+                  title="Sign in to register for wholesale pricing"
                   style={{
                     display: 'flex',
                     alignItems: 'center',

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import {
   Building2,
@@ -26,6 +26,10 @@ export const WholesaleRegisterPage: React.FC = () => {
     submitWholesaleApplication,
     getEffectiveTier
   } = useCustomerCartStore();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login?redirect=/wholesale-register" replace />;
+  }
 
   const currentStatus =
     user.customerType === 'WHOLESALE' || getEffectiveTier() === 'WHOLESALE' || wholesaleApplication?.status === 'APPROVED'
