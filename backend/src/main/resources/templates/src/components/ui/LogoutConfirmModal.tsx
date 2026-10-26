@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { LogOut, ShieldAlert, X, Lock, CheckCircle2, KeyRound } from 'lucide-react';
 
 export interface LogoutConfirmModalProps {
@@ -45,7 +46,7 @@ export const LogoutConfirmModal: React.FC<LogoutConfirmModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       role="presentation"
       onMouseDown={(event) => {
@@ -350,7 +351,8 @@ export const LogoutConfirmModal: React.FC<LogoutConfirmModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

@@ -136,6 +136,7 @@ public class User {
         private Boolean isActive = true;
         private String avatarUrl;
         private String companyName;
+        private String posPin = "1234";
 
         public Builder id(Long id) { this.id = id; return this; }
         public Builder role(Role role) { this.role = role; return this; }
@@ -148,11 +149,13 @@ public class User {
         public Builder isActive(Boolean isActive) { this.isActive = isActive; return this; }
         public Builder avatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; return this; }
         public Builder companyName(String companyName) { this.companyName = companyName; return this; }
+        public Builder posPin(String posPin) { this.posPin = posPin; return this; }
 
         public User build() {
             User u = new User(id, role, email, passwordHash, fullName, phone, customerType, addresses, isActive, null, null);
             u.setAvatarUrl(avatarUrl);
             u.setCompanyName(companyName);
+            u.setPosPin(posPin != null ? posPin : "1234");
             return u;
         }
     }

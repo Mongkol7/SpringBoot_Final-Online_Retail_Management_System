@@ -22,9 +22,53 @@ import java.util.List;
 public class InventoryController {
 
     private final InventoryService inventoryService;
+    private final com.retail.store.service.CustomerService customerService;
 
-    public InventoryController(InventoryService inventoryService) {
+    public InventoryController(InventoryService inventoryService, com.retail.store.service.CustomerService customerService) {
         this.inventoryService = inventoryService;
+        this.customerService = customerService;
+    }
+
+    // ================= PROFILE MANAGEMENT =================
+    @GetMapping({"/profile", "/me"})
+    public ResponseEntity<com.retail.store.dto.customer.response.CustomerResponse> getProfile(@AuthenticationPrincipal UserDetailsImpl user) {
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        com.retail.store.entity.User u = customerService.getCustomerProfile(user.getId());
+        return ResponseEntity.ok(com.retail.store.dto.customer.response.CustomerResponse.from(u));
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<com.retail.store.dto.customer.response.CustomerResponse> updateProfile(
+            @AuthenticationPrincipal UserDetailsImpl user,
+            @RequestBody CustomerController.UpdateProfileRequest request) {
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String addressesJson = null;
+        if (request.addresses() != null && !request.addresses().isNull()) {
+            if (request.addresses().isArray()) {
+                addressesJson = request.addresses().toString();
+            } else if (request.addresses().isTextual()) {
+                String text = request.addresses().asText().trim();
+                if (text.startsWith("[") && text.endsWith("]")) {
+                    addressesJson = text;
+                } else if (!text.isEmpty()) {
+                    addressesJson = "[\"" + text.replace("\"", "\\\"") + "\"]";
+                }
+            }
+        }
+        com.retail.store.entity.User updated = customerService.updateCustomerProfile(
+                user.getId(),
+                request.fullName(),
+                request.phone(),
+                addressesJson,
+                request.password(),
+                request.avatarUrl(),
+                request.companyName()
+        );
+        return ResponseEntity.ok(com.retail.store.dto.customer.response.CustomerResponse.from(updated));
     }
 
     // ================= CATEGORIES =================

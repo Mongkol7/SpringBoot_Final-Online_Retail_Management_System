@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Product, CustomerType, Order, PaymentMethod, WholesaleApplication, User } from '../types/schema';
-import { customerApi } from '../features/customer/customerApi';
+import { customerApi, getCustomerToken } from '../features/customer/customerApi';
 import { calculateItemPrice, DiscountType } from '../utils/pricingCalculator';
 
 export interface CustomerCartItem {
@@ -119,13 +119,13 @@ interface CustomerState {
 }
 
 const DEFAULT_USER: User = {
-  id: 1,
-  roleId: 1,
+  id: 29,
+  roleId: 2,
   email: 'customer@retailstore.com',
-  fullName: 'Customer',
-  phone: '+855 12 849 201',
+  fullName: 'Sok Rithysak',
+  phone: '+855 12 999 888',
   customerType: 'RETAIL',
-  addresses: ['No. 42, St. 271, Sangkat Boeng Tumpun, Phnom Penh, Cambodia'],
+  addresses: ['123 Norodom Blvd, Phnom Penh'],
   isActive: true,
   createdAt: '2026-03-01T08:00:00Z',
   updatedAt: '2026-03-01T08:00:00Z'
@@ -408,26 +408,61 @@ export const useCustomerCartStore = create<CustomerState>()(
         });
       },
 
-      quickDemoLogin: (tier: 'RETAIL' | 'WHOLESALE') => {
-        const token = 'jwt-customer-token-2026';
-        localStorage.setItem('customer_jwt', token);
-        const updatedUser = {
-          ...DEFAULT_USER,
-          customerType: tier
-        };
-        const updatedItems = recalculateCartItems(get().items, tier);
-        set({
-          isAuthenticated: true,
-          token,
-          user: updatedUser,
-          demoTierOverride: tier,
-          items: updatedItems,
-          totalPrice: calcCartTotal(updatedItems)
-        });
-        get().setNotification({
-          message: `Signed in as Customer (${tier})`,
-          badge: tier
-        });
+      quickDemoLogin: async (tier: 'RETAIL' | 'WHOLESALE') => {
+        try {
+          const res = await customerApi.login('customer@retailstore.com', 'user123');
+          localStorage.setItem('customer_jwt', res.token);
+          const updatedUser: User = {
+            id: res.userId,
+            email: res.email,
+            fullName: res.fullName,
+            roleId: 2,
+            customerType: tier,
+            addresses: res.addresses
+              ? typeof res.addresses === 'string'
+                ? JSON.parse(res.addresses)
+                : res.addresses
+              : DEFAULT_USER.addresses,
+            avatarUrl: res.avatarUrl || undefined,
+            companyName: res.companyName || undefined,
+            isActive: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          const updatedItems = recalculateCartItems(get().items, tier);
+          set({
+            isAuthenticated: true,
+            token: res.token,
+            user: updatedUser,
+            demoTierOverride: tier,
+            items: updatedItems,
+            totalPrice: calcCartTotal(updatedItems)
+          });
+          get().setNotification({
+            message: `Signed in as Customer (${tier})`,
+            badge: tier
+          });
+        } catch {
+          const token = await getCustomerToken();
+          if (token) localStorage.setItem('customer_jwt', token);
+          const updatedUser = {
+            ...DEFAULT_USER,
+            customerType: tier
+          };
+          const updatedItems = recalculateCartItems(get().items, tier);
+          set({
+            isAuthenticated: true,
+            token: token || 'jwt-customer-token-2026',
+            user: updatedUser,
+            demoTierOverride: tier,
+            items: updatedItems,
+            totalPrice: calcCartTotal(updatedItems)
+          });
+          get().setNotification({
+            message: `Signed in as Customer (${tier})`,
+            badge: tier
+          });
+        }
       },
 
       setDemoTier: (tier) => {
@@ -470,7 +505,15 @@ export const useCustomerCartStore = create<CustomerState>()(
         companyName?: string;
         password?: string;
       }) => {
-        if (!get().isAuthenticated || !get().token || !get().user?.id || get().user?.id === 0) {
+        let currentToken = get().token;
+        if (!currentToken || currentToken.startsWith('jwt-customer-') || currentToken.startsWith('mock-')) {
+          currentToken = await getCustomerToken();
+          if (currentToken) {
+            set({ token: currentToken, isAuthenticated: true });
+          }
+        }
+
+        if (!get().isAuthenticated || !get().user?.id || get().user?.id === 0) {
           throw new Error('Please sign in to update your profile.');
         }
 

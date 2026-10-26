@@ -26,12 +26,61 @@ export const ProductModal: React.FC = () => {
   const [description, setDescription] = useState(editingProduct?.description || '');
 
   // Multi-image management: supports array of URLs and data URLs
-  const initialImages: string[] =
-    editingProduct?.images && editingProduct.images.length > 0
-      ? editingProduct.images
-      : editingProduct?.imageUrl
-      ? [editingProduct.imageUrl]
-      : [];
+  const initialImages: string[] = (() => {
+    if (!editingProduct) return [];
+    const prod = editingProduct as any;
+    const list: string[] = [];
+    const add = (url: any) => {
+      if (!url || typeof url !== 'string') return;
+      const u = url.trim();
+      if (u === 'data:image/jpeg;base64' || u === 'data:image/png;base64' || u === 'data:image/webp;base64') return;
+      if (u && !list.includes(u)) list.push(u);
+    };
+    if (prod.images) {
+      if (Array.isArray(prod.images)) {
+        prod.images.forEach(add);
+      } else if (typeof prod.images === 'string') {
+        const str = prod.images.trim();
+        if (str.startsWith('data:')) {
+          add(str);
+        } else if (str.startsWith('[') && str.endsWith(']')) {
+          try {
+            const parsed = JSON.parse(str);
+            if (Array.isArray(parsed)) parsed.forEach(add);
+          } catch {
+            if (str.includes('data:')) {
+              const cleaned = str.replace(/^[\[\s"']+|[\]\s"']+$/g, '');
+              if (cleaned.startsWith('data:')) add(cleaned);
+            } else {
+              str.replace(/[\[\]"]/g, '').split(',').forEach(add);
+            }
+          }
+        } else if (str.includes(',')) {
+          str.split(',').forEach(add);
+        } else if (str) {
+          add(str);
+        }
+      }
+    }
+    if (prod.imageUrl && typeof prod.imageUrl === 'string') {
+      const str = prod.imageUrl.trim();
+      if (str.startsWith('data:')) {
+        add(str);
+      } else if (str.startsWith('[') && str.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(str);
+          if (Array.isArray(parsed)) parsed.forEach(add);
+        } catch {
+          add(str);
+        }
+      } else if (str.includes(',')) {
+        str.split(',').forEach(add);
+      } else if (str) {
+        add(str);
+      }
+    }
+    return list;
+  })();
 
   const [images, setImages] = useState<string[]>(initialImages);
   const [urlInput, setUrlInput] = useState('');
@@ -446,6 +495,9 @@ export const ProductModal: React.FC = () => {
                     <img
                       src={img}
                       alt={`Product preview ${idx + 1}`}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
+                      }}
                       style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                     />
 

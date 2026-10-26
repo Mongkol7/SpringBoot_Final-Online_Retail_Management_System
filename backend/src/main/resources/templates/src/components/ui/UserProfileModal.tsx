@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import {
   User as UserIcon,
@@ -267,7 +268,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const displayTier = user?.customerType || 'RETAIL';
   const roleDisplay = roleLabel || (user?.customerType === 'WHOLESALE' ? 'Wholesale Partner' : 'Retail Customer');
 
-  return (
+  return createPortal(
     <div
       role="presentation"
       onMouseDown={(e) => {
@@ -883,6 +884,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

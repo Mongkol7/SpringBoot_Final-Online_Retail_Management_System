@@ -217,6 +217,7 @@ function withFallbackStock(product: Product): Product {
   return { ...product, stockQuantity: stock, availableStock: stock };
 }
 
+
 export async function getCustomerToken(): Promise<string> {
   const existingToken =
     localStorage.getItem('customer_jwt') ||
@@ -227,6 +228,18 @@ export async function getCustomerToken(): Promise<string> {
   if (existingToken && !existingToken.startsWith('jwt-customer-') && !existingToken.startsWith('mock-')) {
     return existingToken;
   }
+
+  // Check auth_current_user in localStorage
+  try {
+    const authUser = localStorage.getItem('auth_current_user');
+    if (authUser) {
+      const parsed = JSON.parse(authUser);
+      if (parsed?.token && !parsed.token.startsWith('jwt-customer-') && !parsed.token.startsWith('mock-')) {
+        localStorage.setItem('customer_jwt', parsed.token);
+        return parsed.token;
+      }
+    }
+  } catch {}
 
   return '';
 }
@@ -296,6 +309,7 @@ export function normalizeProduct(p: any): Product {
   const add = (url: any) => {
     if (!url || typeof url !== 'string') return;
     const trimmed = url.trim();
+    if (trimmed === 'data:image/jpeg;base64' || trimmed === 'data:image/png;base64' || trimmed === 'data:image/webp;base64') return;
     if (trimmed && !imagesList.includes(trimmed)) imagesList.push(trimmed);
   };
 
@@ -305,12 +319,19 @@ export function normalizeProduct(p: any): Product {
       p.images.forEach(add);
     } else if (typeof p.images === 'string') {
       const raw = p.images.trim();
-      if (raw.startsWith('[') && raw.endsWith(']')) {
+      if (raw.startsWith('data:')) {
+        add(raw);
+      } else if (raw.startsWith('[') && raw.endsWith(']')) {
         try {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) parsed.forEach(add);
         } catch {
-          raw.replace(/[\[\]"]/g, '').split(',').forEach(add);
+          if (raw.includes('data:')) {
+            const cleaned = raw.replace(/^[\[\s"']+|[\]\s"']+$/g, '');
+            if (cleaned.startsWith('data:')) add(cleaned);
+          } else {
+            raw.replace(/[\[\]"]/g, '').split(',').forEach(add);
+          }
         }
       } else if (raw.includes(',')) {
         raw.split(',').forEach(add);
@@ -324,7 +345,9 @@ export function normalizeProduct(p: any): Product {
   const rawImageUrl = p.imageUrl || p.image_url;
   if (rawImageUrl && typeof rawImageUrl === 'string') {
     const raw = rawImageUrl.trim();
-    if (raw.startsWith('[') && raw.endsWith(']')) {
+    if (raw.startsWith('data:')) {
+      add(raw);
+    } else if (raw.startsWith('[') && raw.endsWith(']')) {
       try {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) parsed.forEach(add);

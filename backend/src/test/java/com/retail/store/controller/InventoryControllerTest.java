@@ -51,6 +51,9 @@ class InventoryControllerTest {
     @MockBean
     private com.retail.store.security.user.CustomUserDetailsService customUserDetailsService;
 
+    @MockBean
+    private com.retail.store.service.CustomerService customerService;
+
     @Test
     @DisplayName("POST /inventory/categories: Creates a new category")
     @WithMockUser(username = "stock@retailstore.com", roles = {"STOCK_CONTROLLER"})

@@ -58,6 +58,7 @@ import {
   FinancialTaxReport
 } from '../../types/schema';
 import { adminService } from '../../services/adminService';
+import { authService } from '../../services/authService';
 import { IosCardGlass } from '../ui/IosCardGlass';
 import { LogoutConfirmModal } from '../ui/LogoutConfirmModal';
 import { UserProfileModal } from '../ui/UserProfileModal';
@@ -117,35 +118,45 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showAdminProfileModal, setShowAdminProfileModal] = useState(false);
 
-  // Executive Admin Profile State with LocalStorage persistence
+  // Executive Admin Profile State with LocalStorage & DB persistence
   const [adminProfile, setAdminProfile] = useState(() => {
-    const userKey = 'admin_user';
-    const saved = localStorage.getItem(`aura_profile_${userKey}`);
-    const savedAvatar = localStorage.getItem(`aura_avatar_${userKey}`) || localStorage.getItem('aura_avatar_admin') || '';
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        return {
-          id: 1,
-          fullName: parsed.fullName || 'Executive Administrator',
-          email: 'admin@aura.store',
-          role: 'ADMIN' as any,
-          phone: parsed.phone || '+855 23 888 999',
-          avatarUrl: savedAvatar || parsed.avatarUrl || ''
-        };
-      } catch {}
+    let authUser: any = null;
+    try {
+      const authStr = localStorage.getItem('auth_current_user');
+      if (authStr) authUser = JSON.parse(authStr);
+    } catch {}
+
+    const adminId = authUser?.userId || 2;
+    const adminEmail = (authUser?.email || 'admin@retailstore.com').toLowerCase();
+
+    const savedProfileStr = localStorage.getItem('aura_profile_admin_user');
+    let savedProfile: any = null;
+    if (savedProfileStr) {
+      try { savedProfile = JSON.parse(savedProfileStr); } catch {}
     }
+
+    const savedAvatar =
+      authUser?.avatarUrl ||
+      localStorage.getItem(`aura_avatar_user_${adminId}`) ||
+      localStorage.getItem(`aura_avatar_${adminId}`) ||
+      localStorage.getItem(`aura_avatar_${adminEmail}`) ||
+      localStorage.getItem('aura_avatar_admin_user') ||
+      localStorage.getItem('aura_avatar_admin') ||
+      localStorage.getItem('aura_avatar_current') ||
+      savedProfile?.avatarUrl ||
+      '';
+
     return {
-      id: 1,
-      fullName: 'Executive Administrator',
-      email: 'admin@aura.store',
+      id: adminId,
+      fullName: authUser?.fullName || savedProfile?.fullName || 'System Administrator',
+      email: authUser?.email || 'admin@retailstore.com',
       role: 'ADMIN' as any,
-      phone: '+855 23 888 999',
+      phone: authUser?.phone || savedProfile?.phone || '+1-555-0100',
       avatarUrl: savedAvatar
     };
   });
 
-  const handleSaveAdminProfile = (updated: {
+  const handleSaveAdminProfile = async (updated: {
     fullName: string;
     phone?: string;
     avatarUrl?: string;
@@ -155,13 +166,53 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
     const newProfile = { ...adminProfile, ...updated };
     setAdminProfile(newProfile);
     localStorage.setItem('aura_profile_admin_user', JSON.stringify(newProfile));
-    if (updated.avatarUrl) {
-      localStorage.setItem('aura_avatar_admin_user', updated.avatarUrl);
-      localStorage.setItem('aura_avatar_admin', updated.avatarUrl);
+
+    const av = updated.avatarUrl || '';
+    if (av) {
+      localStorage.setItem('aura_avatar_admin_user', av);
+      localStorage.setItem('aura_avatar_admin', av);
+      localStorage.setItem(`aura_avatar_user_${adminProfile.id}`, av);
+      localStorage.setItem(`aura_avatar_${adminProfile.id}`, av);
+      localStorage.setItem(`aura_avatar_${adminProfile.email.toLowerCase()}`, av);
+      localStorage.setItem('aura_avatar_current', av);
     } else {
       localStorage.removeItem('aura_avatar_admin_user');
       localStorage.removeItem('aura_avatar_admin');
+      localStorage.removeItem(`aura_avatar_user_${adminProfile.id}`);
+      localStorage.removeItem(`aura_avatar_${adminProfile.id}`);
+      localStorage.removeItem(`aura_avatar_${adminProfile.email.toLowerCase()}`);
+      localStorage.removeItem('aura_avatar_current');
     }
+
+    // Persist to PostgreSQL database via adminService
+    try {
+      await adminService.updateUser(adminProfile.id, {
+        fullName: updated.fullName,
+        email: adminProfile.email,
+        phone: updated.phone || adminProfile.phone,
+        roleName: 'ADMIN',
+        customerType: 'RETAIL',
+        isActive: true,
+        avatarUrl: av
+      });
+      showToast('Admin profile & avatar updated successfully in database.', 'success');
+    } catch (err: any) {
+      console.warn('Failed to persist admin profile update to backend DB:', err);
+    }
+
+    // Sync active session in localStorage
+    const currentAuth = authService.getCurrentUser();
+    if (currentAuth && currentAuth.role === 'ADMIN') {
+      const updatedAuth = {
+        ...currentAuth,
+        fullName: updated.fullName || currentAuth.fullName,
+        avatarUrl: av,
+        phone: updated.phone || currentAuth.phone
+      };
+      localStorage.setItem('auth_current_user', JSON.stringify(updatedAuth));
+    }
+
+    window.dispatchEvent(new Event('storage'));
   };
 
   // Executive Data State
@@ -307,6 +358,28 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
       setKpi(kpiRes);
       setWholesaleApps(appsRes.content);
       setUsers(usersRes.content);
+
+      // Synchronize Admin Profile and avatar directly from DB users
+      const adminInDb = usersRes.content.find((u: AdminUser) => u.role?.name === 'ADMIN' || u.role?.name === 'ROLE_ADMIN' || u.email.toLowerCase() === 'admin@retailstore.com');
+      if (adminInDb) {
+        setAdminProfile((prev) => ({
+          ...prev,
+          id: adminInDb.id,
+          fullName: adminInDb.fullName || prev.fullName,
+          email: adminInDb.email || prev.email,
+          phone: adminInDb.phone || prev.phone,
+          avatarUrl: adminInDb.avatarUrl || prev.avatarUrl
+        }));
+        if (adminInDb.avatarUrl) {
+          localStorage.setItem(`aura_avatar_user_${adminInDb.id}`, adminInDb.avatarUrl);
+          localStorage.setItem(`aura_avatar_${adminInDb.id}`, adminInDb.avatarUrl);
+          localStorage.setItem(`aura_avatar_${adminInDb.email.toLowerCase()}`, adminInDb.avatarUrl);
+          localStorage.setItem('aura_avatar_admin_user', adminInDb.avatarUrl);
+          localStorage.setItem('aura_avatar_admin', adminInDb.avatarUrl);
+          localStorage.setItem('aura_avatar_current', adminInDb.avatarUrl);
+        }
+      }
+
       setAuditLogs(logsRes.content);
       setProducts(productsRes);
       setPayments(paymentsRes);
@@ -1226,7 +1299,7 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                   src={adminProfile.avatarUrl}
                   alt={adminProfile.fullName}
                   style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={() => setAdminProfile((prev) => ({ ...prev, avatarUrl: '' }))}
+                  onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none'; }}
                 />
               ) : (
                 'AD'

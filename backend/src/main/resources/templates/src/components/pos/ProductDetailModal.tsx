@@ -281,14 +281,21 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
               position: 'relative',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              padding: '8px'
             }}
           >
             {product.imageUrl ? (
               <img
                 src={product.imageUrl}
                 alt={product.name}
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                style={{
+                  maxWidth: '100%',
+                  maxHeight: '100%',
+                  width: 'auto',
+                  height: 'auto',
+                  objectFit: 'contain'
+                }}
                 onError={(e) => {
                   (e.target as HTMLElement).style.display = 'none';
                 }}

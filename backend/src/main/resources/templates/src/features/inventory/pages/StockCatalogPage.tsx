@@ -53,13 +53,61 @@ export const StockCatalogPage: React.FC = () => {
 
   const money = (v: number | undefined) => `$${Number(v || 0).toFixed(2)}`;
 
-  const detailImages = selectedDetailProduct
-    ? (selectedDetailProduct.images && selectedDetailProduct.images.length > 0
-        ? selectedDetailProduct.images
-        : selectedDetailProduct.imageUrl
-        ? [selectedDetailProduct.imageUrl]
-        : [])
-    : [];
+  const detailImages = (() => {
+    if (!selectedDetailProduct) return [];
+    const prod = selectedDetailProduct as any;
+    const list: string[] = [];
+    const add = (url: any) => {
+      if (!url || typeof url !== 'string') return;
+      const u = url.trim();
+      if (u === 'data:image/jpeg;base64' || u === 'data:image/png;base64' || u === 'data:image/webp;base64') return;
+      if (u && !list.includes(u)) list.push(u);
+    };
+    if (prod.images) {
+      if (Array.isArray(prod.images)) {
+        prod.images.forEach(add);
+      } else if (typeof prod.images === 'string') {
+        const str = prod.images.trim();
+        if (str.startsWith('data:')) {
+          add(str);
+        } else if (str.startsWith('[') && str.endsWith(']')) {
+          try {
+            const parsed = JSON.parse(str);
+            if (Array.isArray(parsed)) parsed.forEach(add);
+          } catch {
+            if (str.includes('data:')) {
+              const cleaned = str.replace(/^[\[\s"']+|[\]\s"']+$/g, '');
+              if (cleaned.startsWith('data:')) add(cleaned);
+            } else {
+              str.replace(/[\[\]"]/g, '').split(',').forEach(add);
+            }
+          }
+        } else if (str.includes(',')) {
+          str.split(',').forEach(add);
+        } else if (str) {
+          add(str);
+        }
+      }
+    }
+    if (prod.imageUrl && typeof prod.imageUrl === 'string') {
+      const str = prod.imageUrl.trim();
+      if (str.startsWith('data:')) {
+        add(str);
+      } else if (str.startsWith('[') && str.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(str);
+          if (Array.isArray(parsed)) parsed.forEach(add);
+        } catch {
+          add(str);
+        }
+      } else if (str.includes(',')) {
+        str.split(',').forEach(add);
+      } else if (str) {
+        add(str);
+      }
+    }
+    return list;
+  })();
 
   return (
     <div className="ios-glass-panel" style={{ padding: '24px', borderRadius: '24px' }}>
@@ -305,6 +353,9 @@ export const StockCatalogPage: React.FC = () => {
                             <img
                               src={product.imageUrl}
                               alt=""
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
+                              }}
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             />
                           ) : (
@@ -614,6 +665,9 @@ export const StockCatalogPage: React.FC = () => {
                     <img
                       src={detailImages[detailActiveImageIdx] || detailImages[0]}
                       alt={selectedDetailProduct.name}
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
+                      }}
                       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
                     />
                   ) : (
@@ -667,6 +721,9 @@ export const StockCatalogPage: React.FC = () => {
                         <img
                           src={img}
                           alt=""
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
+                          }}
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         />
                       </button>

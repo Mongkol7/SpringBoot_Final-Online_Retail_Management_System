@@ -59,6 +59,9 @@ class CashierControllerTest {
     @MockBean
     private com.retail.store.security.user.CustomUserDetailsService customUserDetailsService;
 
+    @MockBean
+    private com.retail.store.service.CustomerService customerService;
+
     @Test
     @DisplayName("POST /pos/login: Authenticates cashier staff successfully")
     void testCashierLogin() throws Exception {

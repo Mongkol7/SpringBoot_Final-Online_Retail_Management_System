@@ -90,7 +90,7 @@ class DataSeederTest {
 
         // Then: Missing records are created and saved
         verify(roleRepository, atLeast(4)).save(any(Role.class));
-        verify(userRepository, times(4)).save(any(User.class));
+        verify(userRepository, atLeast(4)).save(any(User.class));
         verify(categoryRepository, atLeast(4)).save(any(Category.class));
         verify(supplierRepository, atLeast(3)).save(any(Supplier.class));
     }

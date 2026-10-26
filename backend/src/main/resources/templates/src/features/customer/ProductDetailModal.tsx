@@ -58,6 +58,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     const add = (url: any) => {
       if (!url || typeof url !== 'string') return;
       const u = url.trim();
+      if (u === 'data:image/jpeg;base64' || u === 'data:image/png;base64' || u === 'data:image/webp;base64') return;
       if (u && !list.includes(u)) list.push(u);
     };
 
@@ -66,22 +67,33 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         product.images.forEach(add);
       } else if (typeof product.images === 'string') {
         const str = product.images.trim();
-        if (str.startsWith('[') && str.endsWith(']')) {
+        if (str.startsWith('data:')) {
+          add(str);
+        } else if (str.startsWith('[') && str.endsWith(']')) {
           try {
             const parsed = JSON.parse(str);
             if (Array.isArray(parsed)) parsed.forEach(add);
           } catch {
-            str.replace(/[\[\]"]/g, '').split(',').forEach(add);
+            if (str.includes('data:')) {
+              const cleaned = str.replace(/^[\[\s"']+|[\]\s"']+$/g, '');
+              if (cleaned.startsWith('data:')) add(cleaned);
+            } else {
+              str.replace(/[\[\]"]/g, '').split(',').forEach(add);
+            }
           }
-        } else {
+        } else if (str.includes(',')) {
           str.split(',').forEach(add);
+        } else {
+          add(str);
         }
       }
     }
 
     if (product.imageUrl) {
       const str = product.imageUrl.trim();
-      if (str.startsWith('[') && str.endsWith(']')) {
+      if (str.startsWith('data:')) {
+        add(str);
+      } else if (str.startsWith('[') && str.endsWith(']')) {
         try {
           const parsed = JSON.parse(str);
           if (Array.isArray(parsed)) parsed.forEach(add);

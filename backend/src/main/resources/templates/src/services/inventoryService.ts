@@ -21,7 +21,7 @@ export async function getValidInventoryToken(): Promise<string> {
     try {
       const res = await axios.post(`${API_BASE}/auth/login`, {
         email: 'stock@retailstore.com',
-        password: 'cashier123'
+        password: 'stock123'
       });
       const t = res.data?.token;
       if (t) {
@@ -171,6 +171,79 @@ export function getInventoryError(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong. Please try again.';
 }
 
+// Helper to robustly extract and normalize product images and stock values
+export function normalizeStockProduct(p: any): StockProduct {
+  if (!p) return p;
+  const list: string[] = [];
+  const add = (url: any) => {
+    if (!url || typeof url !== 'string') return;
+    const u = url.trim();
+    if (u === 'data:image/jpeg;base64' || u === 'data:image/png;base64' || u === 'data:image/webp;base64') return;
+    if (u && !list.includes(u)) list.push(u);
+  };
+
+  if (p.images) {
+    if (Array.isArray(p.images)) {
+      p.images.forEach(add);
+    } else if (typeof p.images === 'string') {
+      const str = p.images.trim();
+      if (str.startsWith('data:')) {
+        add(str);
+      } else if (str.startsWith('[') && str.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(str);
+          if (Array.isArray(parsed)) parsed.forEach(add);
+        } catch {
+          if (str.includes('data:')) {
+            const cleaned = str.replace(/^[\[\s"']+|[\]\s"']+$/g, '');
+            if (cleaned.startsWith('data:')) add(cleaned);
+          } else {
+            str.replace(/[\[\]"]/g, '').split(',').forEach(add);
+          }
+        }
+      } else if (str.includes(',')) {
+        str.split(',').forEach(add);
+      } else if (str) {
+        add(str);
+      }
+    }
+  }
+
+  if (p.imageUrl && typeof p.imageUrl === 'string') {
+    const str = p.imageUrl.trim();
+    if (str.startsWith('data:')) {
+      add(str);
+    } else if (str.startsWith('[') && str.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(str);
+        if (Array.isArray(parsed)) parsed.forEach(add);
+      } catch {
+        add(str);
+      }
+    } else if (str.includes(',')) {
+      str.split(',').forEach(add);
+    } else if (str) {
+      add(str);
+    }
+  }
+
+  const primaryImage = list.length > 0 ? list[0] : (p.imageUrl || '');
+  const stock = p.stockQuantity !== undefined
+    ? Number(p.stockQuantity)
+    : (p.availableStock !== undefined ? Number(p.availableStock) : undefined);
+
+  return {
+    ...p,
+    id: Number(p.id),
+    name: p.name || '',
+    sku: p.sku || '',
+    imageUrl: primaryImage,
+    images: list.length > 0 ? list : (primaryImage ? [primaryImage] : []),
+    stockQuantity: stock,
+    availableStock: stock
+  };
+}
+
 // Workspace Batch Loader
 export async function loadStockWorkspace(): Promise<StockWorkspaceData> {
   const [products, categories, suppliers, batches, lowStock, transactions] = await Promise.all([
@@ -182,32 +255,14 @@ export async function loadStockWorkspace(): Promise<StockWorkspaceData> {
     inventoryApi.get<StockTransaction[]>('/transactions')
   ]);
 
-  const parsedProducts = products.data.map((p: any) => {
-    let images: string[] = [];
-    if (Array.isArray(p.images)) {
-      images = p.images;
-    } else if (typeof p.images === 'string' && p.images.trim()) {
-      try {
-        const parsed = JSON.parse(p.images);
-        images = Array.isArray(parsed) ? parsed : [p.images];
-      } catch {
-        images = p.images.split(',').map((s: string) => s.trim()).filter(Boolean);
-      }
-    } else if (p.imageUrl) {
-      images = [p.imageUrl];
-    }
-    const stock = p.stockQuantity !== undefined
-      ? Number(p.stockQuantity)
-      : (p.availableStock !== undefined ? Number(p.availableStock) : undefined);
-    return { ...p, images, stockQuantity: stock, availableStock: stock };
-  });
+  const parsedProducts = (products.data || []).map(normalizeStockProduct);
 
   return {
     products: parsedProducts,
     categories: categories.data,
     suppliers: suppliers.data,
     batches: batches.data,
-    lowStock: lowStock.data,
+    lowStock: (lowStock.data || []).map(normalizeStockProduct),
     transactions: transactions.data
   };
 }
@@ -235,8 +290,8 @@ export const supplierApi = {
 // Product API
 export const productApi = {
   list: (includeDeleted = true) =>
-    inventoryApi.get<StockProduct[]>('/products', { params: { includeDeleted } }).then((r) => r.data),
-  getById: (id: number) => inventoryApi.get<StockProduct>(`/products/${id}`).then((r) => r.data),
+    inventoryApi.get<StockProduct[]>('/products', { params: { includeDeleted } }).then((r) => (r.data || []).map(normalizeStockProduct)),
+  getById: (id: number) => inventoryApi.get<StockProduct>(`/products/${id}`).then((r) => normalizeStockProduct(r.data)),
   getPrices: (id: number) => inventoryApi.get<ProductPriceDto>(`/products/${id}/prices`).then((r) => r.data),
   getAvailableStock: (id: number) => inventoryApi.get<number>(`/products/${id}/available-stock`).then((r) => r.data),
   create: (data: {
@@ -256,7 +311,7 @@ export const productApi = {
       ...data,
       images: data.images && data.images.length > 0 ? JSON.stringify(data.images) : undefined
     };
-    return inventoryApi.post<StockProduct>('/products', payload).then((r) => r.data);
+    return inventoryApi.post<StockProduct>('/products', payload).then((r) => normalizeStockProduct(r.data));
   },
   update: (
     id: number,
@@ -277,10 +332,10 @@ export const productApi = {
       ...data,
       images: data.images && data.images.length > 0 ? JSON.stringify(data.images) : undefined
     };
-    return inventoryApi.put<StockProduct>(`/products/${id}`, payload).then((r) => r.data);
+    return inventoryApi.put<StockProduct>(`/products/${id}`, payload).then((r) => normalizeStockProduct(r.data));
   },
   delete: (id: number) => inventoryApi.delete(`/products/${id}`),
-  restore: (id: number) => inventoryApi.post<StockProduct>(`/products/${id}/restore`).then((r) => r.data)
+  restore: (id: number) => inventoryApi.post<StockProduct>(`/products/${id}/restore`).then((r) => normalizeStockProduct(r.data))
 };
 
 // Batch & Intake API
@@ -307,6 +362,19 @@ export const alertApi = {
   getLowStock: (threshold?: number) =>
     inventoryApi.get<StockProduct[]>('/alerts/low-stock', { params: threshold ? { threshold } : {} }).then((r) => r.data),
   getTransactions: () => inventoryApi.get<StockTransaction[]>('/transactions').then((r) => r.data)
+};
+
+// Stock Controller Profile Management API
+export const profileApi = {
+  getProfile: () => inventoryApi.get('/profile').then((r) => r.data),
+  updateProfile: (data: {
+    fullName: string;
+    phone?: string;
+    avatarUrl?: string;
+    companyName?: string;
+    password?: string;
+    addresses?: string[];
+  }) => inventoryApi.put('/profile', data).then((r) => r.data)
 };
 
 export const inventoryApiClient = inventoryApi;

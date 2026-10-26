@@ -71,27 +71,49 @@ export const CashierPosTerminal: React.FC = () => {
     avatarUrl: cashierAvatar
   };
 
-  const handleSaveCashierProfile = (updated: {
+  const handleSaveCashierProfile = async (updated: {
     fullName: string;
     phone?: string;
     avatarUrl?: string;
     addresses?: string[];
     companyName?: string;
   }) => {
-    const key = activeCashier?.id ? `aura_avatar_${activeCashier.id}` : (currentUser?.userId ? `aura_avatar_${currentUser.userId}` : 'aura_avatar_cashier');
+    const cashierId = activeCashier?.id || currentUser?.userId;
+    const key = cashierId ? `aura_avatar_${cashierId}` : 'aura_avatar_cashier';
     if (updated.avatarUrl) {
       setCashierAvatar(updated.avatarUrl);
       localStorage.setItem(key, updated.avatarUrl);
       localStorage.setItem('aura_avatar_cashier', updated.avatarUrl);
+      if (cashierId) {
+        localStorage.setItem(`aura_avatar_user_${cashierId}`, updated.avatarUrl);
+      }
+      localStorage.setItem('aura_avatar_current', updated.avatarUrl);
     } else {
       setCashierAvatar('');
       localStorage.removeItem(key);
       localStorage.removeItem('aura_avatar_cashier');
+      if (cashierId) {
+        localStorage.removeItem(`aura_avatar_user_${cashierId}`);
+      }
+      localStorage.removeItem('aura_avatar_current');
     }
     if (activeCashier && updated.fullName) {
       const updatedStaff = { ...activeCashier, fullName: updated.fullName };
       setActiveCashier(updatedStaff);
       localStorage.setItem('active_cashier', JSON.stringify(updatedStaff));
+    }
+
+    // Persist to PostgreSQL database
+    try {
+      await posService.updateProfile({
+        fullName: updated.fullName,
+        phone: updated.phone,
+        avatarUrl: updated.avatarUrl,
+        companyName: updated.companyName
+      });
+      window.dispatchEvent(new Event('storage'));
+    } catch (err) {
+      console.warn('Failed to persist cashier profile to backend DB:', err);
     }
   };
 
@@ -1161,7 +1183,8 @@ export const CashierPosTerminal: React.FC = () => {
                         backgroundColor: 'rgba(255, 255, 255, 0.05)',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center'
+                        justifyContent: 'center',
+                        padding: '6px'
                       }}
                     >
                       {product.imageUrl ? (
@@ -1169,9 +1192,11 @@ export const CashierPosTerminal: React.FC = () => {
                           src={product.imageUrl}
                           alt={product.name}
                           style={{
-                            width: '100%',
-                            height: '100%',
-                            objectFit: 'cover'
+                            maxWidth: '100%',
+                            maxHeight: '100%',
+                            width: 'auto',
+                            height: 'auto',
+                            objectFit: 'contain'
                           }}
                           onError={(e) => {
                             (e.target as HTMLElement).style.display = 'none';
@@ -1470,7 +1495,9 @@ export const CashierPosTerminal: React.FC = () => {
                             width: '36px',
                             height: '36px',
                             borderRadius: '8px',
-                            objectFit: 'cover',
+                            objectFit: 'contain',
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            padding: '2px',
                             marginRight: '8px',
                             flexShrink: 0
                           }}

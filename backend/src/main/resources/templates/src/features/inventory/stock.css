@@ -10,10 +10,10 @@
   color: var(--stock-ink);
   width: 100%;
   padding: 4px 0 54px;
-  animation: stock-enter .45s ease both;
+  animation: stock-enter .45s ease;
 }
 
-@keyframes stock-enter { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes stock-enter { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
 @keyframes stock-spin { to { transform: rotate(360deg); } }
 .stock-spin { animation: stock-spin 1s linear infinite; }
 .stock-workspace button, .stock-workspace input, .stock-workspace select, .stock-workspace textarea { font: inherit; }

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useInventoryStore, StockTab } from '../../store/useInventoryStore';
 import { useAuth } from '../../context/AuthContext';
-import { hasInventorySession } from '../../services/inventoryService';
+import { hasInventorySession, profileApi } from '../../services/inventoryService';
 import { StockOverviewPage } from './pages/StockOverviewPage';
 import { StockCatalogPage } from './pages/StockCatalogPage';
 import { BatchExpiryRadar } from './components/BatchExpiryRadar';
@@ -78,13 +78,29 @@ export const StockWorkspace: React.FC = () => {
   useEffect(() => {
     const key = currentUser?.userId ? `aura_avatar_${currentUser.userId}` : 'aura_avatar_stock';
     const saved = localStorage.getItem(key) || localStorage.getItem('aura_avatar_stock') || '';
-    setStockAvatar(saved);
+    if (saved) setStockAvatar(saved);
 
     const infoKey = currentUser?.userId ? `aura_stock_user_info_${currentUser.userId}` : 'aura_stock_user_info';
     const savedInfo = localStorage.getItem(infoKey);
     if (savedInfo) {
       try { setStockInfo(JSON.parse(savedInfo)); } catch {}
     }
+
+    // Fetch fresh profile from database
+    profileApi.getProfile().then((profile) => {
+      if (profile) {
+        setStockInfo({
+          fullName: profile.fullName || 'Stock Controller',
+          phone: profile.phone || '',
+          companyName: profile.companyName || 'Aura Logistics & Warehouse Hub'
+        });
+        if (profile.avatarUrl) {
+          setStockAvatar(profile.avatarUrl);
+        }
+      }
+    }).catch((err) => {
+      console.warn('Could not fetch stock profile from backend DB:', err);
+    });
   }, [currentUser]);
 
   const stockProfileUser = {
@@ -97,7 +113,7 @@ export const StockWorkspace: React.FC = () => {
     avatarUrl: stockAvatar
   };
 
-  const handleSaveStockProfile = (updated: {
+  const handleSaveStockProfile = async (updated: {
     fullName: string;
     phone?: string;
     avatarUrl?: string;
@@ -119,10 +135,51 @@ export const StockWorkspace: React.FC = () => {
       setStockAvatar(updated.avatarUrl);
       localStorage.setItem(key, updated.avatarUrl);
       localStorage.setItem('aura_avatar_stock', updated.avatarUrl);
+      if (currentUser?.userId) {
+        localStorage.setItem(`aura_avatar_user_${currentUser.userId}`, updated.avatarUrl);
+        localStorage.setItem(`aura_avatar_${currentUser.userId}`, updated.avatarUrl);
+      }
+      if (currentUser?.email) {
+        localStorage.setItem(`aura_avatar_${currentUser.email.toLowerCase()}`, updated.avatarUrl);
+      }
+      localStorage.setItem('aura_avatar_current', updated.avatarUrl);
     } else {
       setStockAvatar('');
       localStorage.removeItem(key);
       localStorage.removeItem('aura_avatar_stock');
+      if (currentUser?.userId) {
+        localStorage.removeItem(`aura_avatar_user_${currentUser.userId}`);
+        localStorage.removeItem(`aura_avatar_${currentUser.userId}`);
+      }
+      if (currentUser?.email) {
+        localStorage.removeItem(`aura_avatar_${currentUser.email.toLowerCase()}`);
+      }
+      localStorage.removeItem('aura_avatar_current');
+    }
+
+    // Persist to PostgreSQL database
+    try {
+      await profileApi.updateProfile({
+        fullName: updated.fullName,
+        phone: updated.phone,
+        avatarUrl: updated.avatarUrl,
+        companyName: updated.companyName
+      });
+
+      // Synchronize auth_current_user in localStorage
+      const authUserStr = localStorage.getItem('auth_current_user');
+      if (authUserStr) {
+        const authUser = JSON.parse(authUserStr);
+        authUser.fullName = updated.fullName;
+        if (updated.phone) authUser.phone = updated.phone;
+        if (updated.avatarUrl) authUser.avatarUrl = updated.avatarUrl;
+        if (updated.companyName) authUser.companyName = updated.companyName;
+        localStorage.setItem('auth_current_user', JSON.stringify(authUser));
+      }
+
+      window.dispatchEvent(new Event('storage'));
+    } catch (err) {
+      console.error('Failed to update stock profile in backend DB:', err);
     }
   };
 

@@ -212,7 +212,7 @@ export const DEFAULT_POS_PRODUCTS: PosProductScan[] = [
     name: 'New York Everything Bagel 4-Pack',
     description: 'Kettle-boiled chewy sourdough bagels coated with poppy seed, toasted garlic, and onion.',
     categoryName: 'Bakery & Pastry',
-    imageUrl: 'https://images.unsplash.com/photo-1585478259715-876acc5be8eb?auto=format&fit=crop&w=400&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=400&q=80',
     retailPrice: 6.50,
     wholesalePrice: 4.20,
     costPrice: 2.80,
@@ -372,7 +372,7 @@ export const DEFAULT_POS_PRODUCTS: PosProductScan[] = [
     name: 'Artisan Maple Pecan Granola 400g',
     description: 'Slow-baked rolled oats with roasted Georgia pecans and Grade A Vermont maple syrup.',
     categoryName: 'Snacks',
-    imageUrl: 'https://images.unsplash.com/photo-1517093157656-b9ec81c03e3a?auto=format&fit=crop&w=400&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1541658016709-82535e94bc69?auto=format&fit=crop&w=400&q=80',
     retailPrice: 7.90,
     wholesalePrice: 5.50,
     costPrice: 3.80,
@@ -388,7 +388,7 @@ export const DEFAULT_POS_PRODUCTS: PosProductScan[] = [
     name: 'Smoked Rosemary Mixed Nuts 200g',
     description: 'Kettle-roasted cashews, almonds, and walnuts infused with fresh rosemary and sea salt.',
     categoryName: 'Snacks',
-    imageUrl: 'https://images.unsplash.com/photo-1536591375315-1b8368903277?auto=format&fit=crop&w=400&q=80',
+    imageUrl: 'https://images.unsplash.com/photo-1599599810769-bcde5a160d32?auto=format&fit=crop&w=400&q=80',
     retailPrice: 6.90,
     wholesalePrice: 4.80,
     costPrice: 3.20,
@@ -837,6 +837,24 @@ export const posService = {
       console.warn('Failed to fetch sales history:', err);
       return [];
     }
+  },
+
+  async getProfile(): Promise<any> {
+    const { headers } = await getAuthHeaders();
+    const res = await axios.get(`${API_BASE}/profile`, { headers });
+    return res.data;
+  },
+
+  async updateProfile(data: {
+    fullName: string;
+    phone?: string;
+    avatarUrl?: string;
+    companyName?: string;
+    password?: string;
+  }): Promise<any> {
+    const { headers } = await getAuthHeaders();
+    const res = await axios.put(`${API_BASE}/profile`, data, { headers });
+    return res.data;
   }
 };
 
