@@ -203,8 +203,9 @@ public class AdminServiceImpl implements AdminService {
                                 "User not found: " + targetUserId
                         )
                 );
-        // 2. Toggle active status
-        user.setIsActive(!user.getIsActive());
+        // 2. Toggle active status safely (handle null if any)
+        boolean currentActive = Boolean.TRUE.equals(user.getIsActive());
+        user.setIsActive(!currentActive);
         // 3. Save and return
         return userRepository.save(user);
     }
