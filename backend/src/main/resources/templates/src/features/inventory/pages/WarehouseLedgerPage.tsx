@@ -523,7 +523,7 @@ export const WarehouseLedgerPage: React.FC = () => {
                       <img
                         src={selectedTx.batch.product.imageUrl}
                         alt=""
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain' }}
                       />
                     ) : (
                       <Package size={22} color="#71717A" />

@@ -356,7 +356,7 @@ export const StockCatalogPage: React.FC = () => {
                               onError={(e) => {
                                 (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
                               }}
-                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain' }}
                             />
                           ) : (
                             <Package size={16} color="#71717A" />
@@ -651,13 +651,16 @@ export const StockCatalogPage: React.FC = () => {
                 <div
                   style={{
                     width: '100%',
-                    height: '260px',
+                    height: '320px',
                     borderRadius: '14px',
                     overflow: 'hidden',
                     background: '#09090b',
-                    display: 'grid',
-                    placeItems: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     position: 'relative',
+                    padding: '8px',
+                    boxSizing: 'border-box',
                     marginBottom: detailImages.length > 1 ? '12px' : '0'
                   }}
                 >
@@ -668,7 +671,14 @@ export const StockCatalogPage: React.FC = () => {
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
                       }}
-                      style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                      style={{
+                        maxWidth: '100%',
+                        maxHeight: '100%',
+                        width: 'auto',
+                        height: 'auto',
+                        objectFit: 'contain',
+                        display: 'block'
+                      }}
                     />
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', color: '#71717A' }}>
@@ -724,7 +734,7 @@ export const StockCatalogPage: React.FC = () => {
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=400&q=80';
                           }}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain' }}
                         />
                       </button>
                     ))}
