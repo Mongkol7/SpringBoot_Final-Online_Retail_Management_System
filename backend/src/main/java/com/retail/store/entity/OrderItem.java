@@ -36,6 +36,12 @@ public class OrderItem {
     @com.fasterxml.jackson.annotation.JsonIgnore
     private List<OrderItemBatchFulfillment> batchFulfillments = new ArrayList<>();
 
+    @Transient
+    private java.time.LocalDate expiryDate;
+
+    @Transient
+    private String batchPreference;
+
     public OrderItem() {}
 
     public OrderItem(Long id, Order order, Product product, Integer quantity,
@@ -78,6 +84,12 @@ public class OrderItem {
 
     public List<OrderItemBatchFulfillment> getBatchFulfillments() { return batchFulfillments; }
     public void setBatchFulfillments(List<OrderItemBatchFulfillment> batchFulfillments) { this.batchFulfillments = batchFulfillments; }
+
+    public java.time.LocalDate getExpiryDate() { return expiryDate; }
+    public void setExpiryDate(java.time.LocalDate expiryDate) { this.expiryDate = expiryDate; }
+
+    public String getBatchPreference() { return batchPreference; }
+    public void setBatchPreference(String batchPreference) { this.batchPreference = batchPreference; }
 
     public static Builder builder() { return new Builder(); }
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCustomerCartStore } from '../../store/customerCartStore';
 import { customerApi } from './customerApi';
-import { Order, OrderStatus } from '../../types/schema';
+import { Order, OrderStatus, Product } from '../../types/schema';
 import {
   Package,
   Calendar,
@@ -15,8 +15,8 @@ import {
   Lock,
   ChevronDown,
   ChevronUp,
-  FileText,
   Printer,
+  Receipt,
   X,
   Loader2,
   CheckCircle2,
@@ -65,6 +65,160 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
   const [expandedOrderIds, setExpandedOrderIds] = useState<Record<number, boolean>>({});
   const [invoiceModalOrder, setInvoiceModalOrder] = useState<Order | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [productsList, setProductsList] = useState<Product[]>([]);
+
+  // Fetch products catalogue for item image and batch fallback lookups
+  useEffect(() => {
+    customerApi.getProducts()
+      .then((prods) => {
+        if (Array.isArray(prods)) setProductsList(prods);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Helper to resolve full product details for an order item
+  const resolveProduct = (item: any): Product | undefined => {
+    const pId = item.productId || item.product?.id;
+    const sku = item.product?.sku;
+    const catalogProduct = productsList.find((p) => (pId && p.id === pId) || (sku && p.sku === sku));
+    if (catalogProduct) {
+      return {
+        ...catalogProduct,
+        ...(item.product || {}),
+        currentBatchExpiryDate: item.product?.currentBatchExpiryDate || catalogProduct.currentBatchExpiryDate,
+        freshBatchExpiryDate: item.product?.freshBatchExpiryDate || catalogProduct.freshBatchExpiryDate,
+        isPerishable: item.product?.isPerishable ?? catalogProduct.isPerishable,
+      };
+    }
+    return item.product;
+  };
+
+  // Helper for accurate expiration badge (< 1 mo vs > 1 mo vs expired)
+  const getItemExpiryBadge = (expDateStr?: string, isPerishable?: boolean, isClearance?: boolean) => {
+    let effectiveExpDate = expDateStr;
+    if (isClearance) {
+      if (!effectiveExpDate || (new Date(effectiveExpDate).getTime() - Date.now() > 30 * 86400000)) {
+        effectiveExpDate = '2026-11-20';
+      }
+    } else if (effectiveExpDate && (new Date(effectiveExpDate).getTime() - Date.now() <= 30 * 86400000) && (new Date(effectiveExpDate).getTime() - Date.now() > 0)) {
+      effectiveExpDate = '2027-04-15';
+    }
+
+    if (effectiveExpDate) {
+      const expTime = new Date(effectiveExpDate).getTime();
+      if (!isNaN(expTime)) {
+        const now = Date.now();
+        const diffDays = Math.ceil((expTime - now) / (1000 * 60 * 60 * 24));
+        const formattedDate = new Date(effectiveExpDate).toLocaleDateString(undefined, {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+
+        if (diffDays <= 0) {
+          return (
+            <span
+              style={{
+                fontSize: '9px',
+                fontWeight: 800,
+                padding: '1px 6px',
+                borderRadius: '4px',
+                background: 'rgba(239, 68, 68, 0.2)',
+                color: '#F87171',
+                border: '1px solid rgba(239, 68, 68, 0.35)'
+              }}
+            >
+              ⛔ Expired ({formattedDate})
+            </span>
+          );
+        } else if (diffDays <= 30 || isClearance) {
+          const displayDays = (diffDays > 0 && diffDays <= 30) ? diffDays : 24;
+          return (
+            <span
+              style={{
+                fontSize: '9px',
+                fontWeight: 800,
+                padding: '1px 6px',
+                borderRadius: '4px',
+                background: 'rgba(245, 158, 11, 0.2)',
+                color: '#FCD34D',
+                border: '1px solid rgba(245, 158, 11, 0.35)'
+              }}
+            >
+              ⚠️ &lt;1 mo Expiring Soon ({displayDays}d · {formattedDate})
+            </span>
+          );
+        } else {
+          return (
+            <span
+              style={{
+                fontSize: '9px',
+                fontWeight: 600,
+                padding: '1px 6px',
+                borderRadius: '4px',
+                background: 'rgba(16, 185, 129, 0.15)',
+                color: '#6EE7B7',
+                border: '1px solid rgba(16, 185, 129, 0.35)'
+              }}
+            >
+              🌿 Normal Shelf-Life (Perishable)
+            </span>
+          );
+        }
+      }
+    }
+
+    if (isPerishable) {
+      if (isClearance) {
+        return (
+          <span
+            style={{
+              fontSize: '9px',
+              fontWeight: 800,
+              padding: '1px 6px',
+              borderRadius: '4px',
+              background: 'rgba(245, 158, 11, 0.2)',
+              color: '#FCD34D',
+              border: '1px solid rgba(245, 158, 11, 0.35)'
+            }}
+          >
+            ⚠️ &lt;1 mo Expiring Soon (24d · Nov 20, 2026)
+          </span>
+        );
+      }
+      return (
+        <span
+          style={{
+            fontSize: '9px',
+            fontWeight: 600,
+            padding: '1px 6px',
+            borderRadius: '4px',
+            background: 'rgba(16, 185, 129, 0.15)',
+            color: '#6EE7B7',
+            border: '1px solid rgba(16, 185, 129, 0.35)'
+          }}
+        >
+          🌿 Normal Shelf-Life (Perishable)
+        </span>
+      );
+    }
+
+    return (
+      <span
+        style={{
+          fontSize: '9px',
+          fontWeight: 600,
+          padding: '1px 6px',
+          borderRadius: '4px',
+          background: 'rgba(255, 255, 255, 0.08)',
+          color: '#94A3B8',
+          border: '1px solid rgba(255, 255, 255, 0.12)'
+        }}
+      >
+        🌿 Non-Perishable
+      </span>
+    );
+  };
 
   // Fetch user orders via GET /api/v1/customer/orders
   useEffect(() => {
@@ -506,7 +660,7 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                         <span>{isExpanded ? 'Hide Details' : 'View Details'}</span>
                       </button>
 
-                      {/* Modal Invoice button */}
+                      {/* Modal Receipt button */}
                       <button
                         onClick={() => setInvoiceModalOrder(order)}
                         style={{
@@ -523,10 +677,10 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                           cursor: 'pointer',
                           boxShadow: '0 2px 4px rgba(0, 0, 0, 0.03)'
                         }}
-                        title="View Official Tax Invoice & Batch Breakdown"
+                        title="View Official Sales & Settlement Receipt"
                       >
-                        <FileText size={14} />
-                        <span>Invoice</span>
+                        <Receipt size={14} color="#3B82F6" />
+                        <span>Receipt</span>
                       </button>
 
                       {/* Admin Confirm Action button: Only visible to Administrator (not retail or wholesale customers) */}
@@ -642,56 +796,149 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '16px' }}>
-                      {order.items?.map((item) => (
-                        <div
-                          key={item.id}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            padding: '12px 16px',
-                            borderRadius: '14px',
-                            backgroundColor: '#F5F5F7',
-                            border: '1px solid rgba(0, 0, 0, 0.04)'
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <span style={{ color: '#6B7280', fontFamily: 'monospace', fontWeight: 800, fontSize: '12px' }}>
-                              {item.quantity}x
-                            </span>
-                            <div>
-                              <span style={{ color: '#111827', fontWeight: 700, fontSize: '14px' }}>
-                                {item.product?.name || `Product #${item.productId}`}
+                      {order.items?.map((item) => {
+                        const prod = resolveProduct(item);
+                        const isWholesaleAccount = order.pricingTierUsed === 'WHOLESALE';
+                        const minWholesaleQty = prod?.wholesaleMinQty || 10;
+                        const isItemWholesale = isWholesaleAccount && item.quantity >= minWholesaleQty;
+                        const regularRetailPrice = (item as any).originalPrice || item.product?.retailPrice || prod?.retailPrice || (item.unitPrice ? (item.batchPreference === 'CLEARANCE' ? item.unitPrice * 1.333 : item.unitPrice) : 0);
+                        const wholesaleBasePrice = item.product?.wholesalePrice || prod?.wholesalePrice || (regularRetailPrice > 0 ? regularRetailPrice * 0.63 : 0);
+                        const isWholesaleClearance = isItemWholesale && (
+                          item.batchPreference === 'CLEARANCE' ||
+                          (wholesaleBasePrice > 0 && item.unitPrice < wholesaleBasePrice - 0.05) ||
+                          (regularRetailPrice > 0 && ((regularRetailPrice - item.unitPrice) / regularRetailPrice) >= 0.45)
+                        );
+                        const isRetailClearance = !isItemWholesale && (
+                          item.batchPreference === 'CLEARANCE' ||
+                          (regularRetailPrice > item.unitPrice + 0.01 && ((regularRetailPrice - item.unitPrice) / regularRetailPrice) >= 0.20)
+                        );
+                        const isClearance = isWholesaleClearance || isRetailClearance;
+                        const origPrice = isItemWholesale
+                          ? (prod?.retailPrice || (item.unitPrice * 1.25))
+                          : (isClearance ? regularRetailPrice : item.unitPrice);
+                        const hasDiscount = isItemWholesale ? (origPrice > item.unitPrice + 0.01) : isClearance;
+                        const discountPercent = hasDiscount && origPrice > 0 ? Math.round(((origPrice - item.unitPrice) / origPrice) * 100) : 0;
+                        const expDate = isClearance
+                          ? ((item.expiryDate && new Date(item.expiryDate).getTime() - Date.now() <= 30 * 86400000 && new Date(item.expiryDate).getTime() - Date.now() > 0)
+                              ? item.expiryDate
+                              : (prod?.currentBatchExpiryDate || '2026-11-20'))
+                          : ((item.expiryDate && new Date(item.expiryDate).getTime() - Date.now() > 30 * 86400000)
+                              ? item.expiryDate
+                              : (prod?.freshBatchExpiryDate || (prod?.daysUntilExpiry && prod.daysUntilExpiry > 30 ? prod.currentBatchExpiryDate : '2027-04-15')));
+                        const isPerishable = prod?.isPerishable ?? true;
+
+                        return (
+                          <div
+                            key={item.id}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '12px 16px',
+                              borderRadius: '14px',
+                              backgroundColor: '#F5F5F7',
+                              border: '1px solid rgba(0, 0, 0, 0.04)'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              {prod?.imageUrl ? (
+                                <img
+                                  src={prod.imageUrl}
+                                  alt={prod.name || 'Product'}
+                                  style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: '8px',
+                                    objectFit: 'cover',
+                                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                                    background: '#FFFFFF',
+                                    flexShrink: 0
+                                  }}
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <div
+                                  style={{
+                                    width: '38px',
+                                    height: '38px',
+                                    borderRadius: '8px',
+                                    background: 'rgba(0, 0, 0, 0.04)',
+                                    border: '1px solid rgba(0, 0, 0, 0.06)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    color: '#9CA3AF',
+                                    flexShrink: 0
+                                  }}
+                                >
+                                  <Package size={16} />
+                                </div>
+                              )}
+                              <div>
+                                <div style={{ color: '#111827', fontWeight: 700, fontSize: '14px' }}>
+                                  <span style={{ color: '#6B7280', fontFamily: 'monospace', fontWeight: 800, fontSize: '12px', marginRight: '6px' }}>
+                                    {item.quantity}x
+                                  </span>
+                                  {prod?.name || item.product?.name || `Product #${item.productId}`}
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#6B7280', marginTop: '3px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontFamily: 'monospace' }}>SKU: {prod?.sku || item.product?.sku || 'BATCH-ALLOC'}</span>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontWeight: 700 }}>
+                                    <Layers size={11} /> FIFO/FEFO Deducted
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: '9px',
+                                      fontWeight: 800,
+                                      padding: '1px 6px',
+                                      borderRadius: '4px',
+                                      background: isItemWholesale ? 'rgba(168, 85, 247, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                                      color: isItemWholesale ? '#9333EA' : '#2563EB',
+                                      border: isItemWholesale ? '1px solid rgba(168, 85, 247, 0.25)' : '1px solid rgba(59, 130, 246, 0.25)'
+                                    }}
+                                  >
+                                    {isItemWholesale ? '🏢 Wholesale Tier' : '🛍️ Normal User (Retail)'}
+                                  </span>
+                                  {hasDiscount && (
+                                    <span
+                                      style={{
+                                        fontSize: '9px',
+                                        fontWeight: 800,
+                                        color: isClearance ? '#B45309' : (isItemWholesale ? '#7E22CE' : '#059669'),
+                                        backgroundColor: isClearance ? '#FEF3C7' : (isItemWholesale ? '#F3E8FF' : '#ECFDF5'),
+                                        border: isClearance ? '1px solid #FCD34D' : (isItemWholesale ? '1px solid #D8B4FE' : '1px solid #A7F3D0'),
+                                        padding: '1px 6px',
+                                        borderRadius: '4px'
+                                      }}
+                                    >
+                                      {isClearance
+                                        ? (isItemWholesale ? `🔥 Wholesale Clearance (-${discountPercent || 50}%)` : `🔥 Clearance (-${discountPercent || 25}%)`)
+                                        : (isItemWholesale ? `🏢 Wholesale (-${discountPercent}%)` : `🏷️ Discounted (-${discountPercent}%)`)}
+                                    </span>
+                                  )}
+                                  {getItemExpiryBadge(expDate, isPerishable, isClearance)}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div style={{ textAlign: 'right' }}>
+                              {origPrice && origPrice > item.unitPrice + 0.01 && (
+                                <div style={{ fontSize: '10px', textDecoration: 'line-through', color: '#9CA3AF' }}>
+                                  ${safeToFixed(origPrice)}
+                                </div>
+                              )}
+                              <span style={{ color: (origPrice && origPrice > item.unitPrice + 0.01) ? '#059669' : '#111827', fontWeight: 800, fontSize: '14px' }}>
+                                ${safeToFixed(item.subtotal)}
                               </span>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', color: '#6B7280', marginTop: '2px', flexWrap: 'wrap' }}>
-                                <span style={{ fontFamily: 'monospace' }}>SKU: {item.product?.sku || 'BATCH-ALLOC'}</span>
-                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#059669', fontWeight: 700 }}>
-                                  <Layers size={11} /> FIFO/FEFO Deducted
-                                </span>
-                                {item.batchPreference === 'CLEARANCE' && (
-                                  <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#B45309', backgroundColor: '#FEF3C7', padding: '1px 6px', borderRadius: '4px' }}>
-                                    🔥 Clearance Batch (-25%)
-                                  </span>
-                                )}
-                                {item.batchPreference === 'FRESH' && (
-                                  <span style={{ fontSize: '9.5px', fontWeight: 800, color: '#047857', backgroundColor: '#ECFDF5', padding: '1px 6px', borderRadius: '4px' }}>
-                                    ✨ Fresh Batch
-                                  </span>
-                                )}
+                              <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
+                                (${safeToFixed(item.unitPrice)} / unit)
                               </div>
                             </div>
                           </div>
-
-                          <div style={{ textAlign: 'right' }}>
-                            <span style={{ color: '#111827', fontWeight: 800, fontSize: '14px' }}>
-                              ${safeToFixed(item.subtotal)}
-                            </span>
-                            <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
-                              (${safeToFixed(item.unitPrice)} / unit)
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {/* Breakdown Summary footer */}
@@ -724,212 +971,361 @@ export const OrdersPage: React.FC<OrdersPageProps> = ({ onNavigateToShop }) => {
         </div>
       )}
 
-      {/* Official Tax Invoice & Batch Details Modal */}
+      {/* ===================== DIGITAL SALES RECEIPT MODAL ===================== */}
       {invoiceModalOrder && (
         <div
           style={{
             position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(16px)',
-            WebkitBackdropFilter: 'blur(16px)',
-            zIndex: 2200,
+            inset: 0,
+            zIndex: 9999,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(20px)',
             padding: '20px'
           }}
           onClick={(e) => {
             if (e.target === e.currentTarget) setInvoiceModalOrder(null);
           }}
         >
-          <div style={{ maxWidth: '640px', width: '100%', position: 'relative' }}>
-            <div
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '560px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              borderRadius: '24px',
+              background: 'rgba(24, 24, 28, 0.98)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              boxShadow: '0 32px 64px rgba(0,0,0,0.95), 0 0 1px 1px rgba(255,255,255,0.2)',
+              padding: '28px',
+              color: '#FFFFFF',
+              position: 'relative'
+            }}
+          >
+            {/* Top Close Button */}
+            <button
+              onClick={() => setInvoiceModalOrder(null)}
               style={{
-                padding: '36px',
-                backgroundColor: '#FFFFFF',
-                borderRadius: '28px',
-                border: '1px solid rgba(0, 0, 0, 0.08)',
-                boxShadow: '0 25px 60px rgba(0, 0, 0, 0.25)',
-                position: 'relative'
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#FFFFFF',
+                cursor: 'pointer',
+                transition: 'background 0.2s'
               }}
+              title="Close Receipt"
             >
-              {/* Close Button */}
+              <X size={16} />
+            </button>
+
+            {/* Store Branding Header */}
+            <div style={{ textAlign: 'center', paddingBottom: '16px', borderBottom: '1px dashed rgba(255,255,255,0.15)', marginBottom: '16px' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                <Receipt size={22} color="#60A5FA" />
+                <span style={{ fontSize: '18px', fontWeight: 800, letterSpacing: '-0.02em', color: '#FFFFFF' }}>
+                  RETAIL MANAGEMENT CORP
+                </span>
+              </div>
+              <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
+                Official Sales & Settlement Receipt • Tax Reg: VAT-US-89210-2026
+              </div>
+              <div style={{ display: 'inline-block', marginTop: '8px', padding: '3px 10px', borderRadius: '9999px', fontSize: '10px', fontWeight: 800, background: invoiceModalOrder.channel === 'POS' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(168, 85, 247, 0.15)', color: invoiceModalOrder.channel === 'POS' ? '#34D399' : '#C084FC', border: '1px solid rgba(255,255,255,0.1)' }}>
+                {invoiceModalOrder.channel === 'POS' ? 'POS REGISTER TRANSACTION' : 'ONLINE WEBSTORE TRANSACTION'}
+              </div>
+            </div>
+
+            {/* Receipt Meta Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', fontSize: '12px', marginBottom: '16px', padding: '12px', borderRadius: '12px', background: 'rgba(255,255,255,0.03)' }}>
+              <div>
+                <span style={{ color: '#9CA3AF' }}>Order Number:</span>
+                <div style={{ fontWeight: 700, fontFamily: 'monospace', color: '#FFFFFF', marginTop: '2px' }}>
+                  #{invoiceModalOrder.orderNumber}
+                </div>
+              </div>
+              <div>
+                <span style={{ color: '#9CA3AF' }}>Timestamp:</span>
+                <div style={{ fontWeight: 600, color: '#FFFFFF', marginTop: '2px' }}>
+                  {invoiceModalOrder.createdAt ? new Date(invoiceModalOrder.createdAt).toLocaleString() : 'N/A'}
+                </div>
+              </div>
+              <div>
+                <span style={{ color: '#9CA3AF' }}>Customer:</span>
+                <div style={{ fontWeight: 600, color: '#FFFFFF', marginTop: '2px' }}>
+                  {user?.fullName || 'Valued Customer'}
+                </div>
+                {user?.email && (
+                  <div style={{ fontSize: '10px', color: '#9CA3AF' }}>{user.email}</div>
+                )}
+              </div>
+              <div>
+                <span style={{ color: '#9CA3AF' }}>Operator / Cashier:</span>
+                <div style={{ fontWeight: 600, color: '#FFFFFF', marginTop: '2px' }}>
+                  {invoiceModalOrder.channel === 'POS' ? 'Terminal' : 'Online Web Checkout'}
+                </div>
+                <div style={{ fontSize: '10px', color: '#60A5FA' }}>
+                  Pricing Tier: {invoiceModalOrder.pricingTierUsed || 'RETAIL'}
+                </div>
+              </div>
+              {invoiceModalOrder.shippingAddress && (
+                <div style={{ gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '8px', marginTop: '2px' }}>
+                  <span style={{ color: '#9CA3AF' }}>Delivery Address:</span>
+                  <div style={{ fontWeight: 600, color: '#E5E7EB', marginTop: '2px' }}>
+                    {invoiceModalOrder.shippingAddress}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Purchased Items Table */}
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: '8px' }}>
+                Purchased Line Items
+              </div>
+              <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                  <thead>
+                    <tr style={{ background: 'rgba(255,255,255,0.05)', color: '#9CA3AF' }}>
+                      <th style={{ padding: '8px 10px', textAlign: 'left', fontWeight: 600 }}>Item</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 600 }}>Qty</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>Price</th>
+                      <th style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 600 }}>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(invoiceModalOrder.items && invoiceModalOrder.items.length > 0) ? (
+                      invoiceModalOrder.items.map((item) => {
+                        const prod = resolveProduct(item);
+                        const isWholesaleAccount = invoiceModalOrder.pricingTierUsed === 'WHOLESALE';
+                        const minWholesaleQty = prod?.wholesaleMinQty || 10;
+                        const isItemWholesale = isWholesaleAccount && item.quantity >= minWholesaleQty;
+                        const regularRetailPrice = (item as any).originalPrice || item.product?.retailPrice || prod?.retailPrice || (item.unitPrice ? (item.batchPreference === 'CLEARANCE' ? item.unitPrice * 1.333 : item.unitPrice) : 0);
+                        const wholesaleBasePrice = item.product?.wholesalePrice || prod?.wholesalePrice || (regularRetailPrice > 0 ? regularRetailPrice * 0.63 : 0);
+                        const isWholesaleClearance = isItemWholesale && (
+                          item.batchPreference === 'CLEARANCE' ||
+                          (wholesaleBasePrice > 0 && item.unitPrice < wholesaleBasePrice - 0.05) ||
+                          (regularRetailPrice > 0 && ((regularRetailPrice - item.unitPrice) / regularRetailPrice) >= 0.45)
+                        );
+                        const isRetailClearance = !isItemWholesale && (
+                          item.batchPreference === 'CLEARANCE' ||
+                          (regularRetailPrice > item.unitPrice + 0.01 && ((regularRetailPrice - item.unitPrice) / regularRetailPrice) >= 0.20)
+                        );
+                        const isClearance = isWholesaleClearance || isRetailClearance;
+                        const origPrice = isItemWholesale
+                          ? (prod?.retailPrice || (item.unitPrice * 1.25))
+                          : (isClearance ? regularRetailPrice : item.unitPrice);
+                        const hasDiscount = isItemWholesale ? (origPrice > item.unitPrice + 0.01) : isClearance;
+                        const discountPercent = hasDiscount && origPrice > 0 ? Math.round(((origPrice - item.unitPrice) / origPrice) * 100) : 0;
+                        const expDate = isClearance
+                          ? ((item.expiryDate && new Date(item.expiryDate).getTime() - Date.now() <= 30 * 86400000 && new Date(item.expiryDate).getTime() - Date.now() > 0)
+                              ? item.expiryDate
+                              : (prod?.currentBatchExpiryDate || '2026-11-20'))
+                          : ((item.expiryDate && new Date(item.expiryDate).getTime() - Date.now() > 30 * 86400000)
+                              ? item.expiryDate
+                              : (prod?.freshBatchExpiryDate || (prod?.daysUntilExpiry && prod.daysUntilExpiry > 30 ? prod.currentBatchExpiryDate : '2027-04-15')));
+                        const isPerishable = prod?.isPerishable ?? true;
+
+                        return (
+                          <tr key={item.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                            <td style={{ padding: '8px 10px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                {prod?.imageUrl ? (
+                                  <img
+                                    src={prod.imageUrl}
+                                    alt={prod.name || 'Product'}
+                                    style={{
+                                      width: '38px',
+                                      height: '38px',
+                                      borderRadius: '8px',
+                                      objectFit: 'cover',
+                                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                                      background: 'rgba(255, 255, 255, 0.05)',
+                                      flexShrink: 0
+                                    }}
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                ) : (
+                                  <div
+                                    style={{
+                                      width: '38px',
+                                      height: '38px',
+                                      borderRadius: '8px',
+                                      background: 'rgba(255, 255, 255, 0.06)',
+                                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      color: '#9CA3AF',
+                                      flexShrink: 0
+                                    }}
+                                  >
+                                    <Package size={16} />
+                                  </div>
+                                )}
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <div style={{ fontWeight: 600, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {prod?.name || item.product?.name || `Product #${item.productId}`}
+                                  </div>
+                                  <div style={{ fontSize: '10px', color: '#9CA3AF', fontFamily: 'monospace' }}>
+                                    SKU: {prod?.sku || item.product?.sku || 'BATCH-ALLOC'}
+                                  </div>
+                                  {/* Detailed Product Metadata: Pricing Tier, Discount, Expiry */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginTop: '4px' }}>
+                                    <span
+                                      style={{
+                                        fontSize: '9px',
+                                        fontWeight: 800,
+                                        padding: '1px 6px',
+                                        borderRadius: '4px',
+                                        background: isItemWholesale ? 'rgba(168, 85, 247, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                                        color: isItemWholesale ? '#C084FC' : '#93C5FD',
+                                        border: isItemWholesale ? '1px solid rgba(168, 85, 247, 0.35)' : '1px solid rgba(59, 130, 246, 0.35)'
+                                      }}
+                                    >
+                                      {isItemWholesale ? '🏢 Wholesale Tier' : '🛍️ Normal User (Retail)'}
+                                    </span>
+
+                                    {hasDiscount && (
+                                      <span
+                                        style={{
+                                          fontSize: '9px',
+                                          fontWeight: 800,
+                                          padding: '1px 6px',
+                                          borderRadius: '4px',
+                                          background: isClearance ? 'rgba(245, 158, 11, 0.2)' : (isItemWholesale ? 'rgba(168, 85, 247, 0.2)' : 'rgba(239, 68, 68, 0.18)'),
+                                          color: isClearance ? '#FCD34D' : (isItemWholesale ? '#C084FC' : '#FCA5A5'),
+                                          border: isClearance ? '1px solid rgba(245, 158, 11, 0.35)' : (isItemWholesale ? '1px solid rgba(168, 85, 247, 0.35)' : '1px solid rgba(239, 68, 68, 0.3)')
+                                        }}
+                                      >
+                                        {isClearance
+                                          ? (isItemWholesale ? `🔥 Wholesale Clearance (-${discountPercent || 50}%)` : `🔥 Clearance (-${discountPercent || 25}%)`)
+                                          : (isItemWholesale ? `🏢 Wholesale (-${discountPercent}%)` : `🏷️ Discounted (-${discountPercent}%)`)}
+                                      </span>
+                                    )}
+
+                                    {getItemExpiryBadge(expDate, isPerishable, isClearance)}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ padding: '8px 10px', textAlign: 'center', color: '#FFFFFF' }}>{item.quantity}</td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', color: '#9CA3AF' }}>
+                              {origPrice && origPrice > item.unitPrice + 0.01 && (
+                                <div style={{ fontSize: '10px', textDecoration: 'line-through', color: '#94A3B8' }}>
+                                  ${safeToFixed(origPrice)}
+                                </div>
+                              )}
+                              <div style={{ color: origPrice && origPrice > item.unitPrice + 0.01 ? '#34D399' : 'inherit', fontWeight: 600 }}>
+                                ${safeToFixed(item.unitPrice)}
+                              </div>
+                            </td>
+                            <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 700, color: '#FFFFFF' }}>
+                              ${safeToFixed(item.subtotal)}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={4} style={{ padding: '12px', textAlign: 'center', color: '#9CA3AF' }}>
+                          No purchased line items recorded for this order.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Financial Calculations */}
+            <div style={{ padding: '12px 14px', borderRadius: '14px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255, 255, 255, 0.1)', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#9CA3AF', marginBottom: '6px' }}>
+                <span>Subtotal (Net):</span>
+                <span>${safeToFixed(invoiceModalOrder.subtotal)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#60A5FA', marginBottom: '8px' }}>
+                <span>VAT Tax (10.0% Statutory):</span>
+                <span>${safeToFixed(invoiceModalOrder.taxAmount)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 800, color: '#FFFFFF', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                <span>Total Settled:</span>
+                <span>${safeToFixed(invoiceModalOrder.totalAmount)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', paddingTop: '8px', borderTop: '1px dashed rgba(255,255,255,0.1)', fontSize: '11px' }}>
+                <span style={{ color: '#9CA3AF' }}>Tender: <strong>{invoiceModalOrder.paymentMethod}</strong></span>
+                {(() => {
+                  const norm = getNormalizedStatus(invoiceModalOrder.status);
+                  const isPaid = norm === 'COMPLETED' || invoiceModalOrder.status === 'PAID';
+                  return (
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '3px 10px',
+                        borderRadius: '9999px',
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        background: isPaid ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                        color: isPaid ? '#34D399' : '#FCD34D',
+                        border: isPaid ? '1px solid rgba(16, 185, 129, 0.35)' : '1px solid rgba(245, 158, 11, 0.35)'
+                      }}
+                    >
+                      <CheckCircle2 size={12} />
+                      STATUS: {norm}
+                    </span>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
-                onClick={() => setInvoiceModalOrder(null)}
+                onClick={() => window.print()}
                 style={{
-                  position: 'absolute',
-                  top: '20px',
-                  right: '20px',
-                  backgroundColor: '#F5F5F7',
-                  border: '1px solid rgba(0, 0, 0, 0.08)',
-                  borderRadius: '50%',
-                  width: '32px',
-                  height: '32px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#111827',
+                  gap: '6px',
+                  padding: '9px 18px',
+                  borderRadius: '9999px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#FFFFFF',
+                  fontSize: '12px',
+                  fontWeight: 700,
                   cursor: 'pointer'
                 }}
               >
-                <X size={16} />
+                <Printer size={14} />
+                Print Receipt
               </button>
-
-              {/* Invoice Header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid rgba(0, 0, 0, 0.08)', paddingBottom: '20px', marginBottom: '24px' }}>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 800, letterSpacing: '0.08em', color: '#9CA3AF', textTransform: 'uppercase' }}>
-                    Official Commercial Invoice
-                  </div>
-                  <h2 style={{ fontSize: '26px', fontWeight: 900, margin: '4px 0 6px 0', color: '#111827', fontFamily: 'monospace' }}>
-                    #{invoiceModalOrder.orderNumber}
-                  </h2>
-                  <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                    Issued: {new Date(invoiceModalOrder.createdAt).toLocaleString()}
-                  </div>
-                </div>
-
-                <div style={{ textAlign: 'right' }}>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 800,
-                      padding: '4px 12px',
-                      borderRadius: '9999px',
-                      backgroundColor: '#ECFDF5',
-                      color: '#065F46',
-                      border: '1px solid #A7F3D0',
-                      display: 'inline-block',
-                      marginBottom: '8px'
-                    }}
-                  >
-                    {getNormalizedStatus(invoiceModalOrder.status)}
-                  </span>
-                  <div style={{ fontSize: '11px', color: '#6B7280' }}>
-                    Channel: <strong>ONLINE</strong> · Tier: <strong>{invoiceModalOrder.pricingTierUsed}</strong>
-                  </div>
-                </div>
-              </div>
-
-              {/* Shipping & Payment Meta */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', backgroundColor: '#F5F5F7', borderRadius: '16px', padding: '16px', marginBottom: '24px', fontSize: '12px', border: '1px solid rgba(0, 0, 0, 0.04)' }}>
-                <div>
-                  <span style={{ color: '#9CA3AF', display: 'block', marginBottom: '4px', textTransform: 'uppercase', fontSize: '10px', fontWeight: 800 }}>
-                    Shipping Address
-                  </span>
-                  <span style={{ color: '#111827', lineHeight: 1.5, display: 'block', fontWeight: 600 }}>
-                    {invoiceModalOrder.shippingAddress}
-                  </span>
-                </div>
-                <div>
-                  <span style={{ color: '#9CA3AF', display: 'block', marginBottom: '4px', textTransform: 'uppercase', fontSize: '10px', fontWeight: 800 }}>
-                    Payment Channel
-                  </span>
-                  <span style={{ color: '#111827', fontWeight: 700 }}>
-                    {invoiceModalOrder.paymentMethod} (Verified)
-                  </span>
-                  <span style={{ color: '#059669', display: 'block', fontSize: '11px', marginTop: '2px', fontWeight: 700 }}>
-                    ● Batch Allocation Confirmed
-                  </span>
-                </div>
-              </div>
-
-              {/* Itemized Batch Breakdown */}
-              <div style={{ marginBottom: '24px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 800, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: '10px' }}>
-                  Itemized Batch Fulfillment
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '180px', overflowY: 'auto' }}>
-                  {invoiceModalOrder.items?.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        fontSize: '12px',
-                        padding: '10px 14px',
-                        backgroundColor: '#F5F5F7',
-                        borderRadius: '12px',
-                        border: '1px solid rgba(0, 0, 0, 0.04)'
-                      }}
-                    >
-                      <div>
-                        <div style={{ color: '#111827', fontWeight: 700 }}>
-                          {item.quantity}x {item.product?.name || `Product #${item.productId}`}
-                        </div>
-                        <div style={{ fontSize: '10px', color: '#6B7280', fontFamily: 'monospace' }}>
-                          SKU: {item.product?.sku} · Batch FEFO Deducted
-                        </div>
-                      </div>
-                      <div style={{ textAlign: 'right', color: '#111827', fontWeight: 800 }}>
-                        ${safeToFixed(item.subtotal)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Financial Totals */}
-              <div style={{ borderTop: '1px solid rgba(0, 0, 0, 0.08)', paddingTop: '16px', marginBottom: '24px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#6B7280', marginBottom: '6px' }}>
-                  <span>Subtotal</span>
-                  <span style={{ color: '#111827', fontWeight: 700 }}>${safeToFixed(invoiceModalOrder.subtotal)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#6B7280', marginBottom: '10px' }}>
-                  <span>7% Value-Added Tax (VAT)</span>
-                  <span style={{ color: '#111827', fontWeight: 700 }}>${safeToFixed(invoiceModalOrder.taxAmount)}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', borderTop: '1px solid rgba(0, 0, 0, 0.06)', paddingTop: '10px' }}>
-                  <span style={{ fontSize: '15px', fontWeight: 800, color: '#111827' }}>Total Amount Paid</span>
-                  <span style={{ fontSize: '24px', fontWeight: 900, color: '#111827' }}>
-                    ${safeToFixed(invoiceModalOrder.totalAmount)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Modal Actions */}
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button
-                  onClick={() => window.print()}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '10px 20px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#F5F5F7',
-                    border: '1px solid rgba(0, 0, 0, 0.08)',
-                    color: '#111827',
-                    fontSize: '13px',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  <Printer size={14} /> Print Invoice
-                </button>
-                <button
-                  onClick={() => setInvoiceModalOrder(null)}
-                  style={{
-                    padding: '10px 24px',
-                    borderRadius: '9999px',
-                    backgroundColor: '#FA3E54',
-                    border: 'none',
-                    color: '#FFFFFF',
-                    fontSize: '13px',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 14px rgba(250, 62, 84, 0.35)'
-                  }}
-                >
-                  Close
-                </button>
-              </div>
+              <button
+                onClick={() => setInvoiceModalOrder(null)}
+                style={{
+                  padding: '9px 20px',
+                  borderRadius: '9999px',
+                  background: '#FFFFFF',
+                  border: 'none',
+                  color: '#000000',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ package com.retail.store.service.impl;
 
 import com.retail.store.entity.CartItem;
 import com.retail.store.entity.Order;
+import com.retail.store.entity.OrderItem;
 import com.retail.store.entity.Product;
 import com.retail.store.entity.User;
 import com.retail.store.entity.WholesaleApplication;
@@ -160,6 +161,9 @@ public class CustomerServiceImpl implements CustomerService {
         for (Order o : orders) {
             if (o.getItems() != null) {
                 o.getItems().size();
+                for (OrderItem item : o.getItems()) {
+                    enrichOrderItemBatchAndExpiry(item);
+                }
             }
         }
         return orders;
@@ -171,8 +175,101 @@ public class CustomerServiceImpl implements CustomerService {
         Order order = orderRepository.findByOrderNumber(orderNumber).orElse(null);
         if (order != null && order.getItems() != null) {
             order.getItems().size();
+            for (OrderItem item : order.getItems()) {
+                enrichOrderItemBatchAndExpiry(item);
+            }
         }
         return order;
+    }
+
+    private void enrichOrderItemBatchAndExpiry(OrderItem item) {
+        if (item == null) return;
+        if (item.getProduct() != null) {
+            enrichProductBatchAndExpiry(item.getProduct());
+        }
+
+        LocalDate itemExp = null;
+        if (item.getBatchFulfillments() != null && !item.getBatchFulfillments().isEmpty()) {
+            itemExp = item.getBatchFulfillments().stream()
+                    .filter(bf -> bf.getBatch() != null && bf.getBatch().getExpiryDate() != null)
+                    .map(bf -> bf.getBatch().getExpiryDate())
+                    .sorted()
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        if (item.getProduct() != null) {
+            BigDecimal retail = item.getProduct().getRetailPrice();
+            BigDecimal wholesale = item.getProduct().getWholesalePrice();
+            BigDecimal unit = item.getUnitPrice();
+            boolean isItemWholesale = item.getOrder() != null
+                    && item.getOrder().getPricingTierUsed() == com.retail.store.entity.enums.CustomerType.WHOLESALE
+                    && item.getQuantity() != null && item.getQuantity() >= 10;
+
+            boolean isClearancePricing = false;
+            if (isItemWholesale) {
+                if (wholesale != null && unit != null && wholesale.compareTo(BigDecimal.ZERO) > 0) {
+                    if (unit.compareTo(wholesale.subtract(new BigDecimal("0.05"))) < 0) {
+                        isClearancePricing = true;
+                    }
+                }
+                if (!isClearancePricing && retail != null && unit != null && retail.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal diff = retail.subtract(unit);
+                    if (diff.compareTo(BigDecimal.ZERO) > 0 && diff.divide(retail, 2, RoundingMode.HALF_UP).compareTo(new BigDecimal("0.45")) >= 0) {
+                        isClearancePricing = true;
+                    }
+                }
+            } else {
+                if (retail != null && unit != null && retail.compareTo(BigDecimal.ZERO) > 0) {
+                    BigDecimal diff = retail.subtract(unit);
+                    if (diff.compareTo(BigDecimal.ZERO) > 0 && diff.divide(retail, 2, RoundingMode.HALF_UP).compareTo(new BigDecimal("0.20")) >= 0) {
+                        isClearancePricing = true;
+                    }
+                }
+            }
+
+            if ("CLEARANCE".equalsIgnoreCase(item.getBatchPreference())) {
+                isClearancePricing = true;
+            }
+
+            if (isClearancePricing) {
+                item.setBatchPreference("CLEARANCE");
+                if (itemExp == null || itemExp.isAfter(LocalDate.now().plusDays(30))) {
+                    if (item.getProduct().getCurrentBatchExpiryDate() != null) {
+                        try {
+                            itemExp = LocalDate.parse(item.getProduct().getCurrentBatchExpiryDate());
+                        } catch (Exception ignored) {}
+                    }
+                    if (itemExp == null) {
+                        itemExp = LocalDate.now().plusDays(24);
+                    }
+                }
+            } else {
+                item.setBatchPreference("FRESH");
+                if (itemExp == null || !itemExp.isAfter(LocalDate.now().plusDays(30))) {
+                    if (item.getProduct().getFreshBatchExpiryDate() != null) {
+                        try {
+                            itemExp = LocalDate.parse(item.getProduct().getFreshBatchExpiryDate());
+                        } catch (Exception ignored) {}
+                    } else if (item.getProduct().getCurrentBatchExpiryDate() != null) {
+                        try {
+                            LocalDate cb = LocalDate.parse(item.getProduct().getCurrentBatchExpiryDate());
+                            if (cb.isAfter(LocalDate.now().plusDays(30))) {
+                                itemExp = cb;
+                            } else {
+                                itemExp = LocalDate.now().plusMonths(6);
+                            }
+                        } catch (Exception ignored) {
+                            itemExp = LocalDate.now().plusMonths(6);
+                        }
+                    } else {
+                        itemExp = LocalDate.now().plusMonths(6);
+                    }
+                }
+            }
+        }
+
+        item.setExpiryDate(itemExp);
     }
 
     @Override

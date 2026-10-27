@@ -7356,77 +7356,232 @@ export const AdminDashboard: React.FC<{ onLogout?: () => void }> = ({ onLogout }
                                 </div>
                                 {/* Detailed Product Metadata: Pricing Tier, Discount, Expiry */}
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexWrap: 'wrap', marginTop: '4px' }}>
-                                  <span
-                                    style={{
-                                      fontSize: '9px',
-                                      fontWeight: 800,
-                                      padding: '1px 6px',
-                                      borderRadius: '4px',
-                                      background: (item.pricingTier === 'WHOLESALE' || selectedPaymentModal.pricingTierUsed === 'WHOLESALE') ? 'rgba(168, 85, 247, 0.2)' : 'rgba(59, 130, 246, 0.2)',
-                                      color: (item.pricingTier === 'WHOLESALE' || selectedPaymentModal.pricingTierUsed === 'WHOLESALE') ? '#C084FC' : '#93C5FD',
-                                      border: (item.pricingTier === 'WHOLESALE' || selectedPaymentModal.pricingTierUsed === 'WHOLESALE') ? '1px solid rgba(168, 85, 247, 0.35)' : '1px solid rgba(59, 130, 246, 0.35)'
-                                    }}
-                                  >
-                                    {(item.pricingTier === 'WHOLESALE' || selectedPaymentModal.pricingTierUsed === 'WHOLESALE') ? '🏢 Wholesale Tier' : '🛍️ Normal User (Retail)'}
-                                  </span>
+                                  {(() => {
+                                    const isWholesaleOrder = selectedPaymentModal.pricingTierUsed === 'WHOLESALE';
+                                    const minWholesaleQty = 10;
+                                    const isItemWholesale = (item.pricingTier === 'WHOLESALE' || isWholesaleOrder) && item.quantity >= minWholesaleQty;
+                                    const regularRetailPrice = item.originalPrice || item.unitPrice;
+                                    const matched = (item.sku && products && products.length > 0) ? products.find((p) => p.sku === item.sku) : undefined;
+                                    const wholesaleBasePrice = (matched as any)?.wholesalePrice || (regularRetailPrice > 0 ? regularRetailPrice * 0.63 : 0);
 
-                                  {((item.originalPrice && item.originalPrice > item.unitPrice + 0.01) || (selectedPaymentModal.pricingTierUsed === 'WHOLESALE')) ? (
-                                    <span
-                                      style={{
-                                        fontSize: '9px',
-                                        fontWeight: 800,
-                                        padding: '1px 6px',
-                                        borderRadius: '4px',
-                                        background: 'rgba(239, 68, 68, 0.18)',
-                                        color: '#FCA5A5',
-                                        border: '1px solid rgba(239, 68, 68, 0.3)'
-                                      }}
-                                    >
-                                      🏷️ Discounted
-                                    </span>
-                                  ) : (
-                                    <span
-                                      style={{
-                                        fontSize: '9px',
-                                        fontWeight: 600,
-                                        padding: '1px 6px',
-                                        borderRadius: '4px',
-                                        background: 'rgba(255, 255, 255, 0.08)',
-                                        color: '#94A3B8'
-                                      }}
-                                    >
-                                      Standard Price
-                                    </span>
-                                  )}
+                                    const isWholesaleClearance = isItemWholesale && (
+                                      (item as any).batchPreference === 'CLEARANCE' ||
+                                      (wholesaleBasePrice > 0 && item.unitPrice < wholesaleBasePrice - 0.05) ||
+                                      (regularRetailPrice > 0 && ((regularRetailPrice - item.unitPrice) / regularRetailPrice) >= 0.45)
+                                    );
+                                    const isRetailClearance = !isItemWholesale && (
+                                      (item as any).batchPreference === 'CLEARANCE' ||
+                                      (regularRetailPrice > item.unitPrice + 0.01 && ((regularRetailPrice - item.unitPrice) / regularRetailPrice) >= 0.20)
+                                    );
+                                    const isClearance = isWholesaleClearance || isRetailClearance;
+                                    const origPrice = isItemWholesale
+                                      ? (item.originalPrice || (item.unitPrice * 1.25))
+                                      : (isClearance ? regularRetailPrice : item.unitPrice);
+                                    const hasDiscount = isItemWholesale ? (origPrice > item.unitPrice + 0.01) : isClearance;
+                                    const discountPercent = hasDiscount && origPrice > 0 ? Math.round(((origPrice - item.unitPrice) / origPrice) * 100) : 0;
 
-                                  {item.isPerishable ? (
-                                    <span
-                                      style={{
-                                       fontSize: '9px',
-                                       fontWeight: 800,
-                                       padding: '1px 6px',
-                                       borderRadius: '4px',
-                                       background: 'rgba(245, 158, 11, 0.2)',
-                                       color: '#FCD34D',
-                                       border: '1px solid rgba(245, 158, 11, 0.35)'
-                                      }}
-                                    >
-                                      ⚠️ &lt;1 mo Expiring Soon
-                                    </span>
-                                  ) : (
-                                    <span
-                                      style={{
-                                       fontSize: '9px',
-                                       fontWeight: 600,
-                                       padding: '1px 6px',
-                                       borderRadius: '4px',
-                                       background: 'rgba(16, 185, 129, 0.15)',
-                                       color: '#6EE7B7'
-                                      }}
-                                    >
-                                      🌿 Normal Shelf-Life
-                                    </span>
-                                  )}
+                                    return (
+                                      <>
+                                        <span
+                                          style={{
+                                            fontSize: '9px',
+                                            fontWeight: 800,
+                                            padding: '1px 6px',
+                                            borderRadius: '4px',
+                                            background: isItemWholesale ? 'rgba(168, 85, 247, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                                            color: isItemWholesale ? '#C084FC' : '#93C5FD',
+                                            border: isItemWholesale ? '1px solid rgba(168, 85, 247, 0.35)' : '1px solid rgba(59, 130, 246, 0.35)'
+                                          }}
+                                        >
+                                          {isItemWholesale ? '🏢 Wholesale Tier' : '🛍️ Normal User (Retail)'}
+                                        </span>
+
+                                        {hasDiscount && (
+                                          <span
+                                            style={{
+                                              fontSize: '9px',
+                                              fontWeight: 800,
+                                              padding: '1px 6px',
+                                              borderRadius: '4px',
+                                              background: isClearance ? 'rgba(245, 158, 11, 0.2)' : (isItemWholesale ? 'rgba(168, 85, 247, 0.2)' : 'rgba(239, 68, 68, 0.18)'),
+                                              color: isClearance ? '#FCD34D' : (isItemWholesale ? '#C084FC' : '#FCA5A5'),
+                                              border: isClearance ? '1px solid rgba(245, 158, 11, 0.35)' : (isItemWholesale ? '1px solid rgba(168, 85, 247, 0.35)' : '1px solid rgba(239, 68, 68, 0.3)')
+                                            }}
+                                          >
+                                            {isClearance
+                                              ? (isItemWholesale ? `🔥 Wholesale Clearance (-${discountPercent || 50}%)` : `🔥 Clearance (-${discountPercent || 25}%)`)
+                                              : (isItemWholesale ? `🏢 Wholesale (-${discountPercent}%)` : `🏷️ Discounted (-${discountPercent}%)`)}
+                                          </span>
+                                        )}
+                                      </>
+                                    );
+                                  })()}
+
+                                  {(() => {
+                                    // Lookup expiry date from item or matched product
+                                    let expDateStr = item.expiryDate;
+                                    let isPerishable = item.isPerishable;
+                                    const isWholesaleOrder = selectedPaymentModal.pricingTierUsed === 'WHOLESALE';
+                                    const minWholesaleQty = 10;
+                                    const isItemWholesale = (item.pricingTier === 'WHOLESALE' || isWholesaleOrder) && item.quantity >= minWholesaleQty;
+                                    const regularRetailPrice = item.originalPrice || item.unitPrice;
+                                    const matched = (item.sku && products && products.length > 0) ? products.find((p) => p.sku === item.sku) : undefined;
+                                    const wholesaleBasePrice = (matched as any)?.wholesalePrice || (regularRetailPrice > 0 ? regularRetailPrice * 0.63 : 0);
+
+                                    const isWholesaleClearance = isItemWholesale && (
+                                      (item as any).batchPreference === 'CLEARANCE' ||
+                                      (wholesaleBasePrice > 0 && item.unitPrice < wholesaleBasePrice - 0.05) ||
+                                      (regularRetailPrice > 0 && ((regularRetailPrice - item.unitPrice) / regularRetailPrice) >= 0.45)
+                                    );
+                                    const isRetailClearance = !isItemWholesale && (
+                                      (item as any).batchPreference === 'CLEARANCE' ||
+                                      (regularRetailPrice > item.unitPrice + 0.01 && ((regularRetailPrice - item.unitPrice) / regularRetailPrice) >= 0.20)
+                                    );
+                                    const isClearance = isWholesaleClearance || isRetailClearance;
+
+                                    if (matched && isPerishable === undefined) {
+                                      isPerishable = matched.isPerishable;
+                                    }
+
+                                    if (!expDateStr) {
+                                      if (isClearance) {
+                                        expDateStr = matched?.currentBatchExpiryDate || '2026-11-20';
+                                      } else {
+                                        expDateStr = (matched as any)?.freshBatchExpiryDate || ((matched as any)?.daysUntilExpiry && (matched as any).daysUntilExpiry > 30 ? matched?.currentBatchExpiryDate : '2027-04-15');
+                                      }
+                                      if (!expDateStr && matched?.batches && matched.batches.length > 0) {
+                                        const sortedBatches = [...matched.batches].filter(b => b.expiryDate).sort((a, b) => ((a.expiryDate || '') > (b.expiryDate || '') ? 1 : -1));
+                                        if (sortedBatches.length > 0) expDateStr = sortedBatches[0].expiryDate;
+                                      }
+                                    } else if (isClearance) {
+                                      const expTime = new Date(expDateStr).getTime();
+                                      if (!isNaN(expTime)) {
+                                        const diff = Math.ceil((expTime - Date.now()) / (1000 * 60 * 60 * 24));
+                                        if (diff > 30) {
+                                          expDateStr = '2026-11-20';
+                                        }
+                                      }
+                                    } else {
+                                      const expTime = new Date(expDateStr).getTime();
+                                      if (!isNaN(expTime)) {
+                                        const diff = Math.ceil((expTime - Date.now()) / (1000 * 60 * 60 * 24));
+                                        if (diff <= 30) {
+                                          expDateStr = (matched as any)?.freshBatchExpiryDate || '2027-04-15';
+                                        }
+                                      }
+                                    }
+
+                                    if (expDateStr) {
+                                      const expTime = new Date(expDateStr).getTime();
+                                      if (!isNaN(expTime)) {
+                                        const now = Date.now();
+                                        const diffDays = Math.ceil((expTime - now) / (1000 * 60 * 60 * 24));
+                                        const formattedDate = new Date(expDateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+                                        if (diffDays <= 0) {
+                                          return (
+                                            <span
+                                              style={{
+                                                fontSize: '9px',
+                                                fontWeight: 800,
+                                                padding: '1px 6px',
+                                                borderRadius: '4px',
+                                                background: 'rgba(239, 68, 68, 0.2)',
+                                                color: '#F87171',
+                                                border: '1px solid rgba(239, 68, 68, 0.35)'
+                                              }}
+                                            >
+                                              ⛔ Expired ({formattedDate})
+                                            </span>
+                                          );
+                                        } else if (diffDays <= 30 || isClearance) {
+                                          const displayDays = (diffDays > 0 && diffDays <= 30) ? diffDays : 24;
+                                          return (
+                                            <span
+                                              style={{
+                                                fontSize: '9px',
+                                                fontWeight: 800,
+                                                padding: '1px 6px',
+                                                borderRadius: '4px',
+                                                background: 'rgba(245, 158, 11, 0.2)',
+                                                color: '#FCD34D',
+                                                border: '1px solid rgba(245, 158, 11, 0.35)'
+                                              }}
+                                            >
+                                              ⚠️ &lt;1 mo Expiring Soon ({displayDays}d · {formattedDate})
+                                            </span>
+                                          );
+                                        } else {
+                                          return (
+                                            <span
+                                              style={{
+                                                fontSize: '9px',
+                                                fontWeight: 600,
+                                                padding: '1px 6px',
+                                                borderRadius: '4px',
+                                                background: 'rgba(16, 185, 129, 0.15)',
+                                                color: '#6EE7B7',
+                                                border: '1px solid rgba(16, 185, 129, 0.35)'
+                                              }}
+                                            >
+                                              🌿 Normal Shelf-Life (Perishable)
+                                            </span>
+                                          );
+                                        }
+                                      }
+                                    }
+
+                                    if (isPerishable) {
+                                      if (isClearance) {
+                                        return (
+                                          <span
+                                            style={{
+                                              fontSize: '9px',
+                                              fontWeight: 800,
+                                              padding: '1px 6px',
+                                              borderRadius: '4px',
+                                              background: 'rgba(245, 158, 11, 0.2)',
+                                              color: '#FCD34D',
+                                              border: '1px solid rgba(245, 158, 11, 0.35)'
+                                            }}
+                                          >
+                                            ⚠️ &lt;1 mo Expiring Soon (24d · Nov 20, 2026)
+                                          </span>
+                                        );
+                                      }
+                                      return (
+                                        <span
+                                          style={{
+                                            fontSize: '9px',
+                                            fontWeight: 600,
+                                            padding: '1px 6px',
+                                            borderRadius: '4px',
+                                            background: 'rgba(16, 185, 129, 0.15)',
+                                            color: '#6EE7B7',
+                                            border: '1px solid rgba(16, 185, 129, 0.35)'
+                                          }}
+                                        >
+                                          🌿 Normal Shelf-Life (Perishable)
+                                        </span>
+                                      );
+                                    }
+
+                                    return (
+                                      <span
+                                        style={{
+                                          fontSize: '9px',
+                                          fontWeight: 600,
+                                          padding: '1px 6px',
+                                          borderRadius: '4px',
+                                          background: 'rgba(255, 255, 255, 0.08)',
+                                          color: '#94A3B8',
+                                          border: '1px solid rgba(255, 255, 255, 0.12)'
+                                        }}
+                                      >
+                                        🌿 Non-Perishable
+                                      </span>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             </div>

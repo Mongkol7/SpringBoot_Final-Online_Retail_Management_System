@@ -870,21 +870,78 @@ public class AdminServiceImpl implements AdminService {
                     BigDecimal origPrice = item.getProduct() != null && item.getProduct().getRetailPrice() != null
                             ? item.getProduct().getRetailPrice()
                             : (item.getUnitPrice() != null ? item.getUnitPrice() : BigDecimal.ZERO);
+                    BigDecimal wholesalePrice = item.getProduct() != null ? item.getProduct().getWholesalePrice() : null;
                     Boolean perishable = item.getProduct() != null ? item.getProduct().getIsPerishable() : false;
+                    boolean isItemWholesale = "WHOLESALE".equalsIgnoreCase(orderPricingTier) && item.getQuantity() != null && item.getQuantity() >= 10;
+
+                    boolean isClearancePricing = false;
+                    if (isItemWholesale) {
+                        if (wholesalePrice != null && item.getUnitPrice() != null && wholesalePrice.compareTo(BigDecimal.ZERO) > 0) {
+                            if (item.getUnitPrice().compareTo(wholesalePrice.subtract(new BigDecimal("0.05"))) < 0) {
+                                isClearancePricing = true;
+                            }
+                        }
+                        if (!isClearancePricing && origPrice != null && item.getUnitPrice() != null && origPrice.compareTo(BigDecimal.ZERO) > 0) {
+                            BigDecimal diff = origPrice.subtract(item.getUnitPrice());
+                            if (diff.compareTo(BigDecimal.ZERO) > 0 && diff.divide(origPrice, 2, RoundingMode.HALF_UP).compareTo(new BigDecimal("0.45")) >= 0) {
+                                isClearancePricing = true;
+                            }
+                        }
+                    } else {
+                        if (origPrice != null && item.getUnitPrice() != null && origPrice.compareTo(BigDecimal.ZERO) > 0) {
+                            BigDecimal diff = origPrice.subtract(item.getUnitPrice());
+                            if (diff.compareTo(BigDecimal.ZERO) > 0 && diff.divide(origPrice, 2, RoundingMode.HALF_UP).compareTo(new BigDecimal("0.20")) >= 0) {
+                                isClearancePricing = true;
+                            }
+                        }
+                    }
+                    if ("CLEARANCE".equalsIgnoreCase(item.getBatchPreference())) {
+                        isClearancePricing = true;
+                    }
+
                     java.time.LocalDate expDate = null;
                     if (item.getProduct() != null && item.getProduct().getId() != null) {
                         try {
                             List<ProductBatch> bList = batchRepository.findByProduct_IdOrderByReceivedAtDesc(item.getProduct().getId());
-                            if (bList != null && !bList.isEmpty()) {
-                                expDate = bList.stream()
-                                        .map(ProductBatch::getExpiryDate)
-                                        .filter(java.util.Objects::nonNull)
-                                        .sorted()
-                                        .findFirst()
-                                        .orElse(null);
+                            if (isClearancePricing) {
+                                if (item.getBatchFulfillments() != null && !item.getBatchFulfillments().isEmpty()) {
+                                    expDate = item.getBatchFulfillments().stream()
+                                            .filter(bf -> bf.getBatch() != null && bf.getBatch().getExpiryDate() != null)
+                                            .map(bf -> bf.getBatch().getExpiryDate())
+                                            .filter(d -> !d.isAfter(java.time.LocalDate.now().plusDays(30)))
+                                            .sorted()
+                                            .findFirst()
+                                            .orElse(null);
+                                }
+                                if (expDate == null && bList != null && !bList.isEmpty()) {
+                                    expDate = bList.stream()
+                                            .map(ProductBatch::getExpiryDate)
+                                            .filter(java.util.Objects::nonNull)
+                                            .filter(d -> !d.isAfter(java.time.LocalDate.now().plusDays(30)))
+                                            .sorted()
+                                            .findFirst()
+                                            .orElse(null);
+                                }
+                                if (expDate == null) {
+                                    expDate = java.time.LocalDate.now().plusDays(24);
+                                }
+                            } else {
+                                if (bList != null && !bList.isEmpty()) {
+                                    expDate = bList.stream()
+                                            .map(ProductBatch::getExpiryDate)
+                                            .filter(java.util.Objects::nonNull)
+                                            .filter(d -> d.isAfter(java.time.LocalDate.now().plusDays(30)))
+                                            .sorted()
+                                            .findFirst()
+                                            .orElse(null);
+                                }
+                                if (expDate == null) {
+                                    expDate = java.time.LocalDate.now().plusMonths(6);
+                                }
                             }
                         } catch (Exception ignored) {}
                     }
+                    String itemPricingTier = isItemWholesale ? "WHOLESALE" : "RETAIL";
                     return new AdminPaymentItemDto(
                             item.getId(),
                             item.getProduct() != null ? item.getProduct().getName() : "Item",
@@ -896,7 +953,7 @@ public class AdminServiceImpl implements AdminService {
                             origPrice,
                             Boolean.TRUE.equals(perishable),
                             expDate,
-                            orderPricingTier
+                            itemPricingTier
                     );
                 })
                 .toList() : List.of();

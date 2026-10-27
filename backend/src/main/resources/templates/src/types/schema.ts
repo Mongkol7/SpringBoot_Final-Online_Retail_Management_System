@@ -134,6 +134,7 @@ export interface OrderItem {
   unitPrice: number;
   subtotal: number;
   batchPreference?: 'FRESH' | 'CLEARANCE';
+  expiryDate?: string;
   product?: Product;
 }
 

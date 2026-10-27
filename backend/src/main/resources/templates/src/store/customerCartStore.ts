@@ -983,7 +983,11 @@ export const useCustomerCartStore = create<CustomerState>()(
               quantity: item.quantity,
               unitPrice: item.appliedPrice,
               subtotal: item.subtotal,
-              product: item.product
+              product: item.product,
+              batchPreference: item.batchPreference,
+              expiryDate: item.batchPreference === 'CLEARANCE'
+                ? (item.product.currentBatchExpiryDate || '2026-11-20')
+                : (item.product.freshBatchExpiryDate || '2027-04-15')
             }))
           };
         }

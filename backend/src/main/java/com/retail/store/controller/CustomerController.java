@@ -66,6 +66,10 @@ public class CustomerController {
         } else {
             order = customerService.checkoutOnline(user.getId(), request != null ? request.shippingAddress() : null, request != null ? request.paymentMethod() : null);
         }
+        if (order != null && order.getOrderNumber() != null) {
+            Order enriched = customerService.getOrderDetails(order.getOrderNumber());
+            if (enriched != null) order = enriched;
+        }
         return new ResponseEntity<>(order, HttpStatus.CREATED);
     }
 
