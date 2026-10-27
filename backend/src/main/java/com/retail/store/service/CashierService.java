@@ -12,6 +12,10 @@ public interface CashierService {
 
     AuthService.AuthResponse login(String email, String password);
 
+    List<CashierStaffDto> getCashierStaffList();
+
+    AuthService.AuthResponse loginWithPin(Long cashierId, String pin);
+
     PosCheckoutResult checkoutWalkIn(Long cashierUserId, List<PosCartItemDto> items,
                                     BigDecimal amountTendered, PaymentMethod paymentMethod);
 
@@ -27,6 +31,43 @@ public interface CashierService {
     PosShiftDto getCurrentShift(Long cashierId);
 
     PosProductScanDto scanProduct(String sku);
+
+    List<PosProductScanDto> getAllProducts();
+
+    List<PosSaleSummaryDto> getSalesHistory(Long cashierId, String period);
+
+    record CashierStaffDto(
+            Long id,
+            String fullName,
+            String email,
+            String role,
+            String avatarColor,
+            boolean hasPin
+    ) {}
+
+    record PosSaleItemDto(
+            String productName,
+            int quantity,
+            BigDecimal unitPrice,
+            BigDecimal subtotal
+    ) {}
+
+    record PosSaleSummaryDto(
+            Long id,
+            String orderNumber,
+            Long cashierId,
+            String cashierName,
+            String customerName,
+            String channel,
+            PaymentMethod paymentMethod,
+            int totalItemsCount,
+            BigDecimal subtotal,
+            BigDecimal taxAmount,
+            BigDecimal totalAmount,
+            String status,
+            LocalDateTime createdAt,
+            List<PosSaleItemDto> items
+    ) {}
 
     record PosCartItemDto(Long productId, int quantity) {}
 
@@ -77,8 +118,28 @@ public interface CashierService {
             Long id,
             String sku,
             String name,
+            String imageUrl,
             BigDecimal retailPrice,
             int availableStock,
-            boolean isPerishable
-    ) {}
+            boolean isPerishable,
+            String description,
+            String categoryName,
+            BigDecimal wholesalePrice,
+            BigDecimal costPrice,
+            Integer minStockThreshold,
+            java.time.LocalDate currentBatchExpiryDate,
+            String currentBatchCode
+    ) {
+        public PosProductScanDto(
+                Long id,
+                String sku,
+                String name,
+                String imageUrl,
+                BigDecimal retailPrice,
+                int availableStock,
+                boolean isPerishable
+        ) {
+            this(id, sku, name, imageUrl, retailPrice, availableStock, isPerishable, null, null, null, null, null, null, null);
+        }
+    }
 }

@@ -16,6 +16,7 @@ public class OrderItem {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "order_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private Order order;
 
     @ManyToOne(fetch = FetchType.EAGER)
@@ -32,7 +33,14 @@ public class OrderItem {
     private BigDecimal subtotal;
 
     @OneToMany(mappedBy = "orderItem", cascade = CascadeType.ALL, orphanRemoval = true)
+    @com.fasterxml.jackson.annotation.JsonIgnore
     private List<OrderItemBatchFulfillment> batchFulfillments = new ArrayList<>();
+
+    @Transient
+    private java.time.LocalDate expiryDate;
+
+    @Transient
+    private String batchPreference;
 
     public OrderItem() {}
 
@@ -54,8 +62,16 @@ public class OrderItem {
     public Order getOrder() { return order; }
     public void setOrder(Order order) { this.order = order; }
 
+    public Long getOrderId() {
+        return order != null ? order.getId() : null;
+    }
+
     public Product getProduct() { return product; }
     public void setProduct(Product product) { this.product = product; }
+
+    public Long getProductId() {
+        return product != null ? product.getId() : null;
+    }
 
     public Integer getQuantity() { return quantity; }
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
@@ -68,6 +84,12 @@ public class OrderItem {
 
     public List<OrderItemBatchFulfillment> getBatchFulfillments() { return batchFulfillments; }
     public void setBatchFulfillments(List<OrderItemBatchFulfillment> batchFulfillments) { this.batchFulfillments = batchFulfillments; }
+
+    public java.time.LocalDate getExpiryDate() { return expiryDate; }
+    public void setExpiryDate(java.time.LocalDate expiryDate) { this.expiryDate = expiryDate; }
+
+    public String getBatchPreference() { return batchPreference; }
+    public void setBatchPreference(String batchPreference) { this.batchPreference = batchPreference; }
 
     public static Builder builder() { return new Builder(); }
 

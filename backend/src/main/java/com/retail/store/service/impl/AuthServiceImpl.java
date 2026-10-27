@@ -10,6 +10,7 @@ import com.retail.store.repository.UserRepository;
 import com.retail.store.security.jwt.JwtTokenProvider;
 import com.retail.store.service.AuthService;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -53,6 +54,7 @@ public class AuthServiceImpl implements AuthService {
                 .phone(phone)
                 .role(userRole)
                 .customerType(CustomerType.RETAIL)
+                .addresses("[]")
                 .isActive(true)
                 .build();
 
@@ -62,16 +64,20 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public AuthResponse login(String email, String password) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("No account found with email '" + email + "'. Please check your email or sign up."));
+
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new BadRequestException("Your account has been deactivated. Please contact store administrator.");
+        }
+
+        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            throw new BadCredentialsException("Incorrect password for '" + email + "'. Please try again.");
+        }
+
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(email, password)
         );
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found: " + email));
-
-        if (!Boolean.TRUE.equals(user.getIsActive())) {
-            throw new BadRequestException("Your account has been deactivated. Please contact administrator.");
-        }
 
         String token = tokenProvider.generateToken(
                 user.getEmail(),
@@ -86,7 +92,11 @@ public class AuthServiceImpl implements AuthService {
                 user.getEmail(),
                 user.getFullName(),
                 user.getRole().getName(),
-                user.getCustomerType()
+                user.getCustomerType(),
+                user.getAvatarUrl(),
+                user.getPhone(),
+                user.getCompanyName(),
+                user.getAddresses()
         );
     }
 }

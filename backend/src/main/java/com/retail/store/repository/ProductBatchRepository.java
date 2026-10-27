@@ -13,6 +13,7 @@ import java.util.Optional;
 @Repository
 public interface ProductBatchRepository extends JpaRepository<ProductBatch, Long> {
     Optional<ProductBatch> findByBatchCode(String batchCode);
+    boolean existsByBatchCode(String batchCode);
 
     // FEFO: Perishable goods sorted by expiryDate ASC, then receivedAt ASC
     @Query("SELECT b FROM ProductBatch b WHERE b.product.id = :productId " +
@@ -33,6 +34,12 @@ public interface ProductBatchRepository extends JpaRepository<ProductBatch, Long
     int sumAvailableStock(@Param("productId") Long productId, @Param("currentDate") LocalDate currentDate);
 
     List<ProductBatch> findByIsExpiredFalseAndExpiryDateLessThanEqual(LocalDate date);
+
+    List<ProductBatch> findByProduct_IdOrderByReceivedAtDesc(Long productId);
+
+    List<ProductBatch> findAllByOrderByReceivedAtDesc();
+
+    Optional<ProductBatch> findFirstByProduct_IdOrderByReceivedAtDesc(Long productId);
 
     long countByIsExpiredTrue();
 }

@@ -33,45 +33,45 @@ WHERE r.name = 'STOCK_CONTROLLER'
 ON CONFLICT (email) DO NOTHING;
 
 -- 4. Products with strict pricing hierarchy (cost <= wholesale <= retail)
-INSERT INTO products (category_id, sku, name, description, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
-SELECT c.id, 'SKU-ENERGY-BAR', 'Organic Energy Bar (Almond & Honey)', 'Raw cold-pressed almond butter with wildflower honey', 1.80, 2.50, 3.50, 10, TRUE, FALSE
+INSERT INTO products (category_id, sku, name, description, image_url, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
+SELECT c.id, 'SKU-ENERGY-BAR', 'Organic Energy Bar (Almond & Honey)', 'Raw cold-pressed almond butter with wildflower honey', 'https://images.unsplash.com/photo-1622484212850-eb596d769edc?auto=format&fit=crop&w=400&q=80', 1.80, 2.50, 3.50, 10, TRUE, FALSE
 FROM categories c WHERE c.name = 'Snacks'
-ON CONFLICT (sku) DO NOTHING;
+ON CONFLICT (sku) DO UPDATE SET image_url = EXCLUDED.image_url;
 
-INSERT INTO products (category_id, sku, name, description, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
-SELECT c.id, 'SKU-COLD-BREW', 'Artisan Cold Brew Coffee 330ml', 'Steeped for 20 hours with Ethiopian single-origin beans', 2.20, 3.20, 4.75, 10, TRUE, FALSE
+INSERT INTO products (category_id, sku, name, description, image_url, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
+SELECT c.id, 'SKU-COLD-BREW', 'Artisan Cold Brew Coffee 330ml', 'Steeped for 20 hours with Ethiopian single-origin beans', 'https://images.unsplash.com/photo-1517701550927-30cf4ba1dba5?auto=format&fit=crop&w=400&q=80', 2.20, 3.20, 4.75, 10, TRUE, FALSE
 FROM categories c WHERE c.name = 'Beverages'
-ON CONFLICT (sku) DO NOTHING;
+ON CONFLICT (sku) DO UPDATE SET image_url = EXCLUDED.image_url;
 
-INSERT INTO products (category_id, sku, name, description, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
-SELECT c.id, 'SKU-SPARKLING-H2O', 'Sparkling Mineral Water 500ml', 'Naturally carbonated spring water in recycled glass', 0.80, 1.40, 2.25, 15, FALSE, FALSE
+INSERT INTO products (category_id, sku, name, description, image_url, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
+SELECT c.id, 'SKU-SPARKLING-H2O', 'Sparkling Mineral Water 500ml', 'Naturally carbonated spring water in recycled glass', 'https://images.unsplash.com/photo-1560023907-5f339617ea30?auto=format&fit=crop&w=400&q=80', 0.80, 1.40, 2.25, 15, FALSE, FALSE
 FROM categories c WHERE c.name = 'Beverages'
-ON CONFLICT (sku) DO NOTHING;
+ON CONFLICT (sku) DO UPDATE SET image_url = EXCLUDED.image_url;
 
-INSERT INTO products (category_id, sku, name, description, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
-SELECT c.id, 'SKU-CHIP-TRUFFLE', 'Handcrafted Truffle Potato Crisps', 'Slow-cooked artisanal crisps with black summer truffle', 2.50, 3.80, 5.50, 10, FALSE, FALSE
+INSERT INTO products (category_id, sku, name, description, image_url, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
+SELECT c.id, 'SKU-CHIP-TRUFFLE', 'Handcrafted Truffle Potato Crisps', 'Slow-cooked artisanal crisps with black summer truffle', 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=400&q=80', 2.50, 3.80, 5.50, 10, FALSE, FALSE
 FROM categories c WHERE c.name = 'Snacks'
-ON CONFLICT (sku) DO NOTHING;
+ON CONFLICT (sku) DO UPDATE SET image_url = EXCLUDED.image_url;
 
-INSERT INTO products (category_id, sku, name, description, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
-SELECT c.id, 'SKU-OAT-MILK', 'Barista Organic Oat Milk 1L', 'Steams to micro-foam perfection, non-GMO whole oats', 2.10, 3.00, 4.20, 10, TRUE, FALSE
+INSERT INTO products (category_id, sku, name, description, image_url, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
+SELECT c.id, 'SKU-OAT-MILK', 'Barista Organic Oat Milk 1L', 'Steams to micro-foam perfection, non-GMO whole oats', 'https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=400&q=80', 2.10, 3.00, 4.20, 10, TRUE, FALSE
 FROM categories c WHERE c.name = 'Dairy & Plant Milk'
-ON CONFLICT (sku) DO NOTHING;
+ON CONFLICT (sku) DO UPDATE SET image_url = EXCLUDED.image_url;
 
-INSERT INTO products (category_id, sku, name, description, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
-SELECT c.id, 'SKU-DARK-CHOC', 'Single Origin 85% Dark Chocolate 100g', 'Fair-trade Ecuadorian cacao with subtle citrus notes', 3.00, 4.20, 6.00, 15, FALSE, FALSE
+INSERT INTO products (category_id, sku, name, description, image_url, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
+SELECT c.id, 'SKU-DARK-CHOC', 'Single Origin 85% Dark Chocolate 100g', 'Fair-trade Ecuadorian cacao with subtle citrus notes', 'https://images.unsplash.com/photo-1548907040-4baa42d10919?auto=format&fit=crop&w=400&q=80', 3.00, 4.20, 6.00, 15, FALSE, FALSE
 FROM categories c WHERE c.name = 'Snacks'
-ON CONFLICT (sku) DO NOTHING;
+ON CONFLICT (sku) DO UPDATE SET image_url = EXCLUDED.image_url;
 
-INSERT INTO products (category_id, sku, name, description, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
-SELECT c.id, 'SKU-PROTEIN-WHEY', 'Vanilla Whey Protein Concentrate 1kg', 'Grass-fed dairy isolate with natural Madagascar vanilla', 22.00, 29.00, 38.00, 5, FALSE, FALSE
+INSERT INTO products (category_id, sku, name, description, image_url, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
+SELECT c.id, 'SKU-PROTEIN-WHEY', 'Vanilla Whey Protein Concentrate 1kg', 'Grass-fed dairy isolate with natural Madagascar vanilla', 'https://images.unsplash.com/photo-1579722821273-0f6c7d44362f?auto=format&fit=crop&w=400&q=80', 22.00, 29.00, 38.00, 5, FALSE, FALSE
 FROM categories c WHERE c.name = 'Nutrition & Supplements'
-ON CONFLICT (sku) DO NOTHING;
+ON CONFLICT (sku) DO UPDATE SET image_url = EXCLUDED.image_url;
 
-INSERT INTO products (category_id, sku, name, description, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
-SELECT c.id, 'SKU-MATCHA-LATTE', 'Ceremonial Grade Matcha Can 250ml', 'Shade-grown Uji matcha with light unsweetened almond base', 2.50, 3.60, 5.00, 10, TRUE, FALSE
+INSERT INTO products (category_id, sku, name, description, image_url, cost_price, wholesale_price, retail_price, min_stock_threshold, is_perishable, is_deleted)
+SELECT c.id, 'SKU-MATCHA-LATTE', 'Ceremonial Grade Matcha Can 250ml', 'Shade-grown Uji matcha with light unsweetened almond base', 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?auto=format&fit=crop&w=400&q=80', 2.50, 3.60, 5.00, 10, TRUE, FALSE
 FROM categories c WHERE c.name = 'Beverages'
-ON CONFLICT (sku) DO NOTHING;
+ON CONFLICT (sku) DO UPDATE SET image_url = EXCLUDED.image_url;
 
 -- 5. Product Batches (Physical Inventory for FIFO/FEFO Allocation)
 INSERT INTO product_batches (batch_code, product_id, supplier_id, initial_quantity, current_quantity, expiry_date, is_expired)

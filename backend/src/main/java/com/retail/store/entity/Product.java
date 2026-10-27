@@ -28,8 +28,11 @@ public class Product {
     @Column(columnDefinition = "text")
     private String description;
 
-    @Column(name = "image_url", length = 500)
+    @Column(name = "image_url", columnDefinition = "text")
     private String imageUrl;
+
+    @Column(name = "images", columnDefinition = "text")
+    private String images;
 
     @Column(name = "cost_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal costPrice;
@@ -39,6 +42,42 @@ public class Product {
 
     @Column(name = "wholesale_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal wholesalePrice;
+
+    @Transient
+    private Integer wholesaleMinQty = 10;
+
+    @Transient
+    private Integer stockQuantity;
+
+    @Transient
+    private String currentBatchExpiryDate;
+
+    @Transient
+    private Integer daysUntilExpiry;
+
+    @Transient
+    private Integer nearExpiryQuantity;
+
+    @Transient
+    private BigDecimal clearanceDiscountPercent;
+
+    @Transient
+    private BigDecimal clearancePrice;
+
+    @Transient
+    private BigDecimal wholesaleClearancePrice;
+
+    @Transient
+    private Integer freshStockQuantity;
+
+    @Transient
+    private String freshBatchExpiryDate;
+
+    @Transient
+    private String freshBatchCode;
+
+    @Transient
+    private String batchCode;
 
     @Column(name = "min_stock_threshold", nullable = false)
     private Integer minStockThreshold = 10;
@@ -63,12 +102,20 @@ public class Product {
                    String imageUrl, BigDecimal costPrice, BigDecimal retailPrice,
                    BigDecimal wholesalePrice, Integer minStockThreshold, Boolean isPerishable,
                    Boolean isDeleted, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this(id, category, sku, name, description, imageUrl, null, costPrice, retailPrice, wholesalePrice, minStockThreshold, isPerishable, isDeleted, createdAt, updatedAt);
+    }
+
+    public Product(Long id, Category category, String sku, String name, String description,
+                   String imageUrl, String images, BigDecimal costPrice, BigDecimal retailPrice,
+                   BigDecimal wholesalePrice, Integer minStockThreshold, Boolean isPerishable,
+                   Boolean isDeleted, LocalDateTime createdAt, LocalDateTime updatedAt) {
         this.id = id;
         this.category = category;
         this.sku = sku;
         this.name = name;
         this.description = description;
         this.imageUrl = imageUrl;
+        this.images = images;
         this.costPrice = costPrice;
         this.retailPrice = retailPrice;
         this.wholesalePrice = wholesalePrice;
@@ -97,6 +144,9 @@ public class Product {
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
 
+    public String getImages() { return images; }
+    public void setImages(String images) { this.images = images; }
+
     public BigDecimal getCostPrice() { return costPrice; }
     public void setCostPrice(BigDecimal costPrice) { this.costPrice = costPrice; }
 
@@ -105,6 +155,46 @@ public class Product {
 
     public BigDecimal getWholesalePrice() { return wholesalePrice; }
     public void setWholesalePrice(BigDecimal wholesalePrice) { this.wholesalePrice = wholesalePrice; }
+
+    public Integer getWholesaleMinQty() {
+        return wholesaleMinQty != null && wholesaleMinQty > 0 ? wholesaleMinQty : 10;
+    }
+    public void setWholesaleMinQty(Integer wholesaleMinQty) {
+        this.wholesaleMinQty = wholesaleMinQty;
+    }
+
+    public Integer getStockQuantity() { return stockQuantity; }
+    public void setStockQuantity(Integer stockQuantity) { this.stockQuantity = stockQuantity; }
+
+    public String getCurrentBatchExpiryDate() { return currentBatchExpiryDate; }
+    public void setCurrentBatchExpiryDate(String currentBatchExpiryDate) { this.currentBatchExpiryDate = currentBatchExpiryDate; }
+
+    public Integer getDaysUntilExpiry() { return daysUntilExpiry; }
+    public void setDaysUntilExpiry(Integer daysUntilExpiry) { this.daysUntilExpiry = daysUntilExpiry; }
+
+    public Integer getNearExpiryQuantity() { return nearExpiryQuantity; }
+    public void setNearExpiryQuantity(Integer nearExpiryQuantity) { this.nearExpiryQuantity = nearExpiryQuantity; }
+
+    public BigDecimal getClearanceDiscountPercent() { return clearanceDiscountPercent; }
+    public void setClearanceDiscountPercent(BigDecimal clearanceDiscountPercent) { this.clearanceDiscountPercent = clearanceDiscountPercent; }
+
+    public BigDecimal getClearancePrice() { return clearancePrice; }
+    public void setClearancePrice(BigDecimal clearancePrice) { this.clearancePrice = clearancePrice; }
+
+    public BigDecimal getWholesaleClearancePrice() { return wholesaleClearancePrice; }
+    public void setWholesaleClearancePrice(BigDecimal wholesaleClearancePrice) { this.wholesaleClearancePrice = wholesaleClearancePrice; }
+
+    public Integer getFreshStockQuantity() { return freshStockQuantity; }
+    public void setFreshStockQuantity(Integer freshStockQuantity) { this.freshStockQuantity = freshStockQuantity; }
+
+    public String getFreshBatchExpiryDate() { return freshBatchExpiryDate; }
+    public void setFreshBatchExpiryDate(String freshBatchExpiryDate) { this.freshBatchExpiryDate = freshBatchExpiryDate; }
+
+    public String getFreshBatchCode() { return freshBatchCode; }
+    public void setFreshBatchCode(String freshBatchCode) { this.freshBatchCode = freshBatchCode; }
+
+    public String getBatchCode() { return batchCode; }
+    public void setBatchCode(String batchCode) { this.batchCode = batchCode; }
 
     public Integer getMinStockThreshold() { return minStockThreshold; }
     public void setMinStockThreshold(Integer minStockThreshold) { this.minStockThreshold = minStockThreshold; }
@@ -130,9 +220,11 @@ public class Product {
         private String name;
         private String description;
         private String imageUrl;
+        private String images;
         private BigDecimal costPrice;
         private BigDecimal retailPrice;
         private BigDecimal wholesalePrice;
+        private Integer wholesaleMinQty = 10;
         private Integer minStockThreshold = 10;
         private Boolean isPerishable = false;
         private Boolean isDeleted = false;
@@ -143,15 +235,19 @@ public class Product {
         public Builder name(String name) { this.name = name; return this; }
         public Builder description(String description) { this.description = description; return this; }
         public Builder imageUrl(String imageUrl) { this.imageUrl = imageUrl; return this; }
+        public Builder images(String images) { this.images = images; return this; }
         public Builder costPrice(BigDecimal costPrice) { this.costPrice = costPrice; return this; }
         public Builder retailPrice(BigDecimal retailPrice) { this.retailPrice = retailPrice; return this; }
         public Builder wholesalePrice(BigDecimal wholesalePrice) { this.wholesalePrice = wholesalePrice; return this; }
+        public Builder wholesaleMinQty(Integer wholesaleMinQty) { this.wholesaleMinQty = wholesaleMinQty; return this; }
         public Builder minStockThreshold(Integer minStockThreshold) { this.minStockThreshold = minStockThreshold; return this; }
         public Builder isPerishable(Boolean isPerishable) { this.isPerishable = isPerishable; return this; }
         public Builder isDeleted(Boolean isDeleted) { this.isDeleted = isDeleted; return this; }
 
         public Product build() {
-            return new Product(id, category, sku, name, description, imageUrl, costPrice, retailPrice, wholesalePrice, minStockThreshold, isPerishable, isDeleted, null, null);
+            Product product = new Product(id, category, sku, name, description, imageUrl, images, costPrice, retailPrice, wholesalePrice, minStockThreshold, isPerishable, isDeleted, null, null);
+            product.setWholesaleMinQty(wholesaleMinQty != null ? wholesaleMinQty : 10);
+            return product;
         }
     }
 }

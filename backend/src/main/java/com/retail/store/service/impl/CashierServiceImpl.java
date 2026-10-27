@@ -32,10 +32,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -95,10 +97,6 @@ public class CashierServiceImpl implements CashierService {
     @Override
     @Transactional(readOnly = true)
     public AuthService.AuthResponse login(String email, String password) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(email, password)
-        );
-
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Staff user not found with email: " + email));
 
@@ -108,7 +106,96 @@ public class CashierServiceImpl implements CashierService {
 
         String roleName = user.getRole().getName();
         if (!"CASHIER".equalsIgnoreCase(roleName) && !"ADMIN".equalsIgnoreCase(roleName)) {
-            throw new UnauthorizedRoleException("Access denied: User does not hold CASHIER staff credentials.");
+            throw new UnauthorizedRoleException("Access denied: Account '" + email + "' does not hold CASHIER staff credentials.");
+        }
+
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(email, password)
+        );
+
+        String token = tokenProvider.generateToken(
+                user.getEmail(),
+                user.getId(),
+                roleName,
+                user.getCustomerType().name()
+        );
+
+        return new AuthService.AuthResponse(
+                token,
+                user.getId(),
+                user.getEmail(),
+                user.getFullName(),
+                roleName,
+                user.getCustomerType()
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CashierStaffDto> getCashierStaffList() {
+        List<User> users = userRepository.findAll().stream()
+                .filter(u -> Boolean.TRUE.equals(u.getIsActive()))
+                .filter(u -> {
+                    String role = u.getRole() != null ? u.getRole().getName() : "";
+                    return "CASHIER".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role);
+                })
+                .sorted((a, b) -> {
+                    String roleA = a.getRole() != null ? a.getRole().getName() : "";
+                    String roleB = b.getRole() != null ? b.getRole().getName() : "";
+                    boolean aIsCashier = "CASHIER".equalsIgnoreCase(roleA);
+                    boolean bIsCashier = "CASHIER".equalsIgnoreCase(roleB);
+                    if (aIsCashier != bIsCashier) return aIsCashier ? -1 : 1;
+                    return a.getId().compareTo(b.getId());
+                })
+                .toList();
+
+        String[] colors = {"#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EC4899", "#06B6D4"};
+        List<CashierStaffDto> result = new ArrayList<>();
+        int idx = 0;
+        for (User u : users) {
+            String color = colors[idx % colors.length];
+            idx++;
+            result.add(new CashierStaffDto(
+                    u.getId(),
+                    u.getFullName(),
+                    u.getEmail(),
+                    u.getRole() != null ? u.getRole().getName() : "CASHIER",
+                    color,
+                    u.getPosPin() != null && !u.getPosPin().isBlank()
+            ));
+        }
+        return result;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AuthService.AuthResponse loginWithPin(Long cashierId, String pin) {
+        if (cashierId == null) {
+            throw new BadRequestException("Cashier ID is required for PIN authentication.");
+        }
+        if (pin == null || pin.trim().length() < 4) {
+            throw new BadRequestException("A valid 4-digit PIN is required.");
+        }
+
+        User user = userRepository.findById(cashierId)
+                .orElseThrow(() -> new ResourceNotFoundException("Staff user not found with ID: " + cashierId));
+
+        if (!Boolean.TRUE.equals(user.getIsActive())) {
+            throw new BadRequestException("Your cashier account has been deactivated. Contact store administrator.");
+        }
+
+        String roleName = user.getRole() != null ? user.getRole().getName() : "";
+        if (!"CASHIER".equalsIgnoreCase(roleName) && !"ADMIN".equalsIgnoreCase(roleName)) {
+            throw new UnauthorizedRoleException("Access denied: User does not hold staff credentials.");
+        }
+
+        String expectedPin = user.getPosPin();
+        if (expectedPin == null || expectedPin.isBlank()) {
+            expectedPin = "1234";
+        }
+
+        if (!expectedPin.equals(pin.trim())) {
+            throw new BadRequestException("Incorrect PIN. Please re-enter your 4-digit security PIN.");
         }
 
         String token = tokenProvider.generateToken(
@@ -142,6 +229,10 @@ public class CashierServiceImpl implements CashierService {
         if (items == null || items.isEmpty()) {
             throw new BadRequestException("Cart items cannot be empty for POS checkout.");
         }
+
+        // CRITICAL BUSINESS RULE: Cashier must have an active OPEN shift to process transactions
+        PosShift activeShift = posShiftRepository.findTopByCashier_IdAndStatusOrderByOpenedAtDesc(cashierUserId, PosShiftStatus.OPEN)
+                .orElseThrow(() -> new BadRequestException("Cannot process POS checkout: No active shift is open. Please open a shift float first."));
 
         final PaymentMethod method = paymentMethod != null ? paymentMethod : PaymentMethod.CASH;
 
@@ -227,6 +318,9 @@ public class CashierServiceImpl implements CashierService {
 
             OrderItem savedOrderItem = orderItemRepository.save(orderItem);
             savedItems.add(savedOrderItem);
+            if (savedOrder.getItems() != null) {
+                savedOrder.getItems().add(savedOrderItem);
+            }
 
             // Trigger FIFO / FEFO inventory allocation and deduction
             batchAllocationService.allocateAndDeductBatches(
@@ -238,17 +332,12 @@ public class CashierServiceImpl implements CashierService {
             );
         }
 
-        savedOrder.setItems(savedItems);
-
-        // Update active cashier shift if one exists
-        posShiftRepository.findTopByCashier_IdAndStatusOrderByOpenedAtDesc(cashierUserId, PosShiftStatus.OPEN)
-                .ifPresent(shift -> {
-                    shift.setTotalTransactions(shift.getTotalTransactions() + 1);
-                    if (method == PaymentMethod.CASH) {
-                        shift.setSystemCashTotal(shift.getSystemCashTotal().add(grandTotal));
-                    }
-                    posShiftRepository.save(shift);
-                });
+        // Update active cashier shift drawer stats
+        activeShift.setTotalTransactions(activeShift.getTotalTransactions() + 1);
+        if (method == PaymentMethod.CASH) {
+            activeShift.setSystemCashTotal(activeShift.getSystemCashTotal().add(grandTotal));
+        }
+        posShiftRepository.save(activeShift);
 
         return new PosCheckoutResult(savedOrder, finalAmountTendered, changeDue);
     }
@@ -358,14 +447,127 @@ public class CashierServiceImpl implements CashierService {
                 .orElseThrow(() -> new ResourceNotFoundException("No active product found with barcode / SKU: " + sku));
 
         int availableStock = batchAllocationService.getAvailableStock(product.getId());
+        BatchAllocationService.CurrentBatchInfoDto batchInfo =
+                batchAllocationService.getCurrentBatchInfo(product.getId()).orElse(null);
 
         return new PosProductScanDto(
                 product.getId(),
                 product.getSku(),
                 product.getName(),
+                product.getImageUrl(),
                 product.getRetailPrice(),
                 availableStock,
-                Boolean.TRUE.equals(product.getIsPerishable())
+                Boolean.TRUE.equals(product.getIsPerishable()),
+                product.getDescription(),
+                product.getCategory() != null ? product.getCategory().getName() : null,
+                product.getWholesalePrice(),
+                product.getCostPrice(),
+                product.getMinStockThreshold(),
+                batchInfo != null ? batchInfo.expiryDate() : null,
+                batchInfo != null ? batchInfo.batchCode() : null
+        );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PosProductScanDto> getAllProducts() {
+        return productRepository.findByIsDeletedFalseOrderByNameAsc().stream()
+                .map(product -> {
+                    BatchAllocationService.CurrentBatchInfoDto batchInfo =
+                            batchAllocationService.getCurrentBatchInfo(product.getId()).orElse(null);
+                    return new PosProductScanDto(
+                            product.getId(),
+                            product.getSku(),
+                            product.getName(),
+                            product.getImageUrl(),
+                            product.getRetailPrice(),
+                            batchAllocationService.getAvailableStock(product.getId()),
+                            Boolean.TRUE.equals(product.getIsPerishable()),
+                            product.getDescription(),
+                            product.getCategory() != null ? product.getCategory().getName() : null,
+                            product.getWholesalePrice(),
+                            product.getCostPrice(),
+                            product.getMinStockThreshold(),
+                            batchInfo != null ? batchInfo.expiryDate() : null,
+                            batchInfo != null ? batchInfo.batchCode() : null
+                    );
+                })
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PosSaleSummaryDto> getSalesHistory(Long cashierId, String period) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime start;
+        LocalDateTime end = now.plusDays(1);
+
+        String periodUpper = period != null ? period.toUpperCase() : "TODAY";
+        switch (periodUpper) {
+            case "TODAY" -> start = LocalDate.now().atStartOfDay();
+            case "YESTERDAY" -> {
+                start = LocalDate.now().minusDays(1).atStartOfDay();
+                end = LocalDate.now().atStartOfDay();
+            }
+            case "WEEK" -> start = LocalDate.now().minusDays(7).atStartOfDay();
+            case "MONTH" -> start = LocalDate.now().minusDays(30).atStartOfDay();
+            case "ALL" -> start = LocalDateTime.of(2000, 1, 1, 0, 0);
+            case "SHIFT" -> {
+                Optional<PosShift> shiftOpt = cashierId != null
+                        ? posShiftRepository.findTopByCashier_IdOrderByOpenedAtDesc(cashierId)
+                        : Optional.empty();
+                start = shiftOpt.map(PosShift::getOpenedAt).orElse(LocalDate.now().atStartOfDay());
+            }
+            default -> start = LocalDate.now().atStartOfDay();
+        }
+
+        List<Order> orders;
+        if (cashierId != null) {
+            orders = orderRepository.findPosOrdersByCashierWithDetails(cashierId, start, end);
+            if (orders.isEmpty() && !"SHIFT".equalsIgnoreCase(periodUpper)) {
+                orders = orderRepository.findPosOrdersWithDetails(OrderChannel.POS, start, end);
+            }
+        } else {
+            orders = orderRepository.findPosOrdersWithDetails(OrderChannel.POS, start, end);
+        }
+
+        return orders.stream()
+                .map(this::toSaleSummaryDto)
+                .toList();
+    }
+
+    private PosSaleSummaryDto toSaleSummaryDto(Order order) {
+        String cashierName = order.getCashier() != null ? order.getCashier().getFullName() : "POS Staff";
+        String customerName = order.getUser() != null ? order.getUser().getFullName() : "Walk-in Customer";
+        int totalItemsCount = order.getItems() != null
+                ? order.getItems().stream().mapToInt(OrderItem::getQuantity).sum()
+                : 0;
+
+        List<PosSaleItemDto> itemDtos = order.getItems() == null ? List.of() :
+                order.getItems().stream()
+                        .map(i -> new PosSaleItemDto(
+                                i.getProduct() != null ? i.getProduct().getName() : "Unknown Item",
+                                i.getQuantity(),
+                                i.getUnitPrice(),
+                                i.getSubtotal()
+                        ))
+                        .toList();
+
+        return new PosSaleSummaryDto(
+                order.getId(),
+                order.getOrderNumber(),
+                order.getCashier() != null ? order.getCashier().getId() : null,
+                cashierName,
+                customerName,
+                order.getChannel() != null ? order.getChannel().name() : "POS",
+                order.getPaymentMethod(),
+                totalItemsCount,
+                order.getSubtotal(),
+                order.getTaxAmount(),
+                order.getTotalAmount(),
+                order.getStatus() != null ? order.getStatus().name() : "PAID",
+                order.getCreatedAt(),
+                itemDtos
         );
     }
 
@@ -380,7 +582,7 @@ public class CashierServiceImpl implements CashierService {
                 shift.getClosingCash(),
                 shift.getSystemCashTotal(),
                 shift.getCashVariance(),
-                shift.getTotalTransactions() != null ? shift.getTotalTransactions().intValue() : 0,
+                shift.getTotalTransactions() != null ? shift.getTotalTransactions() : 0,
                 shift.getStatus(),
                 shift.getNotes()
         );

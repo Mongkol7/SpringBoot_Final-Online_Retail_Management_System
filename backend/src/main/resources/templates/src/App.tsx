@@ -1,110 +1,152 @@
-import React, { useState } from 'react';
-import { DynamicIsland } from './components/layout/DynamicIsland';
-import { IosCardGlass } from './components/ui/IosCardGlass';
-import { IosButton } from './components/ui/IosButton';
+import React, { useLayoutEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+import { EnterpriseAuthPortal } from './components/auth/EnterpriseAuthPortal';
+import { CustomerApp } from './features/customer/CustomerApp';
 import { CashierPosTerminal } from './components/pos/CashierPosTerminal';
+import { AdminDashboard } from './components/admin/AdminDashboard';
+import { StockWorkspace } from './features/inventory/StockWorkspace';
 
-export const App: React.FC = () => {
-  const [activeRole, setActiveRole] = useState<'USER' | 'CASHIER' | 'STOCK_CONTROLLER' | 'ADMIN'>('USER');
+const AppLayout: React.FC = () => {
+  const location = useLocation();
+  const { logoutRole, hasAccess } = useAuth();
+  const path = location.pathname.toLowerCase();
+
+  useLayoutEffect(() => {
+    // BrowserRouter keeps the current document scroll position across client-side
+    // route changes. Product details should always open at their top, not at the
+    // storefront card's previous position near the bottom of the page.
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [location.pathname, location.search]);
+
+  const isPos = path.startsWith('/pos') || path.startsWith('/cashier');
+  const isAdmin = path.startsWith('/admin');
+  const isStock = path.startsWith('/stock') || path.startsWith('/inventory');
+  const isExplicitAuthPath = path === '/login' || path === '/signup' || path.endsWith('/login');
+  const isProtectedLoginScreen =
+    (isAdmin && !hasAccess('ADMIN')) ||
+    (isPos && !hasAccess('CASHIER')) ||
+    (isStock && !hasAccess('STOCK_CONTROLLER'));
+  const isAuthShell = isExplicitAuthPath || isProtectedLoginScreen;
+  const isWide = !isAuthShell && (isPos || isAdmin || isStock);
 
   return (
-    <div style={{ minHeight: '100vh', padding: '90px 24px 60px', maxWidth: '1200px', margin: '0 auto' }}>
-      <DynamicIsland statusText={`Active Mode: ${activeRole}`} badge="AURA OS" />
+    <div
+      className={isWide ? 'role-app-shell' : isAuthShell ? 'auth-app-shell' : undefined}
+      style={{
+        minHeight: '100vh',
+        padding: isWide ? '24px 20px 36px' : isAuthShell ? 0 : '32px 24px 60px',
+        maxWidth: isWide || isAuthShell ? '100%' : '1240px',
+        width: '100%',
+        margin: '0 auto',
+        background: isAuthShell ? '#F5F5F7' : undefined,
+        boxSizing: 'border-box',
+        transition: 'all 0.25s ease'
+      }}
+    >
+      <Routes>
+        {/* Customer Storefront Routes (Public Catalog, Cart, Product Details) */}
+        <Route path="/" element={<CustomerApp initialRoute="shop" />} />
+        <Route path="/shop" element={<CustomerApp initialRoute="shop" />} />
+        <Route path="/product/:id" element={<CustomerApp initialRoute="product-detail" />} />
+        <Route path="/shop/product/:id" element={<CustomerApp initialRoute="product-detail" />} />
+        <Route path="/cart" element={<CustomerApp initialRoute="cart" />} />
 
-      {/* Role Navigation Bar */}
-      <div
-        className="ios-glass-capsule"
-        style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '8px',
-          padding: '6px',
-          maxWidth: '680px',
-          margin: '0 auto 40px auto'
-        }}
-      >
-        {(['USER', 'CASHIER', 'STOCK_CONTROLLER', 'ADMIN'] as const).map((role) => (
-          <button
-            key={role}
-            onClick={() => setActiveRole(role)}
-            style={{
-              flex: 1,
-              padding: '10px 16px',
-              borderRadius: '9999px',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 700,
-              letterSpacing: '0.04em',
-              transition: 'all 0.25s ease',
-              backgroundColor: activeRole === role ? '#FFFFFF' : 'transparent',
-              color: activeRole === role ? '#000000' : 'rgba(255, 255, 255, 0.65)'
-            }}
-          >
-            {role.replace('_', ' ')}
-          </button>
-        ))}
-      </div>
+        {/* Customer Protected Routes (Orders, Checkout, Wholesale Registration) */}
+        <Route
+          path="/wholesale"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <CustomerApp initialRoute="wholesale" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/wholesale-register"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <CustomerApp initialRoute="wholesale" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checkout"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <CustomerApp initialRoute="checkout" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <ProtectedRoute allowedRoles={['USER']}>
+              <CustomerApp initialRoute="orders" />
+            </ProtectedRoute>
+          }
+        />
 
-      {/* Active Role Preview Panel */}
-      {activeRole === 'USER' && (
-        <IosCardGlass glow>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 700 }}>🛒 Person 1: Online Customer Storefront (`/shop`)</h2>
-            <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '9999px', background: 'rgba(255,255,255,0.1)' }}>
-              RETAIL & WHOLESALE
-            </span>
-          </div>
-          <p style={{ color: 'var(--ios-text-muted)', marginBottom: '20px', lineHeight: 1.6 }}>
-            Online retail product discovery, dual-tier pricing (retail vs. bulk wholesale), frosted slide-over cart drawer, and 3-step checkout with live order tracking timeline.
-          </p>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <IosButton variant="primary">Browse Catalog</IosButton>
-            <IosButton variant="glass">Apply for Wholesale</IosButton>
-          </div>
-        </IosCardGlass>
-      )}
+        {/* Cashier POS Terminal (Protected: CASHIER or ADMIN) */}
+        <Route
+          path="/pos"
+          element={
+            <ProtectedRoute allowedRoles={['CASHIER', 'ADMIN']}>
+              <CashierPosTerminal />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/cashier" element={<Navigate to="/pos" replace />} />
 
-      {activeRole === 'CASHIER' && (
-        <CashierPosTerminal />
-      )}
+        {/* Stock / Warehouse Workspace (Protected: STOCK_CONTROLLER or ADMIN) */}
+        <Route
+          path="/stock"
+          element={
+            <ProtectedRoute allowedRoles={['STOCK_CONTROLLER', 'ADMIN']}>
+              <StockWorkspace />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/inventory" element={<Navigate to="/stock" replace />} />
 
-      {activeRole === 'STOCK_CONTROLLER' && (
-        <IosCardGlass glow>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 700 }}>📦 Person 3: Stock Controller Inventory Suite (`/stock`)</h2>
-            <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '9999px', background: 'rgba(255,255,255,0.1)' }}>
-              FIFO & FEFO ALLOCATION
-            </span>
-          </div>
-          <p style={{ color: 'var(--ios-text-muted)', marginBottom: '20px', lineHeight: 1.6 }}>
-            Product cataloging with 3 price tiers (cost, retail, wholesale), batch-based stock-in replenishment, supplier management, and visual FIFO/FEFO expiry radar.
-          </p>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <IosButton variant="primary">New Stock-In Batch</IosButton>
-            <IosButton variant="glass">Expiry Radar</IosButton>
-          </div>
-        </IosCardGlass>
-      )}
+        {/* Executive Admin HUD (Protected: ADMIN only) */}
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute allowedRoles={['ADMIN']}>
+              <AdminDashboard onLogout={() => logoutRole('ADMIN')} />
+            </ProtectedRoute>
+          }
+        />
 
-      {activeRole === 'ADMIN' && (
-        <IosCardGlass glow>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 700 }}>📊 Person 4: Administrator Executive HUD (`/admin`)</h2>
-            <span style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '9999px', background: 'rgba(255,255,255,0.1)' }}>
-              GOVERNANCE & ANALYTICS
-            </span>
-          </div>
-          <p style={{ color: 'var(--ios-text-muted)', marginBottom: '20px', lineHeight: 1.6 }}>
-            Executive revenue HUD, wholesale customer application verification queue with one-click approve/reject, user directory access controls, and system audit log.
-          </p>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <IosButton variant="primary">Review Wholesale Queue</IosButton>
-            <IosButton variant="glass">User Governance</IosButton>
-          </div>
-        </IosCardGlass>
-      )}
+        {/* Universal Multi-Role Authentication Portals - Same UI for all users */}
+        <Route path="/login" element={<EnterpriseAuthPortal />} />
+        <Route path="/signup" element={<EnterpriseAuthPortal />} />
+        <Route path="/admin/login" element={<EnterpriseAuthPortal />} />
+        <Route path="/pos/login" element={<EnterpriseAuthPortal />} />
+        <Route path="/cashier/login" element={<EnterpriseAuthPortal />} />
+        <Route path="/stock/login" element={<EnterpriseAuthPortal />} />
+
+        {/* Catch-All Fallback */}
+        <Route path="*" element={<Navigate to="/shop" replace />} />
+      </Routes>
     </div>
   );
 };
+
+export const App: React.FC = () => {
+  return (
+    <BrowserRouter
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
+      <AuthProvider>
+        <AppLayout />
+      </AuthProvider>
+    </BrowserRouter>
+  );
+};
+
 export default App;

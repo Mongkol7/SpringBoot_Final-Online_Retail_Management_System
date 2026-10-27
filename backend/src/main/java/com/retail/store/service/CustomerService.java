@@ -19,7 +19,16 @@ public interface CustomerService {
     List<Order> getCustomerOrders(Long userId);
     Order getOrderDetails(String orderNumber);
     void cancelOrder(Long userId, String orderNumber);
+    Order confirmOrder(String orderNumber);
 
     WholesaleApplication applyForWholesale(Long userId, String businessName, String taxId);
     WholesaleApplication getWholesaleStatus(Long userId);
+    List<com.retail.store.entity.Product> getAvailableProducts();
+    com.retail.store.entity.Product getProductById(Long id);
+
+    com.retail.store.entity.User getCustomerProfile(Long userId);
+    com.retail.store.entity.User updateCustomerProfile(Long userId, String fullName, String phone, String addressesJson, String newPassword, String avatarUrl, String companyName);
+    default com.retail.store.entity.User updateCustomerProfile(Long userId, String fullName, String phone, String addressesJson, String newPassword) {
+        return updateCustomerProfile(userId, fullName, phone, addressesJson, newPassword, null, null);
+    }
 }

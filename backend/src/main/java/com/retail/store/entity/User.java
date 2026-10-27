@@ -3,7 +3,9 @@ package com.retail.store.entity;
 import com.retail.store.entity.enums.CustomerType;
 import jakarta.persistence.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.LocalDateTime;
 
@@ -22,6 +24,7 @@ public class User {
     @Column(nullable = false, unique = true, length = 150)
     private String email;
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
@@ -35,11 +38,21 @@ public class User {
     @Column(name = "customer_type", nullable = false, length = 30)
     private CustomerType customerType = CustomerType.RETAIL;
 
-    @Column(columnDefinition = "jsonb")
-    private String addresses;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "addresses", columnDefinition = "jsonb")
+    private String addresses = "[]";
 
     @Column(name = "is_active", nullable = false)
     private Boolean isActive = true;
+
+    @Column(name = "pos_pin", length = 10)
+    private String posPin = "1234";
+
+    @Column(name = "avatar_url", columnDefinition = "text")
+    private String avatarUrl;
+
+    @Column(name = "company_name", length = 150)
+    private String companyName;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
@@ -61,7 +74,7 @@ public class User {
         this.fullName = fullName;
         this.phone = phone;
         this.customerType = customerType != null ? customerType : CustomerType.RETAIL;
-        this.addresses = addresses;
+        this.addresses = addresses != null ? addresses : "[]";
         this.isActive = isActive != null ? isActive : true;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
@@ -94,6 +107,15 @@ public class User {
     public Boolean getIsActive() { return isActive; }
     public void setIsActive(Boolean active) { isActive = active; }
 
+    public String getPosPin() { return posPin; }
+    public void setPosPin(String posPin) { this.posPin = posPin; }
+
+    public String getAvatarUrl() { return avatarUrl; }
+    public void setAvatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; }
+
+    public String getCompanyName() { return companyName; }
+    public void setCompanyName(String companyName) { this.companyName = companyName; }
+
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
@@ -112,6 +134,9 @@ public class User {
         private CustomerType customerType = CustomerType.RETAIL;
         private String addresses;
         private Boolean isActive = true;
+        private String avatarUrl;
+        private String companyName;
+        private String posPin = "1234";
 
         public Builder id(Long id) { this.id = id; return this; }
         public Builder role(Role role) { this.role = role; return this; }
@@ -122,9 +147,16 @@ public class User {
         public Builder customerType(CustomerType customerType) { this.customerType = customerType; return this; }
         public Builder addresses(String addresses) { this.addresses = addresses; return this; }
         public Builder isActive(Boolean isActive) { this.isActive = isActive; return this; }
+        public Builder avatarUrl(String avatarUrl) { this.avatarUrl = avatarUrl; return this; }
+        public Builder companyName(String companyName) { this.companyName = companyName; return this; }
+        public Builder posPin(String posPin) { this.posPin = posPin; return this; }
 
         public User build() {
-            return new User(id, role, email, passwordHash, fullName, phone, customerType, addresses, isActive, null, null);
+            User u = new User(id, role, email, passwordHash, fullName, phone, customerType, addresses, isActive, null, null);
+            u.setAvatarUrl(avatarUrl);
+            u.setCompanyName(companyName);
+            u.setPosPin(posPin != null ? posPin : "1234");
+            return u;
         }
     }
 }

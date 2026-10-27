@@ -11,6 +11,7 @@ import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -29,4 +30,21 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     long countByChannel(OrderChannel channel);
 
     long countByCreatedAtAfter(LocalDateTime since);
+
+    List<Order> findByChannelOrderByCreatedAtDesc(OrderChannel channel);
+
+    List<Order> findByCashier_IdOrderByCreatedAtDesc(Long cashierId);
+
+    List<Order> findByChannelAndCreatedAtBetweenOrderByCreatedAtDesc(OrderChannel channel, LocalDateTime start, LocalDateTime end);
+
+    List<Order> findByCashier_IdAndCreatedAtBetweenOrderByCreatedAtDesc(Long cashierId, LocalDateTime start, LocalDateTime end);
+
+    @Query("SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.product LEFT JOIN FETCH o.cashier LEFT JOIN FETCH o.user WHERE o.channel = :channel AND o.createdAt >= :start AND o.createdAt <= :end ORDER BY o.createdAt DESC")
+    List<Order> findPosOrdersWithDetails(OrderChannel channel, LocalDateTime start, LocalDateTime end);
+
+    @Query("SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.product LEFT JOIN FETCH o.cashier LEFT JOIN FETCH o.user WHERE o.cashier.id = :cashierId AND o.createdAt >= :start AND o.createdAt <= :end ORDER BY o.createdAt DESC")
+    List<Order> findPosOrdersByCashierWithDetails(Long cashierId, LocalDateTime start, LocalDateTime end);
+
+    @Query("SELECT DISTINCT o FROM Order o LEFT JOIN FETCH o.items i LEFT JOIN FETCH i.product LEFT JOIN FETCH o.cashier LEFT JOIN FETCH o.user WHERE o.channel = :channel ORDER BY o.createdAt DESC")
+    List<Order> findAllPosOrdersWithDetails(OrderChannel channel);
 }

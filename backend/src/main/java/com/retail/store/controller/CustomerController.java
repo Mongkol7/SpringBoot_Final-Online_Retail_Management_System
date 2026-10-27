@@ -6,6 +6,7 @@ import com.retail.store.entity.WholesaleApplication;
 import com.retail.store.entity.enums.PaymentMethod;
 import com.retail.store.security.user.UserDetailsImpl;
 import com.retail.store.service.CustomerService;
+import com.retail.store.service.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -15,13 +16,15 @@ import java.math.BigDecimal;
 import java.util.List;
 
 @RestController
-@RequestMapping("/customer")
+@RequestMapping({"/customer", "/api/v1/customer"})
 public class CustomerController {
 
     private final CustomerService customerService;
+    private final OrderService orderService;
 
-    public CustomerController(CustomerService customerService) {
+    public CustomerController(CustomerService customerService, OrderService orderService) {
         this.customerService = customerService;
+        this.orderService = orderService;
     }
 
     @PostMapping("/cart/items")
@@ -43,7 +46,7 @@ public class CustomerController {
 
     @DeleteMapping("/cart/items/{id}")
     public ResponseEntity<Void> removeFromCart(@AuthenticationPrincipal UserDetailsImpl user,
-                                               @PathVariable Long id) {
+                                                @PathVariable Long id) {
         customerService.removeFromCart(user.getId(), id);
         return ResponseEntity.noContent().build();
     }
@@ -54,10 +57,19 @@ public class CustomerController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/checkout")
+    @PostMapping({"/checkout", "/orders"})
     public ResponseEntity<Order> checkout(@AuthenticationPrincipal UserDetailsImpl user,
                                           @RequestBody CheckoutRequest request) {
-        Order order = customerService.checkoutOnline(user.getId(), request.shippingAddress(), request.paymentMethod());
+        Order order;
+        if (request != null && request.items() != null && !request.items().isEmpty()) {
+            order = orderService.createOrder(user.getId(), request.shippingAddress(), request.paymentMethod(), request.items());
+        } else {
+            order = customerService.checkoutOnline(user.getId(), request != null ? request.shippingAddress() : null, request != null ? request.paymentMethod() : null);
+        }
+        if (order != null && order.getOrderNumber() != null) {
+            Order enriched = customerService.getOrderDetails(order.getOrderNumber());
+            if (enriched != null) order = enriched;
+        }
         return new ResponseEntity<>(order, HttpStatus.CREATED);
     }
 
@@ -71,17 +83,30 @@ public class CustomerController {
         return ResponseEntity.ok(customerService.getOrderDetails(orderNumber));
     }
 
-    @PostMapping("/orders/{orderNumber}/cancel")
+    @RequestMapping(value = {"/orders/{orderNumber}/cancel", "/orders/{orderNumber}"}, method = {RequestMethod.POST, RequestMethod.PUT})
     public ResponseEntity<Void> cancelOrder(@AuthenticationPrincipal UserDetailsImpl user,
                                             @PathVariable String orderNumber) {
         customerService.cancelOrder(user.getId(), orderNumber);
         return ResponseEntity.ok().build();
     }
 
-    @PostMapping("/wholesale-apply")
+    @RequestMapping(value = {"/orders/{orderNumber}/confirm", "/orders/{orderNumber}/admin-confirm"}, method = {RequestMethod.POST, RequestMethod.PUT})
+    public ResponseEntity<Order> confirmOrder(@PathVariable String orderNumber) {
+        Order order = customerService.confirmOrder(orderNumber);
+        if (order != null) {
+            return ResponseEntity.ok(order);
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    @PostMapping({"/wholesale-apply", "/wholesale-request"})
     public ResponseEntity<WholesaleApplication> applyWholesale(@AuthenticationPrincipal UserDetailsImpl user,
                                                                @RequestBody WholesaleApplyRequest request) {
-        WholesaleApplication app = customerService.applyForWholesale(user.getId(), request.businessName(), request.taxId());
+        String businessName = request.businessName() != null ? request.businessName() : request.companyName();
+        String taxId = request.taxId() != null ? request.taxId() : request.taxIdOrLicense();
+        if (businessName == null) businessName = "Commercial Account";
+        if (taxId == null) taxId = "TAX-PENDING";
+        WholesaleApplication app = customerService.applyForWholesale(user.getId(), businessName, taxId);
         return new ResponseEntity<>(app, HttpStatus.CREATED);
     }
 
@@ -90,7 +115,96 @@ public class CustomerController {
         return ResponseEntity.ok(customerService.getWholesaleStatus(user.getId()));
     }
 
+    @GetMapping("/products")
+    public ResponseEntity<List<com.retail.store.entity.Product>> getProducts() {
+        return ResponseEntity.ok(customerService.getAvailableProducts());
+    }
+
+    @GetMapping("/products/{id}")
+    public ResponseEntity<com.retail.store.entity.Product> getProductById(@PathVariable Long id) {
+        return ResponseEntity.ok(customerService.getProductById(id));
+    }
+
+    @GetMapping({"/profile", "/me"})
+    public ResponseEntity<com.retail.store.dto.customer.response.CustomerResponse> getProfile(@AuthenticationPrincipal UserDetailsImpl user) {
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        com.retail.store.entity.User u = customerService.getCustomerProfile(user.getId());
+        return ResponseEntity.ok(com.retail.store.dto.customer.response.CustomerResponse.from(u));
+    }
+
+    @PutMapping("/profile")
+    public ResponseEntity<com.retail.store.dto.customer.response.CustomerResponse> updateProfile(
+            @AuthenticationPrincipal UserDetailsImpl user,
+            @RequestBody UpdateProfileRequest request) {
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String addressesJson = null;
+        if (request.addresses() != null && !request.addresses().isNull()) {
+            if (request.addresses().isArray()) {
+                addressesJson = request.addresses().toString();
+            } else if (request.addresses().isTextual()) {
+                String text = request.addresses().asText().trim();
+                if (text.startsWith("[") && text.endsWith("]")) {
+                    addressesJson = text;
+                } else if (!text.isEmpty()) {
+                    addressesJson = "[\"" + text.replace("\"", "\\\"") + "\"]";
+                }
+            }
+        }
+        com.retail.store.entity.User updated = customerService.updateCustomerProfile(
+                user.getId(),
+                request.fullName(),
+                request.phone(),
+                addressesJson,
+                request.password(),
+                request.avatarUrl(),
+                request.companyName()
+        );
+        return ResponseEntity.ok(com.retail.store.dto.customer.response.CustomerResponse.from(updated));
+    }
+
+    public record UpdateProfileRequest(
+        String fullName,
+        String phone,
+        com.fasterxml.jackson.databind.JsonNode addresses,
+        String password,
+        String avatarUrl,
+        String companyName
+    ) {
+        public UpdateProfileRequest(String fullName, String phone, com.fasterxml.jackson.databind.JsonNode addresses, String password) {
+            this(fullName, phone, addresses, password, null, null);
+        }
+    }
+
     public record AddCartItemRequest(Long productId, int quantity) {}
-    public record CheckoutRequest(String shippingAddress, PaymentMethod paymentMethod) {}
-    public record WholesaleApplyRequest(String businessName, String taxId) {}
+    public record CheckoutRequest(
+        String shippingAddress,
+        PaymentMethod paymentMethod,
+        String recipientName,
+        String recipientPhone,
+        List<OrderService.OrderItemRequestDto> items
+    ) {
+        public CheckoutRequest(String shippingAddress, PaymentMethod paymentMethod) {
+            this(shippingAddress, paymentMethod, null, null, null);
+        }
+
+        public CheckoutRequest(String shippingAddress, PaymentMethod paymentMethod, String recipientName, String recipientPhone) {
+            this(shippingAddress, paymentMethod, recipientName, recipientPhone, null);
+        }
+    }
+    public record WholesaleApplyRequest(
+        String businessName,
+        String taxId,
+        String companyName,
+        String taxIdOrLicense,
+        String contactDetails,
+        String reason
+    ) {
+        public WholesaleApplyRequest(String businessName, String taxId) {
+            this(businessName, taxId, businessName, taxId, null, null);
+        }
+    }
 }

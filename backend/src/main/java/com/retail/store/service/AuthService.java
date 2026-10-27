@@ -13,6 +13,14 @@ public interface AuthService {
             String email,
             String fullName,
             String role,
-            CustomerType customerType
-    ) {}
+            CustomerType customerType,
+            String avatarUrl,
+            String phone,
+            String companyName,
+            String addresses
+    ) {
+        public AuthResponse(String token, Long userId, String email, String fullName, String role, CustomerType customerType) {
+            this(token, userId, email, fullName, role, customerType, null, null, null, null);
+        }
+    }
 }

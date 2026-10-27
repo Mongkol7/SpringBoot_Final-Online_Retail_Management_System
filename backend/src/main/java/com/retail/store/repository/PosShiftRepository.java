@@ -11,6 +11,7 @@ import java.util.Optional;
 @Repository
 public interface PosShiftRepository extends JpaRepository<PosShift, Long> {
     Optional<PosShift> findTopByCashier_IdAndStatusOrderByOpenedAtDesc(Long cashierId, PosShiftStatus status);
+    Optional<PosShift> findTopByCashier_IdOrderByOpenedAtDesc(Long cashierId);
     List<PosShift> findByCashier_IdOrderByOpenedAtDesc(Long cashierId);
     boolean existsByCashier_IdAndStatus(Long cashierId, PosShiftStatus status);
 }

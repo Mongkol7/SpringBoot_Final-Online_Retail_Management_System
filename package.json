@@ -1,0 +1,11 @@
+{
+  "name": "online-retail-management-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix backend/src/main/resources/templates run dev",
+    "build": "npm --prefix backend/src/main/resources/templates run build",
+    "preview": "npm --prefix backend/src/main/resources/templates run preview",
+    "test": "npm --prefix backend/src/main/resources/templates run test"
+  }
+}

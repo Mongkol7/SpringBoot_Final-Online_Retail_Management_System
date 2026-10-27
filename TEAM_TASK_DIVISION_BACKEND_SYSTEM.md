@@ -162,18 +162,18 @@ Person 3 is the master of physical inventory. Responsible for product cataloging
 - **`InventoryTransaction`**: `id`, `batchId`, `userId`, `type`, `quantityDelta`, `reason`, `createdAt`
 
 ### 5.3 Actionable Task Breakdown
-- [ ] **Task 3.1: Product Catalog & Pricing Management**
+- [x] **Task 3.1: Product Catalog & Pricing Management**
   - CRUD for `Category` and `Supplier`.
   - CRUD for `Product`:
     - Enforces pricing hierarchy: `costPrice <= wholesalePrice <= retailPrice`.
     - Soft delete: sets `isDeleted = true` so foreign keys in past orders remain valid.
     - Exposes public catalog API: `GET /api/v1/products` (filtering by category, keyword search, active-only).
-- [ ] **Task 3.2: Stock-In Batch Ingestion**
+- [x] **Task 3.2: Stock-In Batch Ingestion**
   - `POST /api/v1/inventory/batches/stock-in` (Auth: STOCK_CONTROLLER):
     - Validates batch code uniqueness and future expiry date (if product is perishable).
     - Persists `ProductBatch` with `currentQuantity = initialQuantity`, `isExpired = false`.
     - Creates immutable record in `InventoryTransaction` (`type = STOCK_IN`, `quantityDelta = +initialQuantity`, `userId = stockControllerId`).
-- [ ] **Task 3.3: FIFO & FEFO Batch Allocation Service (Core Engine)**
+- [x] **Task 3.3: FIFO & FEFO Batch Allocation Service (Core Engine)**
   - Implements `BatchAllocationService`:
     ```java
     @Transactional
@@ -194,7 +194,7 @@ Person 3 is the master of physical inventory. Responsible for product cataloging
        - `remainingQty -= deducted`.
        - Stop when `remainingQty == 0`.
     4. If total active stock < requested quantity, throw `InsufficientStockException` (triggers database rollback).
-- [ ] **Task 3.4: Automated Expiry Watcher & Threshold Alerts**
+- [x] **Task 3.4: Automated Expiry Watcher & Threshold Alerts**
   - `@Scheduled(cron = "0 0 1 * * ?")`: Daily midnight scheduler: sets `ProductBatch.isExpired = true` for batches where `expiryDate <= CURRENT_DATE`.
   - `GET /api/v1/inventory/alerts/low-stock`: Returns products whose active stock is below `minStockThreshold`.
   - `POST /api/v1/inventory/adjustments`: Manual stock adjustments or damaged goods write-offs.
