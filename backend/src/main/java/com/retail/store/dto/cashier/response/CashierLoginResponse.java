@@ -9,8 +9,13 @@ public record CashierLoginResponse(
         String email,
         String fullName,
         String role,
-        CustomerType customerType
+        CustomerType customerType,
+        String avatarUrl
 ) {
+    public CashierLoginResponse(String token, Long userId, String email, String fullName, String role, CustomerType customerType) {
+        this(token, userId, email, fullName, role, customerType, null);
+    }
+
     public static CashierLoginResponse from(AuthService.AuthResponse auth) {
         if (auth == null) return null;
         return new CashierLoginResponse(
@@ -19,7 +24,8 @@ public record CashierLoginResponse(
                 auth.email(),
                 auth.fullName(),
                 auth.role(),
-                auth.customerType()
+                auth.customerType(),
+                auth.avatarUrl()
         );
     }
 }

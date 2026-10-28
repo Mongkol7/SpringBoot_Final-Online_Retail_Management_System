@@ -30,7 +30,8 @@ import {
   X,
   Info,
   Eye,
-  LogOut
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
 
 export const CashierPosTerminal: React.FC = () => {
@@ -188,6 +189,11 @@ export const CashierPosTerminal: React.FC = () => {
   }, [activeCashier]);
 
   const handleLockRegister = () => {
+    if (isShiftOpen) {
+      showError('Cannot switch cashier: Please close and reconcile your active shift first.');
+      setIsShiftModalOpen(true);
+      return;
+    }
     posService.lockRegister();
     setActiveCashier(null);
     setIsPinModalOpen(true);
@@ -240,11 +246,23 @@ export const CashierPosTerminal: React.FC = () => {
   const numericTendered = parseFloat(amountTendered) || 0;
   const changeDue = Math.max(0, Math.round((numericTendered - grandTotal) * 100) / 100);
 
+  // Separate totals for <1mo clearance and normal expiry products
+  const clearanceCartItems = cart.filter((it) => it.batchPreference === 'CLEARANCE');
+  const freshCartItems = cart.filter((it) => it.batchPreference !== 'CLEARANCE');
+  const clearanceItemsQty = clearanceCartItems.reduce((acc, it) => acc + it.quantity, 0);
+  const clearanceItemsTotal = Math.round(clearanceCartItems.reduce((acc, it) => acc + it.subtotal, 0) * 100) / 100;
+  const freshItemsQty = freshCartItems.reduce((acc, it) => acc + it.quantity, 0);
+  const freshItemsTotal = Math.round(freshCartItems.reduce((acc, it) => acc + it.subtotal, 0) * 100) / 100;
+
+  // Available physical cash in drawer = opening float + cash earned from sales in current shift
+  const availableDrawerCash = Math.round(((activeShift?.openingFloat || 0) + (activeShift?.systemCashTotal || 0)) * 100) / 100;
+  const isChangeExceedingDrawer = paymentMethod === 'CASH' && changeDue > availableDrawerCash;
+
   // Only flag insufficient cash when cashier explicitly tried to charge or typed an insufficient amount
   const isCashInsufficient = hasAttemptedCheckout && paymentMethod === 'CASH' && numericTendered < grandTotal && grandTotal > 0;
 
-  // Add product to cart with strict shift check and real-time stock deduction
-  const handleAddToCart = (product: PosProductScan) => {
+  // Add product to cart with strict shift check, real-time stock deduction, and strict batch quantity limits
+  const handleAddToCart = (product: PosProductScan, batchPreference: 'FRESH' | 'CLEARANCE' = 'FRESH') => {
     setErrorMessage(null);
 
     // CRITICAL REQUIREMENT: Register must be unlocked with Cashier PIN
@@ -261,23 +279,43 @@ export const CashierPosTerminal: React.FC = () => {
       return;
     }
 
-    const existing = cart.find((it) => it.productId === product.id);
-    const inCartQty = existing ? existing.quantity : 0;
-    const remainingStock = product.availableStock - inCartQty;
+    const isClearance = batchPreference === 'CLEARANCE';
+    const clearanceMax = product.nearExpiryQuantity !== undefined ? product.nearExpiryQuantity : 10;
+    const freshMax = product.freshStockQuantity !== undefined ? product.freshStockQuantity : Math.max(0, product.availableStock - clearanceMax);
 
-    if (remainingStock <= 0) {
-      showError(`Cannot exceed available batch stock of ${product.availableStock} for '${product.name}'.`);
-      return;
+    const existing = cart.find(
+      (it) => it.productId === product.id && (it.batchPreference || 'FRESH') === batchPreference
+    );
+    const currentInCartQty = existing ? existing.quantity : 0;
+
+    if (isClearance) {
+      if (clearanceMax <= 0) {
+        showError(`No <1 month clearance batch stock available for '${product.name}'.`);
+        return;
+      }
+      if (currentInCartQty + 1 > clearanceMax) {
+        showError(`Cannot add more than ${clearanceMax} units: The <1 month clearance batch only has ${clearanceMax} available.`);
+        return;
+      }
+    } else {
+      if (currentInCartQty + 1 > freshMax) {
+        showError(`Cannot add more than ${freshMax} units: Normal batch only has ${freshMax} available.`);
+        return;
+      }
     }
+
+    const clearancePrice = Math.round(product.retailPrice * 0.75 * 100) / 100;
+    const unitPrice = isClearance ? clearancePrice : product.retailPrice;
+    const displayName = isClearance ? `${product.name} (Clearance <1mo 25% OFF)` : product.name;
 
     setCart((prev) => {
       if (existing) {
         return prev.map((it) =>
-          it.productId === product.id
+          it.productId === product.id && (it.batchPreference || 'FRESH') === batchPreference
             ? {
                 ...it,
                 quantity: it.quantity + 1,
-                subtotal: Math.round((it.quantity + 1) * it.retailPrice * 100) / 100
+                subtotal: Math.round((it.quantity + 1) * unitPrice * 100) / 100
               }
             : it
         );
@@ -286,18 +324,25 @@ export const CashierPosTerminal: React.FC = () => {
         ...prev,
         {
           productId: product.id,
-          name: product.name,
+          name: displayName,
           sku: product.sku,
-          retailPrice: product.retailPrice,
+          retailPrice: unitPrice,
           quantity: 1,
-          subtotal: product.retailPrice
+          subtotal: unitPrice,
+          batchPreference,
+          isClearance,
+          expiryDate: isClearance ? product.currentBatchExpiryDate : (product.freshBatchExpiryDate || product.currentBatchExpiryDate)
         }
       ];
     });
   };
 
-  // Add custom quantity of product to cart (from ProductDetailModal)
-  const handleAddMultipleToCart = (product: PosProductScan, quantity: number) => {
+  // Add custom quantity of product to cart (from ProductDetailModal) with strict batch limits
+  const handleAddMultipleToCart = (
+    product: PosProductScan,
+    quantity: number,
+    batchPreference: 'FRESH' | 'CLEARANCE' = 'FRESH'
+  ) => {
     setErrorMessage(null);
 
     if (!activeCashier) {
@@ -312,23 +357,43 @@ export const CashierPosTerminal: React.FC = () => {
       return;
     }
 
-    const existing = cart.find((it) => it.productId === product.id);
-    const inCartQty = existing ? existing.quantity : 0;
-    const remainingStock = product.availableStock - inCartQty;
+    const isClearance = batchPreference === 'CLEARANCE';
+    const clearanceMax = product.nearExpiryQuantity !== undefined ? product.nearExpiryQuantity : 10;
+    const freshMax = product.freshStockQuantity !== undefined ? product.freshStockQuantity : Math.max(0, product.availableStock - clearanceMax);
 
-    if (quantity > remainingStock) {
-      showError(`Cannot add ${quantity} units: Only ${remainingStock} remaining for '${product.name}'.`);
-      return;
+    const existing = cart.find(
+      (it) => it.productId === product.id && (it.batchPreference || 'FRESH') === batchPreference
+    );
+    const currentInCartQty = existing ? existing.quantity : 0;
+
+    if (isClearance) {
+      if (clearanceMax <= 0) {
+        showError(`No <1 month clearance batch stock available for '${product.name}'.`);
+        return;
+      }
+      if (currentInCartQty + quantity > clearanceMax) {
+        showError(`Cannot add ${quantity} units: The <1 month clearance batch has ${clearanceMax} total (${currentInCartQty} already in cart).`);
+        return;
+      }
+    } else {
+      if (currentInCartQty + quantity > freshMax) {
+        showError(`Cannot add ${quantity} units: Normal batch has ${freshMax} total (${currentInCartQty} already in cart).`);
+        return;
+      }
     }
+
+    const clearancePrice = Math.round(product.retailPrice * 0.75 * 100) / 100;
+    const unitPrice = isClearance ? clearancePrice : product.retailPrice;
+    const displayName = isClearance ? `${product.name} (Clearance <1mo 25% OFF)` : product.name;
 
     setCart((prev) => {
       if (existing) {
         return prev.map((it) =>
-          it.productId === product.id
+          it.productId === product.id && (it.batchPreference || 'FRESH') === batchPreference
             ? {
                 ...it,
                 quantity: it.quantity + quantity,
-                subtotal: Math.round((it.quantity + quantity) * it.retailPrice * 100) / 100
+                subtotal: Math.round((it.quantity + quantity) * unitPrice * 100) / 100
               }
             : it
         );
@@ -337,21 +402,24 @@ export const CashierPosTerminal: React.FC = () => {
         ...prev,
         {
           productId: product.id,
-          name: product.name,
+          name: displayName,
           sku: product.sku,
-          retailPrice: product.retailPrice,
+          retailPrice: unitPrice,
           quantity: quantity,
-          subtotal: Math.round(quantity * product.retailPrice * 100) / 100
+          subtotal: Math.round(quantity * unitPrice * 100) / 100,
+          batchPreference,
+          isClearance,
+          expiryDate: isClearance ? product.currentBatchExpiryDate : (product.freshBatchExpiryDate || product.currentBatchExpiryDate)
         }
       ];
     });
   };
 
-  const handleUpdateQuantity = (productId: number, delta: number) => {
+  const handleUpdateQuantity = (productId: number, delta: number, batchPreference: string = 'FRESH') => {
     setCart((prev) =>
       prev
         .map((it) => {
-          if (it.productId === productId) {
+          if (it.productId === productId && (it.batchPreference || 'FRESH') === batchPreference) {
             const product = products.find((p) => p.id === productId);
             const nextQty = it.quantity + delta;
 
@@ -363,15 +431,20 @@ export const CashierPosTerminal: React.FC = () => {
                 message: `Are you sure you want to remove "${it.name}" from the current order?`,
                 confirmLabel: 'Remove Item',
                 onConfirm: () => {
-                  setCart((current) => current.filter((item) => item.productId !== productId));
+                  setCart((current) => current.filter((item) => !(item.productId === productId && (item.batchPreference || 'FRESH') === batchPreference)));
                   setDeleteConfirm(null);
                 }
               });
               return it;
             }
 
-            if (product && nextQty > product.availableStock) {
-              showError(`Cannot exceed available stock of ${product.availableStock} for ${product.name}`);
+            const isClearance = (batchPreference || 'FRESH') === 'CLEARANCE';
+            const clearanceMax = product?.nearExpiryQuantity !== undefined ? product.nearExpiryQuantity : 10;
+            const freshMax = product?.freshStockQuantity !== undefined ? product.freshStockQuantity : (product ? Math.max(0, product.availableStock - clearanceMax) : 999);
+            const batchLimit = isClearance ? clearanceMax : freshMax;
+
+            if (delta > 0 && nextQty > batchLimit) {
+              showError(`Cannot exceed ${isClearance ? '<1 month clearance' : 'normal'} batch limit of ${batchLimit} for ${product?.name || 'this item'}.`);
               return it;
             }
 
@@ -386,13 +459,13 @@ export const CashierPosTerminal: React.FC = () => {
   };
 
   // Direct number input for cart line item quantity
-  const handleDirectQuantityInput = (productId: number, rawValue: string) => {
+  const handleDirectQuantityInput = (productId: number, rawValue: string, batchPreference: string = 'FRESH') => {
     const product = products.find((p) => p.id === productId);
     if (!product) return;
 
     if (rawValue === '') {
       setCart((prev) =>
-        prev.map((it) => (it.productId === productId ? { ...it, quantity: 1, subtotal: it.retailPrice } : it))
+        prev.map((it) => (it.productId === productId && (it.batchPreference || 'FRESH') === batchPreference ? { ...it, quantity: 1, subtotal: it.retailPrice } : it))
       );
       return;
     }
@@ -402,15 +475,20 @@ export const CashierPosTerminal: React.FC = () => {
       return;
     }
 
-    if (parsed > product.availableStock) {
-      showError(`Maximum available stock for ${product.name} is ${product.availableStock}.`);
+    const isClearance = (batchPreference || 'FRESH') === 'CLEARANCE';
+    const clearanceMax = product.nearExpiryQuantity !== undefined ? product.nearExpiryQuantity : 10;
+    const freshMax = product.freshStockQuantity !== undefined ? product.freshStockQuantity : Math.max(0, product.availableStock - clearanceMax);
+    const batchLimit = isClearance ? clearanceMax : freshMax;
+
+    if (parsed > batchLimit) {
+      showError(`Cannot exceed ${isClearance ? '<1 month clearance' : 'normal'} batch limit of ${batchLimit} for ${product.name}.`);
       setCart((prev) =>
         prev.map((it) =>
-          it.productId === productId
+          it.productId === productId && (it.batchPreference || 'FRESH') === batchPreference
             ? {
                 ...it,
-                quantity: product.availableStock,
-                subtotal: Math.round(product.availableStock * it.retailPrice * 100) / 100
+                quantity: batchLimit,
+                subtotal: Math.round(batchLimit * it.retailPrice * 100) / 100
               }
             : it
         )
@@ -420,7 +498,7 @@ export const CashierPosTerminal: React.FC = () => {
 
     setCart((prev) =>
       prev.map((it) =>
-        it.productId === productId
+        it.productId === productId && (it.batchPreference || 'FRESH') === batchPreference
           ? {
               ...it,
               quantity: parsed,
@@ -438,7 +516,7 @@ export const CashierPosTerminal: React.FC = () => {
       message: `Are you sure you want to remove "${item.name}" (${item.quantity}x) from the current order?`,
       confirmLabel: 'Remove Item',
       onConfirm: () => {
-        setCart((prev) => prev.filter((it) => it.productId !== item.productId));
+        setCart((prev) => prev.filter((it) => !(it.productId === item.productId && (it.batchPreference || 'FRESH') === (item.batchPreference || 'FRESH'))));
         setDeleteConfirm(null);
       }
     });
@@ -498,9 +576,15 @@ export const CashierPosTerminal: React.FC = () => {
       showError('POS cart is empty. Add items to proceed.');
       return;
     }
-    if (paymentMethod === 'CASH' && numericTendered < grandTotal) {
-      showError(`Insufficient cash tendered. Total is $${grandTotal.toFixed(2)}, received $${numericTendered.toFixed(2)}.`);
-      return;
+    if (paymentMethod === 'CASH') {
+      if (numericTendered < grandTotal) {
+        showError(`Insufficient cash tendered. Total is $${grandTotal.toFixed(2)}, received $${numericTendered.toFixed(2)}.`);
+        return;
+      }
+      if (changeDue > availableDrawerCash) {
+        showError(`Cannot complete cash sale: Insufficient cash in drawer to dispense change. Available float is $${availableDrawerCash.toFixed(2)} ($${(activeShift?.openingFloat || 0).toFixed(2)} float + $${(activeShift?.systemCashTotal || 0).toFixed(2)} cash sales), but change due is $${changeDue.toFixed(2)}.`);
+        return;
+      }
     }
 
     if (!activeCashier) {
@@ -513,7 +597,11 @@ export const CashierPosTerminal: React.FC = () => {
     setErrorMessage(null);
 
     try {
-      const itemsPayload = cart.map((it) => ({ productId: it.productId, quantity: it.quantity }));
+      const itemsPayload = cart.map((it) => ({
+        productId: it.productId,
+        quantity: it.quantity,
+        batchPreference: it.batchPreference || 'FRESH'
+      }));
       const result = await posService.checkoutWalkIn(itemsPayload, numericTendered, paymentMethod, activeCashier.id);
 
       // Construct thermal receipt payload with active cashier identity
@@ -527,7 +615,10 @@ export const CashierPosTerminal: React.FC = () => {
           productName: it.name,
           quantity: it.quantity,
           unitPrice: it.retailPrice,
-          subtotal: it.subtotal
+          subtotal: it.subtotal,
+          batchPreference: it.batchPreference,
+          isClearance: it.isClearance,
+          expiryDate: it.expiryDate
         })),
         subtotal: result.order.subtotal,
         taxAmount: result.order.taxAmount,
@@ -603,16 +694,35 @@ export const CashierPosTerminal: React.FC = () => {
     }
   };
 
-  // Filtered catalog
+  // Filtered catalog supporting dropdown categories
   const filteredProducts = products.filter((p) => {
-    const matchesCategory =
-      selectedCategory === 'All' ||
-      (selectedCategory === 'Beverages' && (p.name.includes('Coffee') || p.name.includes('Water') || p.name.includes('Milk') || p.name.includes('Latte'))) ||
-      (selectedCategory === 'Snacks' && (p.name.includes('Bar') || p.name.includes('Crisps') || p.name.includes('Chocolate'))) ||
-      (selectedCategory === 'Nutrition' && (p.name.includes('Protein') || p.name.includes('Matcha') || p.name.includes('Energy')));
+    const pCat = (p.categoryName || '').toLowerCase();
+    const pName = (p.name || '').toLowerCase();
+    const sel = selectedCategory.toLowerCase();
+
+    let matchesCategory = selectedCategory === 'All';
+    if (!matchesCategory) {
+      if (pCat === sel || (pCat && sel.includes(pCat)) || (pCat && pCat.includes(sel))) {
+        matchesCategory = true;
+      } else if (selectedCategory === 'Beverages' && (pName.includes('coffee') || pName.includes('water') || pName.includes('milk') || pName.includes('latte') || pName.includes('juice') || pName.includes('tea'))) {
+        matchesCategory = true;
+      } else if (selectedCategory === 'Snacks' && (pName.includes('bar') || pName.includes('crisps') || pName.includes('chocolate') || pName.includes('chips') || pName.includes('cookie') || pName.includes('snack'))) {
+        matchesCategory = true;
+      } else if (selectedCategory === 'Dairy & Plant Milk' && (pName.includes('milk') || pName.includes('yogurt') || pName.includes('cheese') || pName.includes('butter') || pName.includes('oat'))) {
+        matchesCategory = true;
+      } else if (selectedCategory === 'Bakery & Pastry' && (pName.includes('bread') || pName.includes('croissant') || pName.includes('pastry') || pName.includes('baguette') || pName.includes('muffin'))) {
+        matchesCategory = true;
+      } else if (selectedCategory === 'Fresh Produce' && (pName.includes('apple') || pName.includes('banana') || pName.includes('berry') || pName.includes('fruit') || pName.includes('salad'))) {
+        matchesCategory = true;
+      } else if (selectedCategory === 'Nutrition & Supplements' && (pName.includes('protein') || pName.includes('matcha') || pName.includes('energy') || pName.includes('vitamin'))) {
+        matchesCategory = true;
+      }
+    }
+
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchQuery.toLowerCase());
+      p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      Boolean((p as any).barcode && (p as any).barcode.toLowerCase().includes(searchQuery.toLowerCase()));
     return matchesCategory && matchesSearch;
   });
 
@@ -660,7 +770,9 @@ export const CashierPosTerminal: React.FC = () => {
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 800, margin: 0 }}>POS Touchscreen Terminal</h2>
+              <h2 style={{ fontSize: '18px', fontWeight: 900, margin: 0, color: '#FFFFFF', opacity: 1, textShadow: '0 2px 8px rgba(0, 0, 0, 0.5)' }}>
+                POS Touchscreen Terminal
+              </h2>
               <span
                 style={{
                   fontSize: '10px',
@@ -707,225 +819,213 @@ export const CashierPosTerminal: React.FC = () => {
                 />
                 <span>Cashier: {activeCashier ? `${activeCashier.fullName} (#${activeCashier.id})` : 'Register Locked'}</span>
               </div>
-              <button
-                onClick={handleLockRegister}
-                title="Lock register or switch cashier"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  padding: '3px 9px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                  color: '#FFFFFF',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                <Lock size={11} color="#F59E0B" />
-                <span>Switch / Lock</span>
-              </button>
-              <span>•</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10B981' }}>
-                <Lock size={12} /> Retail FIFO Locked
-              </span>
             </div>
           </div>
         </div>
 
-        {/* View Switcher & Shift Drawer HUD */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Switch View Button: Terminal vs Sales History */}
-          <div style={{ display: 'flex', backgroundColor: 'rgba(255, 255, 255, 0.08)', padding: '3px', borderRadius: '12px' }}>
-            <button
-              onClick={() => setActiveView('TERMINAL')}
+        {/* View Switcher, Shift Drawer HUD & Right Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: 1, justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            {/* Switch View Button: Terminal vs Sales History */}
+            <div style={{ display: 'flex', backgroundColor: 'rgba(255, 255, 255, 0.08)', padding: '3px', borderRadius: '12px' }}>
+              <button
+                onClick={() => setActiveView('TERMINAL')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '9px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor: activeView === 'TERMINAL' ? '#FFFFFF' : 'transparent',
+                  color: activeView === 'TERMINAL' ? '#000000' : 'rgba(255, 255, 255, 0.7)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                Terminal
+              </button>
+              <button
+                onClick={() => setActiveView('SALES_HISTORY')}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '9px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  backgroundColor: activeView === 'SALES_HISTORY' ? '#FFFFFF' : 'transparent',
+                  color: activeView === 'SALES_HISTORY' ? '#000000' : 'rgba(255, 255, 255, 0.7)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <History size={13} />
+                Sales History
+              </button>
+            </div>
+
+            {/* Shift Drawer HUD with Live Real-time Shift Duration */}
+            <div
               style={{
                 padding: '6px 14px',
-                borderRadius: '9px',
-                fontSize: '12px',
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer',
-                backgroundColor: activeView === 'TERMINAL' ? '#FFFFFF' : 'transparent',
-                color: activeView === 'TERMINAL' ? '#000000' : 'rgba(255, 255, 255, 0.7)',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              Terminal
-            </button>
-            <button
-              onClick={() => setActiveView('SALES_HISTORY')}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '9px',
-                fontSize: '12px',
-                fontWeight: 700,
-                border: 'none',
-                cursor: 'pointer',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '5px',
-                backgroundColor: activeView === 'SALES_HISTORY' ? '#FFFFFF' : 'transparent',
-                color: activeView === 'SALES_HISTORY' ? '#000000' : 'rgba(255, 255, 255, 0.7)',
+                gap: '10px',
+                fontSize: '12px'
+              }}
+            >
+              <div
+                style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: isShiftOpen ? '#10B981' : '#F59E0B',
+                  boxShadow: isShiftOpen ? '0 0 8px #10B981' : 'none'
+                }}
+              />
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '11px', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span>{isShiftOpen ? 'SHIFT ACTIVE' : 'SHIFT CLOSED'}</span>
+                  {isShiftOpen && shiftElapsed && (
+                    <span style={{ fontSize: '10px', color: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '1px 6px', borderRadius: '4px' }}>
+                      ⏱️ {shiftElapsed}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
+                  Float: ${Number(activeShift?.openingFloat ?? 0).toFixed(2)} | Cash: ${Number(activeShift?.systemCashTotal ?? 0).toFixed(2)}
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setIsShiftModalOpen(true)}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: isShiftOpen ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
+                color: isShiftOpen ? '#FFFFFF' : '#000000',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                borderRadius: '9999px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
                 transition: 'all 0.15s ease'
               }}
             >
-              <History size={13} />
-              Sales History
+              {isShiftOpen ? 'Reconcile Drawer' : 'Open Shift Float'}
+            </button>
+
+            <button
+              onClick={handleLockRegister}
+              title="Close shift first to switch cashier"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                color: '#F59E0B',
+                backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                border: '1px solid rgba(245, 158, 11, 0.28)',
+                borderRadius: '9999px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              <Lock size={12} />
+              <span>Lock / Switch Cashier</span>
             </button>
           </div>
 
-          {/* Shift Drawer HUD with Live Real-time Shift Duration */}
-          <div
-            style={{
-              padding: '6px 14px',
-              borderRadius: '12px',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              fontSize: '12px'
-            }}
-          >
-            <div
+          {/* Moved Profile and Sign Out to the Far Right */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+            {/* Cashier Profile Capsule (Click to edit avatar and information) */}
+            <button
+              type="button"
+              onClick={() => setShowCashierProfileModal(true)}
+              title="Edit Cashier Profile & Avatar"
               style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: isShiftOpen ? '#10B981' : '#F59E0B',
-                boxShadow: isShiftOpen ? '0 0 8px #10B981' : 'none'
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '4px 12px 4px 5px',
+                borderRadius: '9999px',
+                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                color: '#FFFFFF',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
               }}
-            />
-            <div>
-              <div style={{ fontWeight: 700, fontSize: '11px', color: '#FFFFFF', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>{isShiftOpen ? 'SHIFT ACTIVE' : 'SHIFT CLOSED'}</span>
-                {isShiftOpen && shiftElapsed && (
-                  <span style={{ fontSize: '10px', color: '#10B981', backgroundColor: 'rgba(16, 185, 129, 0.15)', padding: '1px 6px', borderRadius: '4px' }}>
-                    ⏱️ {shiftElapsed}
-                  </span>
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.14)')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)')}
+            >
+              <div
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  backgroundColor: '#38BDF8',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#000000',
+                  fontWeight: 800,
+                  fontSize: '11px',
+                  boxShadow: '0 2px 6px rgba(56, 189, 248, 0.3)'
+                }}
+              >
+                {cashierAvatar ? (
+                  <img
+                    src={cashierAvatar}
+                    alt={cashierProfileUser.fullName}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={() => setCashierAvatar('')}
+                  />
+                ) : (
+                  'CA'
                 )}
               </div>
-              <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
-                Float: ${Number(activeShift?.openingFloat ?? 0).toFixed(2)} | Cash: ${Number(activeShift?.systemCashTotal ?? 0).toFixed(2)}
-              </div>
-            </div>
-          </div>
+              <span>{activeCashier ? activeCashier.fullName.split(' ')[0] : 'Profile'}</span>
+            </button>
 
-          <button
-            onClick={() => setIsShiftModalOpen(true)}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: isShiftOpen ? 'rgba(255, 255, 255, 0.12)' : '#FFFFFF',
-              color: isShiftOpen ? '#FFFFFF' : '#000000',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '9999px',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            {isShiftOpen ? 'Reconcile Drawer' : 'Open Shift Float'}
-          </button>
-
-          <button
-            onClick={handleLockRegister}
-            title="Lock register and return to PIN login screen for another cashier"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 14px',
-              color: '#F59E0B',
-              backgroundColor: 'rgba(245, 158, 11, 0.12)',
-              border: '1px solid rgba(245, 158, 11, 0.28)',
-              borderRadius: '9999px',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Lock size={12} />
-            <span>Lock / Switch Cashier</span>
-          </button>
-
-          <button
-            onClick={() => setShowLogoutConfirm(true)}
-            title="Sign out of cashier session"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 13px',
-              color: '#FCA5A5',
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.28)',
-              borderRadius: '9999px',
-              fontSize: '12px',
-              fontWeight: 700,
-              cursor: 'pointer'
-            }}
-          >
-            <LogOut size={13} />
-            Sign Out
-          </button>
-
-          {/* Cashier Profile Capsule (Click to edit avatar and information) */}
-          <button
-            type="button"
-            onClick={() => setShowCashierProfileModal(true)}
-            title="Edit Cashier Profile & Avatar"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '4px 12px 4px 5px',
-              borderRadius: '9999px',
-              backgroundColor: 'rgba(255, 255, 255, 0.08)',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
-              color: '#FFFFFF',
-              fontSize: '12px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.14)')}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)')}
-          >
-            <div
+            {/* Sign Out Button */}
+            <button
+              onClick={() => {
+                if (isShiftOpen) {
+                  showError('Cannot sign out: Please close and reconcile your active shift first.');
+                  setIsShiftModalOpen(true);
+                  return;
+                }
+                setShowLogoutConfirm(true);
+              }}
+              title="Sign out of cashier session"
               style={{
-                width: '26px',
-                height: '26px',
-                borderRadius: '50%',
-                overflow: 'hidden',
-                backgroundColor: '#38BDF8',
-                display: 'flex',
+                display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                color: '#000000',
-                fontWeight: 800,
-                fontSize: '11px',
-                boxShadow: '0 2px 6px rgba(56, 189, 248, 0.3)'
+                gap: '6px',
+                padding: '8px 14px',
+                color: '#FCA5A5',
+                backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.28)',
+                borderRadius: '9999px',
+                fontSize: '12px',
+                fontWeight: 700,
+                cursor: 'pointer'
               }}
             >
-              {cashierAvatar ? (
-                <img
-                  src={cashierAvatar}
-                  alt={cashierProfileUser.fullName}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={() => setCashierAvatar('')}
-                />
-              ) : (
-                'CA'
-              )}
-            </div>
-            <span>Profile</span>
-          </button>
+              <LogOut size={13} />
+              Sign Out
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1119,73 +1219,76 @@ export const CashierPosTerminal: React.FC = () => {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {(['All', 'Beverages', 'Snacks', 'Nutrition'] as const).map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: '8px',
-                        fontSize: '11px',
-                        fontWeight: 700,
-                        border: 'none',
-                        cursor: 'pointer',
-                        backgroundColor: selectedCategory === cat ? '#FFFFFF' : 'rgba(255, 255, 255, 0.08)',
-                        color: selectedCategory === cat ? '#000000' : 'rgba(255, 255, 255, 0.7)',
-                        transition: 'all 0.2s ease'
-                      }}
-                    >
-                      {cat}
-                    </button>
-                  ))}
+                {/* Category Dropdown Selector */}
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    style={{
+                      appearance: 'none',
+                      WebkitAppearance: 'none',
+                      padding: '8px 36px 8px 14px',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.18)',
+                      color: '#FFFFFF',
+                      fontSize: '12px',
+                      fontWeight: 700,
+                      outline: 'none',
+                      cursor: 'pointer',
+                      colorScheme: 'dark'
+                    }}
+                  >
+                    {['All', 'Beverages', 'Snacks', 'Dairy & Plant Milk', 'Bakery & Pastry', 'Fresh Produce', 'Nutrition & Supplements'].map((cat) => (
+                      <option key={cat} value={cat} style={{ backgroundColor: '#18181B', color: '#FFFFFF' }}>
+                        Category: {cat}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={14}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      pointerEvents: 'none',
+                      color: 'rgba(255, 255, 255, 0.7)'
+                    }}
+                  />
                 </div>
-              </div>
-
-              {/* Quick Demo Scan Pills */}
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>Quick Scan Demo:</span>
-                {products.slice(0, 4).map((p) => {
-                  const cartItem = cart.find((it) => it.productId === p.id);
-                  const inCartQty = cartItem ? cartItem.quantity : 0;
-                  const remainingStock = Math.max(0, p.availableStock - inCartQty);
-                  const isAvailable = remainingStock > 0;
-
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() => isAvailable && handleAddToCart(p)}
-                      disabled={!isAvailable}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: '9999px',
-                        backgroundColor: isAvailable ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.02)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        color: isAvailable ? '#FFFFFF' : 'rgba(255, 255, 255, 0.3)',
-                        fontSize: '11px',
-                        cursor: isAvailable ? 'pointer' : 'not-allowed'
-                      }}
-                    >
-                      +{p.name.split(' ')[0]} (${p.retailPrice.toFixed(2)})
-                    </button>
-                  );
-                })}
               </div>
             </div>
 
             {/* Product Grid with REAL-TIME FIFO Stock Deduction on Cards */}
             <div className="pos-catalog-grid">
               {filteredProducts.map((product) => {
-                // Real-time stock calculation: Total Batch Stock - In Cart Quantity
-                const cartItem = cart.find((it) => it.productId === product.id);
-                const inCartQty = cartItem ? cartItem.quantity : 0;
+                // Real-time stock calculation across all batch preferences in cart
+                const inCartQty = cart
+                  .filter((it) => it.productId === product.id)
+                  .reduce((sum, it) => sum + it.quantity, 0);
                 const remainingStock = Math.max(0, product.availableStock - inCartQty);
                 const isOutOfStock = remainingStock <= 0;
+
+                // Near-expiry check (<1 month / 30 days) for perishable items
+                const isNearExpiryUnderMonth = product.isPerishable && (() => {
+                  const expStr = product.currentBatchExpiryDate;
+                  if (!expStr) return false;
+                  try {
+                    const target = new Date(expStr).getTime();
+                    const now = new Date().setHours(0, 0, 0, 0);
+                    const diffDays = Math.ceil((target - now) / (1000 * 60 * 60 * 24));
+                    return diffDays <= 30;
+                  } catch {
+                    return false;
+                  }
+                })();
+                const clearancePrice = Math.round(product.retailPrice * 0.75 * 100) / 100;
 
                 return (
                   <div
                     key={product.id}
-                    onClick={() => !isOutOfStock && handleAddToCart(product)}
+                    onClick={() => !isOutOfStock && handleAddToCart(product, 'FRESH')}
                     className="ios-glass-panel ios-glow-hover"
                     style={{
                       padding: '12px',
@@ -1194,6 +1297,9 @@ export const CashierPosTerminal: React.FC = () => {
                       flexDirection: 'column',
                       justifyContent: 'space-between',
                       gap: '10px',
+                      minHeight: '275px',
+                      height: '100%',
+                      boxSizing: 'border-box',
                       backgroundColor: isOutOfStock ? 'rgba(24, 24, 27, 0.4)' : 'rgba(24, 24, 27, 0.65)',
                       opacity: isOutOfStock ? 0.65 : 1,
                       position: 'relative'
@@ -1250,24 +1356,22 @@ export const CashierPosTerminal: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* FEFO Tag */}
-                      {product.isPerishable && (
-                        <div style={{ position: 'absolute', top: '6px', right: '6px' }}>
-                          <span
-                            style={{
-                              fontSize: '9px',
-                              fontWeight: 800,
-                              padding: '2px 6px',
-                              borderRadius: '6px',
-                              backgroundColor: 'rgba(245, 158, 11, 0.9)',
-                              backdropFilter: 'blur(4px)',
-                              color: '#000000'
-                            }}
-                          >
-                            FEFO
-                          </span>
-                        </div>
-                      )}
+                      {/* FEFO Tag on All Products */}
+                      <div style={{ position: 'absolute', top: '6px', right: '6px' }}>
+                        <span
+                          style={{
+                            fontSize: '9px',
+                            fontWeight: 800,
+                            padding: '2px 6px',
+                            borderRadius: '6px',
+                            backgroundColor: 'rgba(245, 158, 11, 0.9)',
+                            backdropFilter: 'blur(4px)',
+                            color: '#000000'
+                          }}
+                        >
+                          FEFO
+                        </span>
+                      </div>
 
                       {/* View Detail Floating Pill Button */}
                       <button
@@ -1368,57 +1472,196 @@ export const CashierPosTerminal: React.FC = () => {
                         {isOutOfStock
                           ? inCartQty > 0
                             ? `0 remaining (Max in Cart)`
-                            : '0 in stock (FIFO)'
-                          : `${remainingStock} in stock (FIFO)`}
+                            : '0 in stock (FEFO)'
+                          : `${remainingStock} in stock (FEFO)`}
                       </div>
                     </div>
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
-                      <div style={{ fontSize: '16px', fontWeight: 800, color: '#FFFFFF' }}>
-                        ${product.retailPrice.toFixed(2)}
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedProductDetail(product);
-                          }}
-                          style={{
-                            padding: '4px 8px',
-                            borderRadius: '8px',
-                            backgroundColor: 'rgba(255, 255, 255, 0.08)',
-                            border: '1px solid rgba(255, 255, 255, 0.15)',
-                            color: 'rgba(255, 255, 255, 0.85)',
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '4px',
-                            transition: 'all 0.15s ease'
-                          }}
-                          title="View Product Details"
-                        >
-                          <Eye size={12} /> Detail
-                        </button>
-                        <div
-                          style={{
-                            width: '28px',
-                            height: '28px',
-                            borderRadius: '50%',
-                            backgroundColor: isOutOfStock ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.12)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#FFFFFF'
-                          }}
-                          title="Add to Current Order"
-                        >
-                          <Plus size={14} />
+                    {isNearExpiryUnderMonth ? (() => {
+                      const clearanceInCart = cart.find((it) => it.productId === product.id && it.batchPreference === 'CLEARANCE')?.quantity || 0;
+                      const clearanceStock = product.nearExpiryQuantity !== undefined ? product.nearExpiryQuantity : 10;
+                      const isClearanceMaxed = clearanceInCart >= clearanceStock;
+
+                      const freshInCart = cart.find((it) => it.productId === product.id && it.batchPreference !== 'CLEARANCE')?.quantity || 0;
+                      const freshStock = product.freshStockQuantity !== undefined ? product.freshStockQuantity : Math.max(0, product.availableStock - clearanceStock);
+                      const isFreshMaxed = freshInCart >= freshStock;
+
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '2px', width: '100%' }}>
+                          {/* Option 1: Fresh Batch */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                              <div style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF' }}>
+                                ${product.retailPrice.toFixed(2)}
+                              </div>
+                              <div style={{ fontSize: '9px', color: '#10B981', fontWeight: 700 }}>🌿 Fresh Batch</div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedProductDetail(product);
+                                }}
+                                style={{
+                                  padding: '3px 6px',
+                                  borderRadius: '6px',
+                                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                                  color: 'rgba(255, 255, 255, 0.85)',
+                                  fontSize: '10px',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}
+                                title="View Product Details"
+                              >
+                                <Eye size={11} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!isOutOfStock && !isFreshMaxed) handleAddToCart(product, 'FRESH');
+                                }}
+                                disabled={isOutOfStock || isFreshMaxed}
+                                style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '6px',
+                                  backgroundColor: isOutOfStock || isFreshMaxed ? 'rgba(255, 255, 255, 0.05)' : 'rgba(16, 185, 129, 0.15)',
+                                  border: '1px solid rgba(16, 185, 129, 0.35)',
+                                  color: isFreshMaxed ? 'rgba(255, 255, 255, 0.4)' : '#10B981',
+                                  fontSize: '10px',
+                                  fontWeight: 800,
+                                  cursor: isOutOfStock || isFreshMaxed ? 'not-allowed' : 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '3px'
+                                }}
+                                title={isFreshMaxed ? `Normal batch limit reached (${freshStock} units)` : "Add Guaranteed Fresh Batch to Order"}
+                              >
+                                {isFreshMaxed ? `Max (${freshStock})` : <><Plus size={11} /> Fresh</>}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Option 2: Second Choice Clearance (<1mo Expiring, 25% OFF) */}
+                          <div
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              padding: '4px 6px',
+                              borderRadius: '8px',
+                              backgroundColor: 'rgba(245, 158, 11, 0.12)',
+                              border: '1px dashed rgba(245, 158, 11, 0.4)'
+                            }}
+                          >
+                            <div>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: 800, color: '#FCD34D' }}>
+                                  ${clearancePrice.toFixed(2)}
+                                </span>
+                                <span style={{ fontSize: '9px', fontWeight: 800, color: '#F59E0B' }}>
+                                  -25%
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '8px', color: '#FCD34D', fontWeight: 600 }}>
+                                ⚠️ &lt;1 mo Clearance
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!isOutOfStock && !isClearanceMaxed) handleAddToCart(product, 'CLEARANCE');
+                              }}
+                              disabled={isOutOfStock || isClearanceMaxed}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                backgroundColor: isClearanceMaxed ? 'rgba(255, 255, 255, 0.1)' : '#F59E0B',
+                                border: 'none',
+                                color: isClearanceMaxed ? 'rgba(255, 255, 255, 0.4)' : '#000000',
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                cursor: isOutOfStock || isClearanceMaxed ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '2px'
+                              }}
+                              title={isClearanceMaxed ? `Clearance batch limit reached (${clearanceStock} units)` : "Add Second Choice: Near-Expiry Clearance Batch (25% Discount)"}
+                            >
+                              {isClearanceMaxed ? `Max (${clearanceStock})` : <><Plus size={10} /> &lt;1mo</>}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })() : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: 'auto', width: '100%', paddingTop: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontSize: '15px', fontWeight: 800, color: '#FFFFFF' }}>
+                              ${product.retailPrice.toFixed(2)}
+                            </div>
+                            <div style={{ fontSize: '9px', color: 'rgba(255, 255, 255, 0.6)', fontWeight: 600 }}>Standard Shelf</div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedProductDetail(product);
+                              }}
+                              style={{
+                                padding: '3px 6px',
+                                borderRadius: '6px',
+                                backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                                border: '1px solid rgba(255, 255, 255, 0.15)',
+                                color: 'rgba(255, 255, 255, 0.85)',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                transition: 'all 0.15s ease'
+                              }}
+                              title="View Product Details"
+                            >
+                              <Eye size={11} /> Detail
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!isOutOfStock) handleAddToCart(product, 'FRESH');
+                              }}
+                              disabled={isOutOfStock}
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                backgroundColor: isOutOfStock ? 'rgba(255, 255, 255, 0.05)' : '#FFFFFF',
+                                border: 'none',
+                                color: '#000000',
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                cursor: isOutOfStock ? 'not-allowed' : 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '3px'
+                              }}
+                              title="Add to Current Order"
+                            >
+                              <Plus size={11} /> Add
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 );
               })}
@@ -1436,17 +1679,20 @@ export const CashierPosTerminal: React.FC = () => {
               height: 'fit-content'
             }}
           >
-            {/* Cart Header */}
+            {/* Cart Header with Full Opacity */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <ShoppingCart size={18} />
-                <h3 style={{ fontSize: '16px', fontWeight: 800, margin: 0 }}>Current Order</h3>
+                <ShoppingCart size={18} color="#38BDF8" style={{ opacity: 1, filter: 'drop-shadow(0 0 6px rgba(56, 189, 248, 0.4))' }} />
+                <h3 style={{ fontSize: '16px', fontWeight: 900, margin: 0, color: '#FFFFFF', opacity: 1, textShadow: '0 1px 4px rgba(0, 0, 0, 0.5)' }}>
+                  Current Order
+                </h3>
                 <span
                   style={{
                     fontSize: '11px',
+                    fontWeight: 800,
                     padding: '2px 8px',
                     borderRadius: '9999px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.12)',
                     color: '#FFFFFF'
                   }}
                 >
@@ -1459,7 +1705,7 @@ export const CashierPosTerminal: React.FC = () => {
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: 'var(--ios-text-muted)',
+                    color: 'rgba(255, 255, 255, 0.75)',
                     fontSize: '11px',
                     cursor: 'pointer',
                     display: 'flex',
@@ -1471,6 +1717,40 @@ export const CashierPosTerminal: React.FC = () => {
                 </button>
               )}
             </div>
+
+            {/* Separate Batch Totals Breakdown on Product Cart */}
+            {cart.length > 0 && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '8px',
+                  padding: '10px 12px',
+                  borderRadius: '12px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)'
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#10B981', fontWeight: 800, fontSize: '11px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#10B981' }} />
+                    <span>Normal Expiry:</span>
+                  </div>
+                  <div style={{ color: '#FFFFFF', fontWeight: 900, fontSize: '12px', paddingLeft: '11px' }}>
+                    {freshItemsQty} units • ${freshItemsTotal.toFixed(2)}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px', color: '#F59E0B', fontWeight: 800, fontSize: '11px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#F59E0B' }} />
+                    <span>&lt;1mo Clearance:</span>
+                  </div>
+                  <div style={{ color: '#FCD34D', fontWeight: 900, fontSize: '12px', paddingLeft: '11px' }}>
+                    {clearanceItemsQty} units • ${clearanceItemsTotal.toFixed(2)}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Cart Items List */}
             <div
@@ -1500,17 +1780,18 @@ export const CashierPosTerminal: React.FC = () => {
               ) : (
                 cart.map((item) => {
                   const prod = products.find((p) => p.id === item.productId);
+                  const itemKey = `${item.productId}-${item.batchPreference || 'FRESH'}`;
                   return (
                     <div
-                      key={item.productId}
+                      key={itemKey}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '10px 12px',
                         borderRadius: '12px',
-                        backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                        border: '1px solid rgba(255, 255, 255, 0.08)'
+                        backgroundColor: item.batchPreference === 'CLEARANCE' ? 'rgba(245, 158, 11, 0.08)' : 'rgba(255, 255, 255, 0.04)',
+                        border: item.batchPreference === 'CLEARANCE' ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)'
                       }}
                     >
                       {/* Thumbnail Image */}
@@ -1553,22 +1834,30 @@ export const CashierPosTerminal: React.FC = () => {
                             whiteSpace: 'nowrap',
                             display: 'flex',
                             alignItems: 'center',
-                            gap: '4px'
+                            gap: '4px',
+                            color: item.batchPreference === 'CLEARANCE' ? '#FCD34D' : '#FFFFFF'
                           }}
                           title={item.name}
                         >
                           <span>{item.name}</span>
                           <Info size={11} style={{ opacity: 0.5, flexShrink: 0 }} />
                         </div>
-                        <div style={{ fontSize: '11px', color: 'var(--ios-text-muted)' }}>
-                          ${item.retailPrice.toFixed(2)} ea
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            color: item.batchPreference === 'CLEARANCE' ? '#FBBF24' : '#F1F5F9',
+                            opacity: 1
+                          }}
+                        >
+                          ${item.retailPrice.toFixed(2)} ea {item.batchPreference === 'CLEARANCE' ? '• 25% OFF' : ''}
                         </div>
                       </div>
 
                       {/* Quantity Stepper with DIRECT TYPE-IN INPUT */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
                         <button
-                          onClick={() => handleUpdateQuantity(item.productId, -1)}
+                          onClick={() => handleUpdateQuantity(item.productId, -1, item.batchPreference)}
                           style={{
                             width: '24px',
                             height: '24px',
@@ -1591,7 +1880,7 @@ export const CashierPosTerminal: React.FC = () => {
                           min="1"
                           max={prod ? prod.availableStock : 999}
                           value={item.quantity}
-                          onChange={(e) => handleDirectQuantityInput(item.productId, e.target.value)}
+                          onChange={(e) => handleDirectQuantityInput(item.productId, e.target.value, item.batchPreference)}
                           style={{
                             width: '36px',
                             height: '24px',
@@ -1608,7 +1897,7 @@ export const CashierPosTerminal: React.FC = () => {
                         />
 
                         <button
-                          onClick={() => handleUpdateQuantity(item.productId, 1)}
+                          onClick={() => handleUpdateQuantity(item.productId, 1, item.batchPreference)}
                           style={{
                             width: '24px',
                             height: '24px',
@@ -1626,7 +1915,18 @@ export const CashierPosTerminal: React.FC = () => {
                         </button>
                       </div>
 
-                      <div style={{ fontSize: '13px', fontWeight: 700, width: '60px', textAlign: 'right', flexShrink: 0 }}>
+                      <div
+                        style={{
+                          fontSize: '14px',
+                          fontWeight: 800,
+                          width: '64px',
+                          textAlign: 'right',
+                          flexShrink: 0,
+                          color: item.batchPreference === 'CLEARANCE' ? '#FCD34D' : '#FFFFFF',
+                          opacity: 1,
+                          textShadow: '0 1px 2px rgba(0, 0, 0, 0.4)'
+                        }}
+                      >
                         ${item.subtotal.toFixed(2)}
                       </div>
 
@@ -1650,29 +1950,43 @@ export const CashierPosTerminal: React.FC = () => {
               )}
             </div>
 
-            {/* Pricing Totals Box */}
+            {/* Pricing Totals Box with Separate Totals for <1mo and Normal Expired */}
             <div
               style={{
                 padding: '14px 16px',
                 borderRadius: '16px',
                 backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '6px',
                 fontSize: '13px'
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--ios-text-muted)' }}>
-                <span>Subtotal:</span>
-                <span>${subtotal.toFixed(2)}</span>
+              {/* Normal Shelf Stock Total */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34D399', fontSize: '12px', opacity: 1 }}>
+                <span>🌿 Normal Stock ({freshItemsQty} items):</span>
+                <span style={{ fontWeight: 800 }}>${freshItemsTotal.toFixed(2)}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--ios-text-muted)' }}>
-                <span>7% VAT Tax:</span>
-                <span>${taxAmount.toFixed(2)}</span>
+
+              {/* Clearance <1mo Total */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#FCD34D', fontSize: '12px' }}>
+                <span>⚠️ &lt;1mo Clearance ({clearanceItemsQty} items):</span>
+                <span style={{ fontWeight: 800 }}>${clearanceItemsTotal.toFixed(2)}</span>
               </div>
-              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.1)', margin: '4px 0' }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 800 }}>
+
+              <div style={{ borderTop: '1px dashed rgba(255, 255, 255, 0.15)', margin: '2px 0' }} />
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#FFFFFF', opacity: 1 }}>
+                <span style={{ fontWeight: 600 }}>Subtotal:</span>
+                <span style={{ fontWeight: 800 }}>${subtotal.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#E2E8F0', opacity: 1 }}>
+                <span style={{ fontWeight: 600 }}>7% VAT Tax:</span>
+                <span style={{ fontWeight: 700 }}>${taxAmount.toFixed(2)}</span>
+              </div>
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.25)', margin: '4px 0' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 900, color: '#FFFFFF', opacity: 1, textShadow: '0 1px 3px rgba(0, 0, 0, 0.5)' }}>
                 <span>Grand Total:</span>
                 <span>${grandTotal.toFixed(2)}</span>
               </div>
@@ -1845,32 +2159,58 @@ export const CashierPosTerminal: React.FC = () => {
                     ${changeDue.toFixed(2)}
                   </span>
                 </div>
+
+                {/* Insufficient Cash Drawer Float Warning */}
+                {isChangeExceedingDrawer && (
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                      border: '1px solid rgba(239, 68, 68, 0.4)',
+                      color: '#FCA5A5',
+                      fontSize: '11px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                    <span>
+                      ⚠️ Insufficient cash in drawer: Only ${availableDrawerCash.toFixed(2)} float available (change due is ${changeDue.toFixed(2)}).
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Action Checkout Button */}
             <button
               onClick={handleCheckout}
-              disabled={isProcessing || cart.length === 0}
+              disabled={isProcessing || cart.length === 0 || isChangeExceedingDrawer}
               style={{
                 padding: '16px',
-                backgroundColor: cart.length === 0 ? 'rgba(255, 255, 255, 0.2)' : '#FFFFFF',
-                color: cart.length === 0 ? 'rgba(0, 0, 0, 0.4)' : '#000000',
+                backgroundColor: (cart.length === 0 || isChangeExceedingDrawer) ? 'rgba(255, 255, 255, 0.2)' : '#FFFFFF',
+                color: (cart.length === 0 || isChangeExceedingDrawer) ? 'rgba(0, 0, 0, 0.4)' : '#000000',
                 border: 'none',
                 borderRadius: '9999px',
                 fontSize: '14px',
                 fontWeight: 800,
-                cursor: cart.length === 0 ? 'not-allowed' : 'pointer',
+                cursor: (cart.length === 0 || isChangeExceedingDrawer) ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                boxShadow: cart.length > 0 ? '0 10px 25px rgba(255, 255, 255, 0.2)' : 'none',
+                boxShadow: (cart.length > 0 && !isChangeExceedingDrawer) ? '0 10px 25px rgba(255, 255, 255, 0.2)' : 'none',
                 transition: 'all 0.2s ease'
               }}
             >
               <Receipt size={18} />
-              {isProcessing ? 'Processing Transaction...' : `Charge $${grandTotal.toFixed(2)} & Print Receipt`}
+              {isProcessing
+                ? 'Processing Transaction...'
+                : isChangeExceedingDrawer
+                ? `Insufficient Drawer Float ($${availableDrawerCash.toFixed(2)})`
+                : `Charge $${grandTotal.toFixed(2)} & Print Receipt`}
             </button>
           </div>
         </div>
@@ -1945,7 +2285,17 @@ export const CashierPosTerminal: React.FC = () => {
         onAddToCart={handleAddMultipleToCart}
         inCartQty={
           selectedProductDetail
-            ? cart.find((it) => it.productId === selectedProductDetail.id)?.quantity || 0
+            ? cart.filter((it) => it.productId === selectedProductDetail.id).reduce((s, it) => s + it.quantity, 0)
+            : 0
+        }
+        inCartClearanceQty={
+          selectedProductDetail
+            ? cart.find((it) => it.productId === selectedProductDetail.id && it.batchPreference === 'CLEARANCE')?.quantity || 0
+            : 0
+        }
+        inCartFreshQty={
+          selectedProductDetail
+            ? cart.find((it) => it.productId === selectedProductDetail.id && it.batchPreference !== 'CLEARANCE')?.quantity || 0
             : 0
         }
       />
@@ -1955,6 +2305,8 @@ export const CashierPosTerminal: React.FC = () => {
         isOpen={isPinModalOpen}
         onSuccess={(cashier) => {
           setActiveCashier(cashier);
+          const av = cashier.avatarUrl || localStorage.getItem(`aura_avatar_${cashier.id}`) || localStorage.getItem('aura_avatar_cashier') || '';
+          setCashierAvatar(av);
           setIsPinModalOpen(false);
           posService.getCurrentShift(cashier.id)
             .then((shift) => setActiveShift(shift))

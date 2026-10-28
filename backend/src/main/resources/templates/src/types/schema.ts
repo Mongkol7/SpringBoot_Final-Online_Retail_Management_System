@@ -170,6 +170,15 @@ export interface PosShift {
   notes?: string;
 }
 
+export interface PosProductBatchDto {
+  batchId: number;
+  batchCode: string;
+  expiryDate?: string;
+  currentQuantity: number;
+  isNearExpiry: boolean;
+  daysUntilExpiry: number;
+}
+
 export interface PosProductScan {
   id: number;
   sku: string;
@@ -185,6 +194,12 @@ export interface PosProductScan {
   minStockThreshold?: number;
   currentBatchExpiryDate?: string;
   currentBatchCode?: string;
+  nearExpiryQuantity?: number;
+  clearancePrice?: number;
+  freshStockQuantity?: number;
+  freshBatchExpiryDate?: string;
+  freshBatchCode?: string;
+  batches?: PosProductBatchDto[];
 }
 
 export interface ReceiptItem {
@@ -192,6 +207,10 @@ export interface ReceiptItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  batchPreference?: 'FRESH' | 'CLEARANCE';
+  expiryDate?: string;
+  isClearance?: boolean;
+  expiryStatus?: string;
 }
 
 export interface ThermalReceipt {
@@ -214,6 +233,7 @@ export interface PosSaleItem {
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  batchPreference?: 'FRESH' | 'CLEARANCE';
 }
 
 export interface PosSaleSummary {

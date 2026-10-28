@@ -42,10 +42,11 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
     posService.getCashierStaff()
       .then((staff) => {
         if (!isMounted) return;
-        setCashierStaffList(staff);
+        const cashiersOnly = staff.filter((s) => !s.role || s.role.toUpperCase() === 'CASHIER');
+        setCashierStaffList(cashiersOnly);
         const active = posService.getActiveCashier();
-        const found = active ? staff.find((s) => s.id === active.id) : staff[0];
-        setSelectedStaff(found || staff[0] || null);
+        const found = active ? cashiersOnly.find((s) => s.id === active.id) : cashiersOnly[0];
+        setSelectedStaff(found || cashiersOnly[0] || null);
       })
       .catch(() => {
         if (!isMounted) return;
@@ -373,10 +374,22 @@ export const CashierPinModal: React.FC<CashierPinModalProps> = ({
                           fontWeight: 800,
                           fontSize: '12px',
                           color: '#FFFFFF',
-                          flexShrink: 0
+                          flexShrink: 0,
+                          overflow: 'hidden'
                         }}
                       >
-                        {initials}
+                        {(staff.avatarUrl || localStorage.getItem(`aura_avatar_${staff.id}`) || localStorage.getItem(`aura_avatar_user_${staff.id}`)) ? (
+                          <img
+                            src={staff.avatarUrl || localStorage.getItem(`aura_avatar_${staff.id}`) || localStorage.getItem(`aura_avatar_user_${staff.id}`) || ''}
+                            alt={staff.fullName}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          initials
+                        )}
                       </div>
                       <div style={{ overflow: 'hidden', flex: 1 }}>
                         <div style={{ fontSize: '13px', fontWeight: 700, color: '#FFFFFF', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

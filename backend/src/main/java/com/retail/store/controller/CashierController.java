@@ -113,7 +113,7 @@ public class CashierController {
 
         List<CashierService.PosCartItemDto> serviceItems = request.items() == null ? List.of() :
                 request.items().stream()
-                        .map(i -> new CashierService.PosCartItemDto(i.productId(), i.quantity()))
+                        .map(i -> new CashierService.PosCartItemDto(i.productId(), i.quantity(), i.batchPreference()))
                         .toList();
 
         CashierService.PosCheckoutResult result = cashierService.checkoutWalkIn(
@@ -178,6 +178,15 @@ public class CashierController {
     }
 
     /**
+     * Complete Shift History for transaction grouping by cashier & shift
+     */
+    @GetMapping("/shifts")
+    public ResponseEntity<List<PosShiftResponse>> getAllShifts() {
+        var shifts = cashierService.getAllShifts();
+        return ResponseEntity.ok(shifts.stream().map(cashierMapper::toShiftResponse).toList());
+    }
+
+    /**
      * Fast Barcode / SKU Product Lookup for POS scanning
      */
     @GetMapping("/products/scan/{sku}")
@@ -203,8 +212,7 @@ public class CashierController {
             @AuthenticationPrincipal UserDetailsImpl cashier,
             @RequestParam(required = false) Long cashierId,
             @RequestParam(required = false, defaultValue = "TODAY") String period) {
-        Long targetCashierId = cashierId != null ? cashierId : (cashier != null ? cashier.getId() : null);
-        var history = cashierService.getSalesHistory(targetCashierId, period);
+        var history = cashierService.getSalesHistory(cashierId, period);
         return ResponseEntity.ok(history.stream().map(cashierMapper::toSaleSummaryResponse).toList());
     }
 

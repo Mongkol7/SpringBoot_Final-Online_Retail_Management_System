@@ -95,13 +95,42 @@ export const ThermalReceiptModal: React.FC<ThermalReceiptModalProps> = ({
           {/* Line Items */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px' }}>
             {receipt.items.map((item, idx) => (
-              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 36px 56px 64px', fontSize: '12px' }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '4px' }}>
-                  {item.productName}
-                </span>
-                <span style={{ textAlign: 'center' }}>{item.quantity}</span>
-                <span style={{ textAlign: 'right' }}>${item.unitPrice.toFixed(2)}</span>
-                <span style={{ textAlign: 'right', fontWeight: 600 }}>${item.subtotal.toFixed(2)}</span>
+              <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 36px 56px 64px', fontSize: '12px' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '4px' }}>
+                    {item.productName}
+                  </span>
+                  <span style={{ textAlign: 'center' }}>{item.quantity}</span>
+                  <span style={{ textAlign: 'right' }}>${item.unitPrice.toFixed(2)}</span>
+                  <span style={{ textAlign: 'right', fontWeight: 600 }}>${item.subtotal.toFixed(2)}</span>
+                </div>
+                {(() => {
+                  const isClearance = item.isClearance || item.batchPreference === 'CLEARANCE';
+                  const isPastExpiry = item.expiryDate && !isNaN(new Date(item.expiryDate).getTime()) && new Date(item.expiryDate).getTime() < new Date().setHours(0, 0, 0, 0);
+
+                  if (isClearance) {
+                    return (
+                      <div style={{ fontSize: '10px', color: '#B45309', fontWeight: 700, paddingLeft: '4px' }}>
+                        * CLEARANCE (&lt;1 MO EXP: 25% OFF){item.expiryDate ? ` [EXP: ${item.expiryDate}]` : ''}
+                      </div>
+                    );
+                  }
+                  if (item.expiryDate) {
+                    if (isPastExpiry) {
+                      return (
+                        <div style={{ fontSize: '10px', color: '#DC2626', fontWeight: 700, paddingLeft: '4px' }}>
+                          * EXPIRED BATCH [EXP: {item.expiryDate}]
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ fontSize: '10px', color: '#059669', paddingLeft: '4px' }}>
+                        * FRESH BATCH [EXP: {item.expiryDate}]
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             ))}
           </div>

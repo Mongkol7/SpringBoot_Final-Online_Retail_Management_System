@@ -8,5 +8,11 @@ public record PosCartItemRequest(
         Long productId,
 
         @Min(value = 1, message = "Quantity must be at least 1")
-        int quantity
-) {}
+        int quantity,
+
+        String batchPreference
+) {
+    public PosCartItemRequest(Long productId, int quantity) {
+        this(productId, quantity, null);
+    }
+}

@@ -1,9 +1,9 @@
 # 🌟 Online Retail Management System — Architecture & Team Guide
 
-> **Target Database:** PostgreSQL 18 (`E-bookstrore_db`, password: `123`)  
-> **Backend:** Spring Boot 3.x, Spring Data JPA, Spring Security 6 (JWT + BCrypt) — Port 8080  
-> **Frontend:** React 18/19, TypeScript, Vite — **iOS 27 Vision Glass (Black & White)** — Port 3000  
-> **Frontend Location:** Integrated directly inside `backend/src/main/resources/templates/`  
+> **Target Database:** PostgreSQL 18 (`springboot_final_onlineretailmanagement_db`, user: `postgres`, password: `123`)  
+> **Backend:** Spring Boot 3.x, Spring Data JPA, Spring Security 6 (JWT + BCrypt) — Port 8080 (Context Path `/api/v1`)  
+> **Frontend:** React 18, TypeScript, Vite — **iOS 27 Vision Glass (Black & White)** — Port 3000  
+> **Frontend Location:** Integrated inside `backend/src/main/resources/templates/` (and built into `backend/src/main/resources/static/`)  
 > **Team Division:** **1 Person per Role & UI**
 
 ---
@@ -73,22 +73,23 @@ SpringBoot_Final/
 ## 🚀 Running the Project
 
 ### 1. Database (PostgreSQL 18)
-- Host: `localhost:5432`
-- Database: `E-bookstrore_db`
-- Password: `123`
-- Flyway migrations run automatically upon Spring Boot launch.
+- **Database Name:** `springboot_final_onlineretailmanagement_db`
+- **User:** `postgres` | **Password:** `123` | **Port:** `5432`
+- **Automatic Setup (Easiest):** Just create the empty database in PostgreSQL. When Spring Boot starts, Flyway migrations and `DataSeeder.java` will automatically create all tables and populate all baseline categories, products, batches, users, and admin accounts!
+- **Manual SQL Restore (Optional):** If you prefer importing raw SQL, a complete pre-seeded SQL dump is located at:
+  `database/retail_store_backup.sql`
 
 ### 2. Backend (Spring Boot)
 ```bash
 cd backend
-mvn spring-boot:run
+./mvnw.cmd spring-boot:run
 ```
+*(On Linux/Mac use `./mvnw spring-boot:run`)*
 *API Base URL:* `http://localhost:8080/api/v1`
 
-### 3. Frontend (React + Vite in templates)
+### 3. Frontend (React + Vite)
 ```bash
 cd backend/src/main/resources/templates
-npm install
 npm run dev
 ```
 *Web App URL:* `http://localhost:3000`

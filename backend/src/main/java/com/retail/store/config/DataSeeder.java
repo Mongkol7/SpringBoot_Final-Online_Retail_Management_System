@@ -177,12 +177,19 @@ public class DataSeeder implements CommandLineRunner {
                     .retailPrice(retailPrice)
                     .category(category)
                     .minStockThreshold(minStock)
-                    .isPerishable(isPerishable)
+                    .isPerishable(true)
                     .isDeleted(false)
                     .build();
             productRepository.save(prod);
             log.info("[DataSeeder] Inserted missing product: {} (SKU: {})", name, sku);
         } else {
+            productRepository.findBySkuAndIsDeletedFalse(sku).ifPresent(p -> {
+                if (!Boolean.TRUE.equals(p.getIsPerishable())) {
+                    p.setIsPerishable(true);
+                    productRepository.save(p);
+                    log.info("[DataSeeder] Updated product {} to perishable (FEFO)", sku);
+                }
+            });
             log.debug("[DataSeeder] Product already exists in DB, skipping override: {}", sku);
         }
     }
@@ -198,10 +205,16 @@ public class DataSeeder implements CommandLineRunner {
         seedBatchIfNotExists("BATCH-CHEDAR-01", "SKU-CHEDDAR-AGED", "Verdant BioFarm Organics", 40, 40, LocalDate.parse("2027-02-18"));
         seedBatchIfNotExists("BATCH-ALMMLK-01", "SKU-ALMOND-MILK", "Verdant BioFarm Organics", 45, 45, LocalDate.parse("2027-01-19"));
         seedBatchIfNotExists("BATCH-GRKYGT-01", "SKU-YOGURT-GREEK", "Verdant BioFarm Organics", 40, 40, LocalDate.parse("2026-11-15"));
+        seedBatchIfNotExists("BAT-GRKYGT-FRESH-02", "SKU-YOGURT-GREEK", "Verdant BioFarm Organics", 60, 60, LocalDate.parse("2027-05-15"));
         seedBatchIfNotExists("BATCH-BFFJRK-01", "SKU-JERKY-BEEF", "Verdant BioFarm Organics", 50, 50, LocalDate.parse("2027-08-17"));
         seedBatchIfNotExists("BATCH-ROSNUT-01", "SKU-NUTS-ROASTED", "Verdant BioFarm Organics", 65, 65, LocalDate.parse("2027-10-21"));
         seedBatchIfNotExists("BATCH-GRANOLA-01", "SKU-GRANOLA-BERRY", "Golden Crust Artisan Bakery", 55, 55, LocalDate.parse("2027-07-18"));
         seedBatchIfNotExists("BATCH-GRNSMTH-01", "SKU-GREEN-SMOOTHIE", "Pacific Heritage Farms", 35, 35, LocalDate.parse("2026-11-11"));
+        seedBatchIfNotExists("BAT-GRNSMTH-FRESH-02", "SKU-GREEN-SMOOTHIE", "Pacific Heritage Farms", 50, 50, LocalDate.parse("2027-04-10"));
+        seedBatchIfNotExists("BAT-BLUEBR-FRESH-02", "SKU-BERRIES-BLUE", "Pacific Heritage Farms", 60, 60, LocalDate.parse("2027-03-25"));
+        seedBatchIfNotExists("BAT-CRSALM-FRESH-03", "SKU-CROISSANT-ALM", "Golden Crust Artisan Bakery", 50, 50, LocalDate.parse("2027-06-20"));
+        seedBatchIfNotExists("BAT-SOURDG-FRESH-02", "SKU-SOURDOUGH-RUST", "Golden Crust Artisan Bakery", 50, 50, LocalDate.parse("2027-05-10"));
+        seedBatchIfNotExists("BAT-BAGEL-FRESH-02", "SKU-BAGEL-EVERY", "Golden Crust Artisan Bakery", 50, 50, LocalDate.parse("2027-04-20"));
         seedBatchIfNotExists("BATCH-COCOH2O-01", "SKU-COCO-WATER", "Apex Global Beverage Corp", 90, 90, LocalDate.parse("2027-10-21"));
         seedBatchIfNotExists("BATCH-ERLGRY-01", "SKU-TEA-EARLGREY", "Apex Global Beverage Corp", 40, 40, LocalDate.parse("2028-03-04"));
         seedBatchIfNotExists("BATCH-KOMBCH-01", "SKU-KOMBUCHA-GINGER", "Apex Global Beverage Corp", 70, 70, LocalDate.parse("2027-04-19"));

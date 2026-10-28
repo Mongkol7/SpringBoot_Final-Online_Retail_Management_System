@@ -16,9 +16,13 @@ import com.retail.store.exception.InsufficientCashTenderedException;
 import com.retail.store.exception.InsufficientStockException;
 import com.retail.store.exception.ResourceNotFoundException;
 import com.retail.store.exception.UnauthorizedRoleException;
+import com.retail.store.entity.OrderItemBatchFulfillment;
+import com.retail.store.entity.ProductBatch;
+import com.retail.store.repository.OrderItemBatchFulfillmentRepository;
 import com.retail.store.repository.OrderItemRepository;
 import com.retail.store.repository.OrderRepository;
 import com.retail.store.repository.PosShiftRepository;
+import com.retail.store.repository.ProductBatchRepository;
 import com.retail.store.repository.ProductRepository;
 import com.retail.store.repository.UserRepository;
 import com.retail.store.security.jwt.JwtTokenProvider;
@@ -27,6 +31,7 @@ import com.retail.store.service.BatchAllocationService;
 import com.retail.store.service.CashierService;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -71,7 +76,9 @@ public class CashierServiceImpl implements CashierService {
     private final ProductRepository productRepository;
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
+    private final OrderItemBatchFulfillmentRepository orderItemBatchFulfillmentRepository;
     private final PosShiftRepository posShiftRepository;
+    private final ProductBatchRepository productBatchRepository;
     private final BatchAllocationService batchAllocationService;
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
@@ -80,7 +87,9 @@ public class CashierServiceImpl implements CashierService {
                               ProductRepository productRepository,
                               OrderRepository orderRepository,
                               OrderItemRepository orderItemRepository,
+                              OrderItemBatchFulfillmentRepository orderItemBatchFulfillmentRepository,
                               PosShiftRepository posShiftRepository,
+                              ProductBatchRepository productBatchRepository,
                               BatchAllocationService batchAllocationService,
                               AuthenticationManager authenticationManager,
                               JwtTokenProvider tokenProvider) {
@@ -88,7 +97,9 @@ public class CashierServiceImpl implements CashierService {
         this.productRepository = productRepository;
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
+        this.orderItemBatchFulfillmentRepository = orderItemBatchFulfillmentRepository;
         this.posShiftRepository = posShiftRepository;
+        this.productBatchRepository = productBatchRepository;
         this.batchAllocationService = batchAllocationService;
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
@@ -137,16 +148,9 @@ public class CashierServiceImpl implements CashierService {
                 .filter(u -> Boolean.TRUE.equals(u.getIsActive()))
                 .filter(u -> {
                     String role = u.getRole() != null ? u.getRole().getName() : "";
-                    return "CASHIER".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role);
+                    return "CASHIER".equalsIgnoreCase(role);
                 })
-                .sorted((a, b) -> {
-                    String roleA = a.getRole() != null ? a.getRole().getName() : "";
-                    String roleB = b.getRole() != null ? b.getRole().getName() : "";
-                    boolean aIsCashier = "CASHIER".equalsIgnoreCase(roleA);
-                    boolean bIsCashier = "CASHIER".equalsIgnoreCase(roleB);
-                    if (aIsCashier != bIsCashier) return aIsCashier ? -1 : 1;
-                    return a.getId().compareTo(b.getId());
-                })
+                .sorted((a, b) -> a.getId().compareTo(b.getId()))
                 .toList();
 
         String[] colors = {"#3B82F6", "#10B981", "#8B5CF6", "#F59E0B", "#EC4899", "#06B6D4"};
@@ -161,7 +165,8 @@ public class CashierServiceImpl implements CashierService {
                     u.getEmail(),
                     u.getRole() != null ? u.getRole().getName() : "CASHIER",
                     color,
-                    u.getPosPin() != null && !u.getPosPin().isBlank()
+                    u.getPosPin() != null && !u.getPosPin().isBlank(),
+                    u.getAvatarUrl()
             ));
         }
         return result;
@@ -211,7 +216,11 @@ public class CashierServiceImpl implements CashierService {
                 user.getEmail(),
                 user.getFullName(),
                 roleName,
-                user.getCustomerType()
+                user.getCustomerType(),
+                user.getAvatarUrl(),
+                user.getPhone(),
+                user.getCompanyName(),
+                user.getAddresses()
         );
     }
 
@@ -244,7 +253,7 @@ public class CashierServiceImpl implements CashierService {
             customerUser = userRepository.findById(customerId).orElse(null);
         }
 
-        record LineItemCalc(Product product, int quantity, BigDecimal unitPrice, BigDecimal lineSubtotal) {}
+        record LineItemCalc(Product product, int quantity, BigDecimal unitPrice, BigDecimal lineSubtotal, String batchPreference) {}
         List<LineItemCalc> lineCalculations = new ArrayList<>();
         BigDecimal subtotal = BigDecimal.ZERO;
 
@@ -263,13 +272,17 @@ public class CashierServiceImpl implements CashierService {
                 );
             }
 
-            // CRITICAL BUSINESS RULE: Strictly enforce RETAIL price. No wholesale allowed at POS walk-in.
+            // CRITICAL BUSINESS RULE: Strictly enforce RETAIL price. No wholesale or bulk >=10 discount allowed at POS walk-in.
             BigDecimal unitPrice = product.getRetailPrice();
+            // Clearance option: 25% discount for near-expiry perishable products (<1 month) if customer/cashier chose clearance
+            if ("CLEARANCE".equalsIgnoreCase(cartItem.batchPreference()) && Boolean.TRUE.equals(product.getIsPerishable())) {
+                unitPrice = product.getRetailPrice().multiply(new BigDecimal("0.75")).setScale(2, RoundingMode.HALF_UP);
+            }
             BigDecimal lineSubtotal = unitPrice.multiply(BigDecimal.valueOf(cartItem.quantity()))
                     .setScale(2, RoundingMode.HALF_UP);
 
             subtotal = subtotal.add(lineSubtotal);
-            lineCalculations.add(new LineItemCalc(product, cartItem.quantity(), unitPrice, lineSubtotal));
+            lineCalculations.add(new LineItemCalc(product, cartItem.quantity(), unitPrice, lineSubtotal, cartItem.batchPreference()));
         }
 
         // 7% VAT standard retail tax
@@ -284,6 +297,14 @@ public class CashierServiceImpl implements CashierService {
                 throw new InsufficientCashTenderedException(grandTotal, finalAmountTendered != null ? finalAmountTendered : BigDecimal.ZERO);
             }
             changeDue = finalAmountTendered.subtract(grandTotal).setScale(2, RoundingMode.HALF_UP);
+
+            // PHYSICAL CASH DRAWER CHANGE VALIDATION:
+            // Available change float in drawer = opening float + accumulated cash earned from sales in this shift
+            BigDecimal availableDrawerCash = activeShift.getOpeningFloat().add(activeShift.getSystemCashTotal());
+            if (changeDue.compareTo(availableDrawerCash) > 0) {
+                throw new BadRequestException("Cannot complete cash sale: Insufficient cash in drawer to dispense change. Drawer cash available for change: $" 
+                        + availableDrawerCash.setScale(2, RoundingMode.HALF_UP) + ", but change due is $" + changeDue + ".");
+            }
         } else {
             finalAmountTendered = grandTotal;
         }
@@ -323,12 +344,14 @@ public class CashierServiceImpl implements CashierService {
             }
 
             // Trigger FIFO / FEFO inventory allocation and deduction
+            boolean preferFresh = !"CLEARANCE".equalsIgnoreCase(calc.batchPreference());
             batchAllocationService.allocateAndDeductBatches(
                     savedOrderItem.getId(),
                     calc.product().getId(),
                     calc.quantity(),
                     cashierUserId,
-                    TransactionType.POS_SALE.name()
+                    TransactionType.POS_SALE.name(),
+                    preferFresh
             );
         }
 
@@ -354,24 +377,72 @@ public class CashierServiceImpl implements CashierService {
         }
 
         List<ReceiptItemDto> receiptItems = items.stream()
-                .map(i -> new ReceiptItemDto(
-                        i.getProduct().getName(),
-                        i.getQuantity(),
-                        i.getUnitPrice(),
-                        i.getSubtotal()
-                ))
+                .map(i -> {
+                    String expiryInfo = null;
+                    String expiryStatus;
+                    boolean isClearance = false;
+
+                    if (i.getProduct() != null && Boolean.TRUE.equals(i.getProduct().getIsPerishable())) {
+                        LocalDate earliestExp = null;
+                        List<OrderItemBatchFulfillment> fulfillments = orderItemBatchFulfillmentRepository.findByOrderItem_Id(i.getId());
+                        for (OrderItemBatchFulfillment f : fulfillments) {
+                            if (f.getBatch() != null && f.getBatch().getExpiryDate() != null) {
+                                if (earliestExp == null || f.getBatch().getExpiryDate().isBefore(earliestExp)) {
+                                    earliestExp = f.getBatch().getExpiryDate();
+                                }
+                            }
+                        }
+                        if (earliestExp == null) {
+                            var batchOpt = batchAllocationService.getCurrentBatchInfo(i.getProduct().getId());
+                            if (batchOpt.isPresent()) {
+                                earliestExp = batchOpt.get().expiryDate();
+                            }
+                        }
+
+                        BigDecimal retail = i.getProduct().getRetailPrice();
+                        isClearance = (retail != null && i.getUnitPrice() != null && i.getUnitPrice().compareTo(retail) < 0);
+
+                        if (earliestExp != null) {
+                            expiryInfo = earliestExp.toString();
+                        }
+
+                        LocalDate today = LocalDate.now();
+                        if (isClearance) {
+                            expiryStatus = "<1 MO EXPIRING (25% CLEARANCE)";
+                        } else if (earliestExp != null && earliestExp.isBefore(today)) {
+                            expiryStatus = "EXPIRED BATCH [EXP: " + earliestExp + "]";
+                        } else {
+                            expiryStatus = "NORMAL EXPIRY (GUARANTEED FRESH)";
+                        }
+                    } else {
+                        expiryStatus = "NORMAL EXPIRY (NON-PERISHABLE)";
+                    }
+
+                    return new ReceiptItemDto(
+                            i.getProduct().getName(),
+                            i.getQuantity(),
+                            i.getUnitPrice(),
+                            i.getSubtotal(),
+                            isClearance ? "CLEARANCE" : "FRESH",
+                            expiryInfo,
+                            isClearance,
+                            expiryStatus
+                    );
+                })
                 .toList();
 
-        String cashierName = order.getCashier() != null ? order.getCashier().getFullName() : "POS Staff";
+        String cashierName = order.getCashier() != null
+                ? order.getCashier().getFullName() + " (ID #" + order.getCashier().getId() + ")"
+                : "POS Staff";
         String formattedDate = order.getCreatedAt() != null
-                ? order.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
-                : LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+                ? order.getCreatedAt().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy, hh:mm:ss a", java.util.Locale.ENGLISH))
+                : LocalDateTime.now().format(DateTimeFormatter.ofPattern("EEE, dd MMM yyyy, hh:mm:ss a", java.util.Locale.ENGLISH));
 
         String barcodeData = "RCP*" + order.getOrderNumber() + "*V1";
 
         return new ThermalReceiptDto(
                 "ONLINE RETAIL POS - STORE #01",
-                "TERM-POS-01",
+                "POS-TERM-01",
                 cashierName,
                 order.getOrderNumber(),
                 formattedDate,
@@ -446,9 +517,62 @@ public class CashierServiceImpl implements CashierService {
         Product product = productRepository.findBySkuAndIsDeletedFalse(sku)
                 .orElseThrow(() -> new ResourceNotFoundException("No active product found with barcode / SKU: " + sku));
 
+        return buildPosProductScanDto(product);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PosProductScanDto> getAllProducts() {
+        return productRepository.findByIsDeletedFalseOrderByNameAsc().stream()
+                .map(this::buildPosProductScanDto)
+                .toList();
+    }
+
+    private PosProductScanDto buildPosProductScanDto(Product product) {
         int availableStock = batchAllocationService.getAvailableStock(product.getId());
         BatchAllocationService.CurrentBatchInfoDto batchInfo =
                 batchAllocationService.getCurrentBatchInfo(product.getId()).orElse(null);
+
+        Integer nearExpiryQuantity = 0;
+        BigDecimal clearancePrice = null;
+        Integer freshStockQuantity = availableStock;
+        LocalDate freshBatchExpiryDate = null;
+        String freshBatchCode = null;
+        List<PosProductBatchDto> batchDtos = new ArrayList<>();
+
+        if (Boolean.TRUE.equals(product.getIsPerishable())) {
+            LocalDate today = LocalDate.now();
+            LocalDate thirtyDaysOut = today.plusDays(30);
+
+            List<ProductBatch> activeBatches = productBatchRepository.findActiveBatchesFEFO(product.getId(), today);
+
+            for (ProductBatch b : activeBatches) {
+                if (b.getCurrentQuantity() <= 0) continue;
+                boolean isNearExpiry = b.getExpiryDate() != null && !b.getExpiryDate().isAfter(thirtyDaysOut);
+                long daysUntilExpiry = b.getExpiryDate() != null ? java.time.temporal.ChronoUnit.DAYS.between(today, b.getExpiryDate()) : 999;
+
+                batchDtos.add(new PosProductBatchDto(
+                        b.getId(),
+                        b.getBatchCode(),
+                        b.getExpiryDate(),
+                        b.getCurrentQuantity(),
+                        isNearExpiry,
+                        daysUntilExpiry
+                ));
+
+                if (isNearExpiry) {
+                    nearExpiryQuantity += b.getCurrentQuantity();
+                } else if (freshBatchExpiryDate == null) {
+                    freshBatchExpiryDate = b.getExpiryDate();
+                    freshBatchCode = b.getBatchCode();
+                }
+            }
+
+            freshStockQuantity = Math.max(0, availableStock - nearExpiryQuantity);
+            if (nearExpiryQuantity > 0) {
+                clearancePrice = product.getRetailPrice().multiply(new BigDecimal("0.75")).setScale(2, RoundingMode.HALF_UP);
+            }
+        }
 
         return new PosProductScanDto(
                 product.getId(),
@@ -464,35 +588,14 @@ public class CashierServiceImpl implements CashierService {
                 product.getCostPrice(),
                 product.getMinStockThreshold(),
                 batchInfo != null ? batchInfo.expiryDate() : null,
-                batchInfo != null ? batchInfo.batchCode() : null
+                batchInfo != null ? batchInfo.batchCode() : null,
+                nearExpiryQuantity,
+                clearancePrice,
+                freshStockQuantity,
+                freshBatchExpiryDate,
+                freshBatchCode,
+                batchDtos
         );
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<PosProductScanDto> getAllProducts() {
-        return productRepository.findByIsDeletedFalseOrderByNameAsc().stream()
-                .map(product -> {
-                    BatchAllocationService.CurrentBatchInfoDto batchInfo =
-                            batchAllocationService.getCurrentBatchInfo(product.getId()).orElse(null);
-                    return new PosProductScanDto(
-                            product.getId(),
-                            product.getSku(),
-                            product.getName(),
-                            product.getImageUrl(),
-                            product.getRetailPrice(),
-                            batchAllocationService.getAvailableStock(product.getId()),
-                            Boolean.TRUE.equals(product.getIsPerishable()),
-                            product.getDescription(),
-                            product.getCategory() != null ? product.getCategory().getName() : null,
-                            product.getWholesalePrice(),
-                            product.getCostPrice(),
-                            product.getMinStockThreshold(),
-                            batchInfo != null ? batchInfo.expiryDate() : null,
-                            batchInfo != null ? batchInfo.batchCode() : null
-                    );
-                })
-                .toList();
     }
 
     @Override
@@ -586,5 +689,13 @@ public class CashierServiceImpl implements CashierService {
                 shift.getStatus(),
                 shift.getNotes()
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PosShiftDto> getAllShifts() {
+        return posShiftRepository.findAll(Sort.by(Sort.Direction.DESC, "openedAt")).stream()
+                .map(this::toShiftDto)
+                .toList();
     }
 }

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { PosProductScan, PosShift, ThermalReceipt, PosSaleSummary } from '../types/schema';
+import { PosProductScan, PosShift, ThermalReceipt, PosSaleSummary, PosProductBatchDto } from '../types/schema';
 
 const API_BASE = '/api/v1/pos';
 
@@ -10,6 +10,9 @@ export interface PosCartItem {
   retailPrice: number;
   quantity: number;
   subtotal: number;
+  batchPreference?: 'FRESH' | 'CLEARANCE';
+  isClearance?: boolean;
+  expiryDate?: string;
 }
 
 export interface CheckoutResponse {
@@ -34,14 +37,13 @@ export interface CashierStaff {
   role: string;
   avatarColor: string;
   hasPin?: boolean;
+  avatarUrl?: string;
 }
 
 export const DEFAULT_CASHIER_STAFF: CashierStaff[] = [
-  { id: 1, fullName: 'POS Lead Cashier', email: 'cashier@retailstore.com', role: 'CASHIER', avatarColor: '#3B82F6', hasPin: true },
-  { id: 5, fullName: 'Mono', email: 'mono@retailstore', role: 'ADMIN', avatarColor: '#10B981', hasPin: true },
+  { id: 1, fullName: 'Dara Sok (Lead Cashier)', email: 'cashier@retailstore.com', role: 'CASHIER', avatarColor: '#3B82F6', hasPin: true },
   { id: 18, fullName: 'Sarah Jenkins (Cashier)', email: 'sarah.pos@retailstore.com', role: 'CASHIER', avatarColor: '#8B5CF6', hasPin: true },
-  { id: 19, fullName: 'David Miller (Cashier)', email: 'david.pos@retailstore.com', role: 'CASHIER', avatarColor: '#F59E0B', hasPin: true },
-  { id: 2, fullName: 'System Administrator', email: 'admin@retailstore.com', role: 'ADMIN', avatarColor: '#EC4899', hasPin: true }
+  { id: 19, fullName: 'David Miller (Cashier)', email: 'david.pos@retailstore.com', role: 'CASHIER', avatarColor: '#F59E0B', hasPin: true }
 ];
 
 // Pre-seeded products with high-resolution imagery for instant POS interaction
@@ -184,9 +186,13 @@ export const DEFAULT_POS_PRODUCTS: PosProductScan[] = [
     retailPrice: 3.80,
     wholesalePrice: 2.40,
     costPrice: 1.50,
-    availableStock: 40,
+    availableStock: 62,
     minStockThreshold: 10,
     isPerishable: true,
+    nearExpiryQuantity: 12,
+    freshStockQuantity: 50,
+    freshBatchCode: 'BAT-CRSALM-FRESH-03',
+    freshBatchExpiryDate: '2027-06-20',
     currentBatchCode: 'BATCH-CRSALM-01',
     currentBatchExpiryDate: '2026-11-20'
   },
@@ -248,9 +254,13 @@ export const DEFAULT_POS_PRODUCTS: PosProductScan[] = [
     retailPrice: 5.80,
     wholesalePrice: 3.90,
     costPrice: 2.60,
-    availableStock: 45,
+    availableStock: 105,
     minStockThreshold: 10,
     isPerishable: true,
+    nearExpiryQuantity: 45,
+    freshStockQuantity: 60,
+    freshBatchCode: 'BAT-BLUEBR-FRESH-02',
+    freshBatchExpiryDate: '2027-03-25',
     currentBatchCode: 'BATCH-BLUEBR-01',
     currentBatchExpiryDate: '2026-10-31'
   },
@@ -360,9 +370,13 @@ export const DEFAULT_POS_PRODUCTS: PosProductScan[] = [
     retailPrice: 5.75,
     wholesalePrice: 4.00,
     costPrice: 2.80,
-    availableStock: 35,
+    availableStock: 85,
     minStockThreshold: 10,
     isPerishable: true,
+    nearExpiryQuantity: 35,
+    freshStockQuantity: 50,
+    freshBatchCode: 'BAT-GRNSMTH-FRESH-02',
+    freshBatchExpiryDate: '2027-04-10',
     currentBatchCode: 'BATCH-GRNSMTH-01',
     currentBatchExpiryDate: '2026-11-11'
   },
@@ -424,9 +438,13 @@ export const DEFAULT_POS_PRODUCTS: PosProductScan[] = [
     retailPrice: 4.80,
     wholesalePrice: 3.40,
     costPrice: 2.30,
-    availableStock: 40,
+    availableStock: 90,
     minStockThreshold: 12,
     isPerishable: true,
+    nearExpiryQuantity: 30,
+    freshStockQuantity: 60,
+    freshBatchCode: 'BAT-GRKYGT-FRESH-02',
+    freshBatchExpiryDate: '2027-05-15',
     currentBatchCode: 'BATCH-GRKYGT-01',
     currentBatchExpiryDate: '2026-11-15'
   },
@@ -595,44 +613,151 @@ async function getAuthHeaders(explicitCashierId?: number): Promise<{ headers: Re
   };
 }
 
+export const enrichProductWithBatches = (p: PosProductScan): PosProductScan => {
+  if (p.batches && p.batches.length > 0) {
+    const near = p.batches.filter((b) => b.isNearExpiry).reduce((sum, b) => sum + b.currentQuantity, 0);
+    const fresh = p.batches.filter((b) => !b.isNearExpiry).reduce((sum, b) => sum + b.currentQuantity, 0);
+    return {
+      ...p,
+      nearExpiryQuantity: p.nearExpiryQuantity !== undefined ? p.nearExpiryQuantity : near,
+      freshStockQuantity: p.freshStockQuantity !== undefined ? p.freshStockQuantity : fresh,
+      clearancePrice: p.clearancePrice || (Math.round(p.retailPrice * 0.75 * 100) / 100)
+    };
+  }
+
+  const now = new Date('2026-10-28T00:00:00');
+  const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  if (p.isPerishable) {
+    const nearQty = p.nearExpiryQuantity !== undefined ? p.nearExpiryQuantity : Math.min(10, Math.max(4, Math.floor(p.availableStock * 0.3)));
+    const freshQty = p.freshStockQuantity !== undefined ? p.freshStockQuantity : Math.max(0, p.availableStock - nearQty);
+    const clearancePrice = p.clearancePrice ?? Math.round(p.retailPrice * 0.75 * 100) / 100;
+
+    const nearExpiryDate = '2026-11-18'; // 21 days from now (<1 month)
+    const freshExpiryDate = (p.currentBatchExpiryDate && new Date(p.currentBatchExpiryDate).getTime() > thirtyDaysLater.getTime())
+      ? p.currentBatchExpiryDate
+      : '2027-08-20'; // >1 month
+
+    const batches: PosProductBatchDto[] = [
+      {
+        batchId: p.id * 100 + 1,
+        batchCode: `BATCH-${p.sku}-CL01`,
+        expiryDate: nearExpiryDate,
+        currentQuantity: nearQty,
+        isNearExpiry: true,
+        daysUntilExpiry: 21
+      },
+      {
+        batchId: p.id * 100 + 2,
+        batchCode: p.currentBatchCode || `BATCH-${p.sku}-FR02`,
+        expiryDate: freshExpiryDate,
+        currentQuantity: freshQty,
+        isNearExpiry: false,
+        daysUntilExpiry: 296
+      }
+    ];
+
+    return {
+      ...p,
+      nearExpiryQuantity: nearQty,
+      freshStockQuantity: freshQty,
+      clearancePrice,
+      currentBatchCode: `BATCH-${p.sku}-CL01`,
+      currentBatchExpiryDate: nearExpiryDate,
+      freshBatchCode: p.currentBatchCode || `BATCH-${p.sku}-FR02`,
+      freshBatchExpiryDate: freshExpiryDate,
+      batches
+    };
+  } else {
+    // Non-perishable shelf stable (>1 month)
+    const shelfExpiry = p.currentBatchExpiryDate || '2028-08-15';
+    const batches: PosProductBatchDto[] = [
+      {
+        batchId: p.id * 100 + 1,
+        batchCode: p.currentBatchCode || `BATCH-${p.sku}-01`,
+        expiryDate: shelfExpiry,
+        currentQuantity: p.availableStock,
+        isNearExpiry: false,
+        daysUntilExpiry: 656
+      }
+    ];
+    return {
+      ...p,
+      nearExpiryQuantity: 0,
+      freshStockQuantity: p.availableStock,
+      clearancePrice: p.retailPrice,
+      freshBatchCode: p.currentBatchCode || `BATCH-${p.sku}-01`,
+      freshBatchExpiryDate: shelfExpiry,
+      batches
+    };
+  }
+};
+
 export const posService = {
   async getCashierStaff(): Promise<CashierStaff[]> {
     try {
       const { headers } = await getAuthHeaders();
       const res = await axios.get<CashierStaff[]>(`${API_BASE}/cashiers`, { headers });
       if (res.data && res.data.length > 0) {
-        return res.data;
+        // Strict filter: show ONLY and ALL cashier accounts (exclude ADMIN and others)
+        return res.data.filter((s) => !s.role || s.role.toUpperCase() === 'CASHIER');
       }
-      return DEFAULT_CASHIER_STAFF;
+      return DEFAULT_CASHIER_STAFF.filter((s) => !s.role || s.role.toUpperCase() === 'CASHIER');
     } catch {
-      return DEFAULT_CASHIER_STAFF;
+      return DEFAULT_CASHIER_STAFF.filter((s) => !s.role || s.role.toUpperCase() === 'CASHIER');
     }
   },
 
   async loginWithPin(cashierId: number, pin: string): Promise<CashierStaff> {
+    const syncProfile = (staff: CashierStaff, avatarOverride?: string) => {
+      localStorage.setItem('active_cashier_id', String(staff.id));
+      localStorage.setItem('active_cashier_name', staff.fullName);
+      localStorage.setItem('active_cashier_email', staff.email);
+      localStorage.setItem('active_cashier_role', staff.role);
+      localStorage.setItem('active_cashier_avatar_color', staff.avatarColor);
+      localStorage.setItem('active_cashier', JSON.stringify(staff));
+
+      // Sync user profile across the application
+      const avatar = avatarOverride || staff.avatarUrl || localStorage.getItem(`aura_avatar_${staff.id}`) || '';
+      if (avatar) {
+        localStorage.setItem(`aura_avatar_${staff.id}`, avatar);
+        localStorage.setItem('aura_avatar_cashier', avatar);
+        localStorage.setItem('aura_avatar_current', avatar);
+        localStorage.setItem('active_cashier_avatar_url', avatar);
+      }
+      const currentUser = {
+        id: staff.id,
+        userId: staff.id,
+        email: staff.email,
+        fullName: staff.fullName,
+        role: 'CASHIER',
+        profileImageUrl: avatar || null
+      };
+      localStorage.setItem('auth_current_user', JSON.stringify(currentUser));
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('auth_user_changed', { detail: currentUser }));
+    };
+
     try {
       const { headers } = await getAuthHeaders();
       const res = await axios.post(`${API_BASE}/pin-login`, { cashierId, pin }, { headers });
       const auth = res.data;
       const staffList = await this.getCashierStaff();
-      const staff = staffList.find(s => s.id === cashierId) || {
+      const found = staffList.find(s => s.id === cashierId);
+      const staff: CashierStaff = {
         id: auth.userId || cashierId,
-        fullName: auth.fullName || 'Cashier Staff',
-        email: auth.email || '',
-        role: auth.role || 'CASHIER',
-        avatarColor: '#3B82F6',
+        fullName: auth.fullName || found?.fullName || 'Cashier Staff',
+        email: auth.email || found?.email || '',
+        role: auth.role || found?.role || 'CASHIER',
+        avatarColor: found?.avatarColor || '#3B82F6',
+        avatarUrl: auth.avatarUrl || auth.profileImageUrl || found?.avatarUrl || '',
         hasPin: true
       };
 
       if (auth.token) {
         localStorage.setItem('cashier_jwt', auth.token);
       }
-      localStorage.setItem('active_cashier_id', String(staff.id));
-      localStorage.setItem('active_cashier_name', staff.fullName);
-      localStorage.setItem('active_cashier_email', staff.email);
-      localStorage.setItem('active_cashier_role', staff.role);
-      localStorage.setItem('active_cashier_avatar_color', staff.avatarColor);
-
+      syncProfile(staff, staff.avatarUrl);
       return staff;
     } catch (err: any) {
       // Local fallback for test resilience
@@ -645,11 +770,7 @@ export const posService = {
         (staff?.id === 2 && (pin === '9999' || pin === '1234'));
 
       if (isDefaultMatch && staff) {
-        localStorage.setItem('active_cashier_id', String(staff.id));
-        localStorage.setItem('active_cashier_name', staff.fullName);
-        localStorage.setItem('active_cashier_email', staff.email);
-        localStorage.setItem('active_cashier_role', staff.role);
-        localStorage.setItem('active_cashier_avatar_color', staff.avatarColor);
+        syncProfile(staff);
         return staff;
       }
       throw new Error(extractErrorMessage(err));
@@ -659,12 +780,14 @@ export const posService = {
   getActiveCashier(): CashierStaff | null {
     const idStr = localStorage.getItem('active_cashier_id');
     if (!idStr) return null;
+    const id = parseInt(idStr, 10);
     return {
-      id: parseInt(idStr, 10),
+      id,
       fullName: localStorage.getItem('active_cashier_name') || 'Cashier Staff',
       email: localStorage.getItem('active_cashier_email') || '',
       role: localStorage.getItem('active_cashier_role') || 'CASHIER',
       avatarColor: localStorage.getItem('active_cashier_avatar_color') || '#3B82F6',
+      avatarUrl: localStorage.getItem('active_cashier_avatar_url') || localStorage.getItem(`aura_avatar_${id}`) || undefined,
       hasPin: true
     };
   },
@@ -675,6 +798,8 @@ export const posService = {
     localStorage.removeItem('active_cashier_email');
     localStorage.removeItem('active_cashier_role');
     localStorage.removeItem('active_cashier_avatar_color');
+    localStorage.removeItem('active_cashier_avatar_url');
+    localStorage.removeItem('active_cashier');
   },
 
   async getProducts(): Promise<PosProductScan[]> {
@@ -684,7 +809,7 @@ export const posService = {
       if (res.data && res.data.length > 0) {
         return res.data.map((p) => {
           const fallback = DEFAULT_POS_PRODUCTS.find((d) => d.id === p.id || d.sku === p.sku);
-          return {
+          const merged: PosProductScan = {
             ...p,
             currentBatchExpiryDate: p.currentBatchExpiryDate || fallback?.currentBatchExpiryDate || '2027-10-19',
             currentBatchCode: p.currentBatchCode || fallback?.currentBatchCode || `BATCH-${p.sku}-01`,
@@ -692,13 +817,20 @@ export const posService = {
             categoryName: p.categoryName || fallback?.categoryName,
             wholesalePrice: p.wholesalePrice ?? fallback?.wholesalePrice,
             costPrice: p.costPrice ?? fallback?.costPrice,
-            minStockThreshold: p.minStockThreshold ?? fallback?.minStockThreshold ?? 10
+            minStockThreshold: p.minStockThreshold ?? fallback?.minStockThreshold ?? 10,
+            nearExpiryQuantity: p.nearExpiryQuantity ?? fallback?.nearExpiryQuantity,
+            clearancePrice: p.clearancePrice ?? fallback?.clearancePrice,
+            freshStockQuantity: p.freshStockQuantity ?? fallback?.freshStockQuantity,
+            freshBatchExpiryDate: p.freshBatchExpiryDate || fallback?.freshBatchExpiryDate,
+            freshBatchCode: p.freshBatchCode || fallback?.freshBatchCode,
+            batches: p.batches && p.batches.length > 0 ? p.batches : fallback?.batches
           };
+          return enrichProductWithBatches(merged);
         });
       }
-      return DEFAULT_POS_PRODUCTS;
+      return DEFAULT_POS_PRODUCTS.map(enrichProductWithBatches);
     } catch {
-      return DEFAULT_POS_PRODUCTS;
+      return DEFAULT_POS_PRODUCTS.map(enrichProductWithBatches);
     }
   },
 
@@ -775,7 +907,7 @@ export const posService = {
   },
 
   async checkoutWalkIn(
-    items: { productId: number; quantity: number }[],
+    items: { productId: number; quantity: number; batchPreference?: string }[],
     amountTendered: number,
     paymentMethod: 'CASH' | 'CARD' | 'BANK_TRANSFER',
     explicitCashierId?: number
@@ -786,7 +918,11 @@ export const posService = {
         `${API_BASE}/checkout`,
         {
           cashierId,
-          items,
+          items: items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            batchPreference: i.batchPreference || 'FRESH'
+          })),
           amountTendered,
           paymentMethod
         },
@@ -795,6 +931,17 @@ export const posService = {
       return res.data;
     } catch (err: any) {
       throw new Error(extractErrorMessage(err));
+    }
+  },
+
+  async getAllShifts(): Promise<PosShift[]> {
+    try {
+      const { headers } = await getAuthHeaders();
+      const res = await axios.get<PosShift[]>(`${API_BASE}/shifts`, { headers });
+      return res.data || [];
+    } catch (err: any) {
+      console.warn('Failed to fetch all shifts:', err);
+      return [];
     }
   },
 
@@ -824,12 +971,13 @@ export const posService = {
 
   async getSalesHistory(period: string = 'TODAY', cashierIdParam?: number): Promise<PosSaleSummary[]> {
     try {
-      const { headers, cashierId } = await getAuthHeaders();
+      const { headers } = await getAuthHeaders();
+      const params: Record<string, any> = { period };
+      if (cashierIdParam !== undefined && cashierIdParam !== null) {
+        params.cashierId = cashierIdParam;
+      }
       const res = await axios.get<PosSaleSummary[]>(`${API_BASE}/sales`, {
-        params: {
-          period,
-          cashierId: cashierIdParam || cashierId
-        },
+        params,
         headers
       });
       return res.data;

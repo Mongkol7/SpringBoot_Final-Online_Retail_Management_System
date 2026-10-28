@@ -33,7 +33,8 @@ public class CashierMapper {
                 auth.email(),
                 auth.fullName(),
                 auth.role(),
-                auth.customerType()
+                auth.customerType(),
+                auth.avatarUrl()
         );
     }
 
@@ -47,7 +48,8 @@ public class CashierMapper {
                 dto.email(),
                 dto.role(),
                 dto.avatarColor(),
-                dto.hasPin()
+                dto.hasPin(),
+                dto.avatarUrl()
         );
     }
 
@@ -116,7 +118,11 @@ public class CashierMapper {
                 dto.productName(),
                 dto.quantity(),
                 dto.unitPrice(),
-                dto.subtotal()
+                dto.subtotal(),
+                dto.batchPreference(),
+                dto.expiryDate(),
+                dto.isClearance(),
+                dto.expiryStatus()
         );
     }
 
@@ -189,25 +195,7 @@ public class CashierMapper {
     }
 
     public PosProductScanResponse toProductScanResponse(CashierService.PosProductScanDto dto) {
-        if (dto == null) {
-            return null;
-        }
-        return new PosProductScanResponse(
-                dto.id(),
-                dto.sku(),
-                dto.name(),
-                dto.imageUrl(),
-                dto.retailPrice(),
-                dto.availableStock(),
-                dto.isPerishable(),
-                dto.description(),
-                dto.categoryName(),
-                dto.wholesalePrice(),
-                dto.costPrice(),
-                dto.minStockThreshold(),
-                dto.currentBatchExpiryDate(),
-                dto.currentBatchCode()
-        );
+        return PosProductScanResponse.from(dto);
     }
 
     public PosProductScanResponse toProductScanResponse(Product product, int availableStock) {

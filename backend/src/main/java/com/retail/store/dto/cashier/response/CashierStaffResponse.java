@@ -6,5 +6,10 @@ public record CashierStaffResponse(
         String email,
         String role,
         String avatarColor,
-        boolean hasPin
-) {}
+        boolean hasPin,
+        String avatarUrl
+) {
+    public CashierStaffResponse(Long id, String fullName, String email, String role, String avatarColor, boolean hasPin) {
+        this(id, fullName, email, role, avatarColor, hasPin, null);
+    }
+}

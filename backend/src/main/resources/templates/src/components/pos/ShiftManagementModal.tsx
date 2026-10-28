@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PosShift } from '../../types/schema';
 import { X, DollarSign, Calculator, AlertTriangle, CheckCircle, ShieldCheck, Lock } from 'lucide-react';
 
@@ -22,11 +22,18 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
   onCloseShift
 }) => {
   const [openingFloat, setOpeningFloat] = useState<string>('100.00');
-  const [closingCash, setClosingCash] = useState<string>('250.00');
+  const [closingCash, setClosingCash] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
   const [lockRegisterAfter, setLockRegisterAfter] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeShift && isOpen) {
+      const exp = (activeShift.openingFloat || 0) + (activeShift.systemCashTotal || 0);
+      setClosingCash(exp.toFixed(2));
+    }
+  }, [activeShift, isOpen]);
 
   if (!isOpen) return null;
 
@@ -292,9 +299,27 @@ export const ShiftManagementModal: React.FC<ShiftManagementModalProps> = ({
 
             {/* Cashier Counted Cash */}
             <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>
-                Physical Cash Counted in Drawer ($)
-              </label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ fontSize: '12px', fontWeight: 600 }}>
+                  Physical Cash Counted in Drawer ($)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setClosingCash(expectedTotal.toFixed(2))}
+                  style={{
+                    fontSize: '11px',
+                    color: '#34D399',
+                    backgroundColor: 'rgba(52, 211, 153, 0.12)',
+                    border: '1px solid rgba(52, 211, 153, 0.25)',
+                    borderRadius: '6px',
+                    padding: '2px 8px',
+                    cursor: 'pointer',
+                    fontWeight: 600
+                  }}
+                >
+                  Exact Match (${expectedTotal.toFixed(2)})
+                </button>
+              </div>
               <div style={{ position: 'relative' }}>
                 <DollarSign
                   size={16}

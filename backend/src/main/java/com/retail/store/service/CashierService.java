@@ -36,14 +36,21 @@ public interface CashierService {
 
     List<PosSaleSummaryDto> getSalesHistory(Long cashierId, String period);
 
+    List<PosShiftDto> getAllShifts();
+
     record CashierStaffDto(
             Long id,
             String fullName,
             String email,
             String role,
             String avatarColor,
-            boolean hasPin
-    ) {}
+            boolean hasPin,
+            String avatarUrl
+    ) {
+        public CashierStaffDto(Long id, String fullName, String email, String role, String avatarColor, boolean hasPin) {
+            this(id, fullName, email, role, avatarColor, hasPin, null);
+        }
+    }
 
     record PosSaleItemDto(
             String productName,
@@ -69,7 +76,11 @@ public interface CashierService {
             List<PosSaleItemDto> items
     ) {}
 
-    record PosCartItemDto(Long productId, int quantity) {}
+    record PosCartItemDto(Long productId, int quantity, String batchPreference) {
+        public PosCartItemDto(Long productId, int quantity) {
+            this(productId, quantity, null);
+        }
+    }
 
     record PosCheckoutResult(
             Order order,
@@ -96,8 +107,16 @@ public interface CashierService {
             String productName,
             int quantity,
             BigDecimal unitPrice,
-            BigDecimal subtotal
-    ) {}
+            BigDecimal subtotal,
+            String batchPreference,
+            String expiryDate,
+            Boolean isClearance,
+            String expiryStatus
+    ) {
+        public ReceiptItemDto(String productName, int quantity, BigDecimal unitPrice, BigDecimal subtotal) {
+            this(productName, quantity, unitPrice, subtotal, null, null, false, null);
+        }
+    }
 
     record PosShiftDto(
             Long id,
@@ -114,6 +133,15 @@ public interface CashierService {
             String notes
     ) {}
 
+    record PosProductBatchDto(
+            Long batchId,
+            String batchCode,
+            java.time.LocalDate expiryDate,
+            int currentQuantity,
+            boolean isNearExpiry,
+            long daysUntilExpiry
+    ) {}
+
     record PosProductScanDto(
             Long id,
             String sku,
@@ -128,8 +156,35 @@ public interface CashierService {
             BigDecimal costPrice,
             Integer minStockThreshold,
             java.time.LocalDate currentBatchExpiryDate,
-            String currentBatchCode
+            String currentBatchCode,
+            Integer nearExpiryQuantity,
+            BigDecimal clearancePrice,
+            Integer freshStockQuantity,
+            java.time.LocalDate freshBatchExpiryDate,
+            String freshBatchCode,
+            List<PosProductBatchDto> batches
     ) {
+        public PosProductScanDto(
+                Long id,
+                String sku,
+                String name,
+                String imageUrl,
+                BigDecimal retailPrice,
+                int availableStock,
+                boolean isPerishable,
+                String description,
+                String categoryName,
+                BigDecimal wholesalePrice,
+                BigDecimal costPrice,
+                Integer minStockThreshold,
+                java.time.LocalDate currentBatchExpiryDate,
+                String currentBatchCode
+        ) {
+            this(id, sku, name, imageUrl, retailPrice, availableStock, isPerishable, description, categoryName,
+                 wholesalePrice, costPrice, minStockThreshold, currentBatchExpiryDate, currentBatchCode,
+                 0, null, availableStock, null, null, List.of());
+        }
+
         public PosProductScanDto(
                 Long id,
                 String sku,
